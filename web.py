@@ -3557,8 +3557,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       }}
       add("line", {{ x1: pad.left, y1: pad.top, x2: pad.left, y2: barY, stroke: chartColors.lineStrong, "stroke-width": "1" }});
       add("line", {{ x1: pad.left, y1: barY, x2: width - pad.right, y2: barY, stroke: chartColors.lineStrong, "stroke-width": "1" }});
-      add("text", {{ x: pad.left, y: 18, fill: chartColors.soft, "font-size": "12", "font-weight": "700" }}).textContent = "纵轴：累计流量 GB";
-
       const tickCount = Math.min(5, points.length);
       for (let i = 0; i < tickCount; i += 1) {{
         const index = tickCount === 1 ? 0 : Math.round(i * (points.length - 1) / (tickCount - 1));
