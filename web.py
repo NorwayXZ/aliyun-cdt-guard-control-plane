@@ -4560,48 +4560,6 @@ def render_saved_notification_channels(config: dict, state: dict) -> str:
             """
         )
 
-    webhook = config.get("webhook", {})
-    if webhook.get("url"):
-        cards.append(
-            f"""
-            <div class="saved-channel-card">
-              <div class="saved-channel-head">
-                <div class="saved-channel-icon">WH</div>
-                <div>
-                  <div class="saved-channel-title">Webhook</div>
-                  <div class="saved-channel-subtitle">{esc(mask_middle(webhook.get("url", ""), 14))}</div>
-                </div>
-              </div>
-              <div class="saved-channel-meta">
-                <div>用途：Bark、Server酱、飞书/企业微信中转</div>
-                <div>格式：POST JSON</div>
-              </div>
-              <span class="saved-channel-badge {'is-on' if config.get('enabled') and webhook.get('enabled') else ''}">{esc('发送中' if config.get('enabled') and webhook.get('enabled') else '未启用')}</span>
-            </div>
-            """
-        )
-
-    smtp = config.get("smtp", {})
-    if smtp.get("host") or smtp.get("recipients"):
-        cards.append(
-            f"""
-            <div class="saved-channel-card">
-              <div class="saved-channel-head">
-                <div class="saved-channel-icon">MAIL</div>
-                <div>
-                  <div class="saved-channel-title">SMTP 邮件</div>
-                  <div class="saved-channel-subtitle">{esc(smtp.get("host") or "未填写 SMTP 主机")}</div>
-                </div>
-              </div>
-              <div class="saved-channel-meta">
-                <div>收件人：{esc(smtp.get("recipients") or "未填写")}</div>
-                <div>端口：{esc(smtp.get("port") or 587)}</div>
-              </div>
-              <span class="saved-channel-badge {'is-on' if config.get('enabled') and smtp.get('enabled') else ''}">{esc('发送中' if config.get('enabled') and smtp.get('enabled') else '未启用')}</span>
-            </div>
-            """
-        )
-
     if not cards:
         cards.append(
             """
@@ -4610,7 +4568,7 @@ def render_saved_notification_channels(config: dict, state: dict) -> str:
                 <div class="saved-channel-icon">+</div>
                 <div>
                   <div class="saved-channel-title">暂无已保存渠道</div>
-                  <div class="saved-channel-subtitle">在下面添加 Telegram、Webhook 或 SMTP 邮件后，会出现在这里。</div>
+                  <div class="saved-channel-subtitle">在下面添加 Telegram 后，会出现在这里。</div>
                 </div>
               </div>
             </div>
@@ -4701,14 +4659,12 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
     state = notifications.load_state()
     rules = config.get("rules", {})
     telegram = config.get("telegram", {})
-    webhook = config.get("webhook", {})
-    smtp = config.get("smtp", {})
     flash = query.get("flash", [""])[0]
     body = f"""
     {page_intro(
         "Notify",
         "把风险、停机和每日报告送到你手上",
-        "已保存的推送渠道会放在顶部；新增 Telegram、Webhook、SMTP 时不会覆盖已有渠道，方便一个面板给多个人发消息。",
+        "通知页只保留 Telegram：用于告警、每日流量报告和主动查询命令，配置更清楚，也更适合长期使用。",
         [
             ("Telegram", "支持多个 Chat ID"),
             ("主动查询", "/status /traffic /pools /report"),
@@ -4727,7 +4683,7 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
 
         <section class="form-section">
           <h3 class="form-section-title">通知规则</h3>
-          {checkbox_field("enabled", "启用通知系统", bool(config.get("enabled")), "关闭后不会发送 Telegram、Webhook 或邮件。")}
+          {checkbox_field("enabled", "启用通知系统", bool(config.get("enabled")), "关闭后不会发送 Telegram 通知。")}
           <div class="credential-grid">
             {checkbox_field("notify_actions", "启停动作通知", bool(rules.get("notify_actions", True)), "自动停机、自动启动时发送。")}
             {checkbox_field("notify_warnings", "流量预警通知", bool(rules.get("notify_warnings", True)), "首次进入预警状态时发送，避免每分钟刷屏。")}
@@ -4763,29 +4719,6 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
           </div>
         </section>
 
-        <section class="form-section">
-          <h3 class="form-section-title">通用 Webhook</h3>
-          {checkbox_field("webhook_enabled", "启用 Webhook", bool(webhook.get("enabled")), "会 POST JSON 到你填写的 URL，适合接 Bark、Server酱、企业微信/飞书中转。")}
-          {input_field("webhook_url", "Webhook URL", webhook.get("url", ""), placeholder="https://example.com/notify")}
-        </section>
-
-        <section class="form-section">
-          <h3 class="form-section-title">SMTP 邮件</h3>
-          {checkbox_field("smtp_enabled", "启用邮件通知", bool(smtp.get("enabled")), "适合发到 iCloud、QQ、Gmail 或自建邮箱。")}
-          <div class="credential-grid">
-            {input_field("smtp_host", "SMTP 主机", smtp.get("host", ""), placeholder="smtp.example.com")}
-            {input_field("smtp_port", "SMTP 端口", smtp.get("port", 587), "number")}
-          </div>
-          <div class="credential-grid">
-            {input_field("smtp_username", "SMTP 用户名", smtp.get("username", ""))}
-            {input_field("smtp_password", "SMTP 密码/授权码", "", "password", hint="留空则保留原密码。")}
-          </div>
-          <div class="credential-grid">
-            {input_field("smtp_sender", "发件人", smtp.get("sender", ""), placeholder="alert@example.com")}
-            {input_field("smtp_recipients", "收件人", smtp.get("recipients", ""), placeholder="a@example.com,b@example.com")}
-          </div>
-          {checkbox_field("smtp_use_tls", "使用 STARTTLS", bool(smtp.get("use_tls", True)), "大多数 587 端口邮箱使用 STARTTLS；465 端口通常关闭这个开关。")}
-        </section>
       </div>
       <div class="card-footer d-flex align-items-center gap-2">
         <div class="submit-feedback"><span class="spinner-dot"></span><span>正在保存通知配置...</span></div>
@@ -4798,7 +4731,7 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
     <div class="card mt-3">
       <div class="card-header"><h3 class="card-title">测试通知</h3></div>
       <div class="card-body">
-        <p class="text-secondary mb-3">保存设置后，可以发送一条测试消息确认 Telegram、Webhook 或邮件是否能收到；测试消息会附带 Telegram 主动查询命令，方便新用户直接照着使用。</p>
+        <p class="text-secondary mb-3">保存设置后，可以发送一条测试消息确认 Telegram 是否能收到；测试消息会附带主动查询命令，方便新用户直接照着使用。</p>
         <form method="post" action="/notifications/test">
           <button class="btn" type="submit">发送测试通知</button>
         </form>
@@ -4808,7 +4741,7 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
     return page_shell(
         "notifications",
         "通知设置",
-        "Telegram、Webhook、邮件和每日流量报告",
+        "Telegram 告警、主动查询和每日流量报告",
         body,
         actions='<a href="/" class="btn">返回主页</a>',
         flash=flash,
@@ -5329,7 +5262,10 @@ def save_notifications(fields: dict[str, list[str]]) -> None:
     telegram_token = form_value(fields, "telegram_bot_token")
     telegram_chat_id = form_value(fields, "telegram_chat_id")
     existing_telegram = existing.get("telegram", {})
-    smtp_password = form_value(fields, "smtp_password")
+    existing_webhook = dict(existing.get("webhook", {}))
+    existing_smtp = dict(existing.get("smtp", {}))
+    existing_webhook["enabled"] = False
+    existing_smtp["enabled"] = False
     config = {
         "enabled": checked(fields, "enabled"),
         "rules": {
@@ -5346,20 +5282,8 @@ def save_notifications(fields: dict[str, list[str]]) -> None:
             "chat_id": notifications.add_chat_id(existing_telegram.get("chat_id", ""), telegram_chat_id) if telegram_chat_id else existing_telegram.get("chat_id", ""),
             "disable_web_page_preview": checked(fields, "telegram_disable_preview"),
         },
-        "webhook": {
-            "enabled": checked(fields, "webhook_enabled"),
-            "url": form_value(fields, "webhook_url"),
-        },
-        "smtp": {
-            "enabled": checked(fields, "smtp_enabled"),
-            "host": form_value(fields, "smtp_host"),
-            "port": int(as_float(form_value(fields, "smtp_port"), 587)),
-            "username": form_value(fields, "smtp_username"),
-            "password": smtp_password or existing.get("smtp", {}).get("password", ""),
-            "sender": form_value(fields, "smtp_sender"),
-            "recipients": form_value(fields, "smtp_recipients"),
-            "use_tls": checked(fields, "smtp_use_tls"),
-        },
+        "webhook": existing_webhook,
+        "smtp": existing_smtp,
     }
     notifications.save_config(config)
     state = notifications.load_state()
