@@ -784,18 +784,44 @@ def render_brand_logo() -> str:
     """
 
 
+def nav_icon(icon: str) -> str:
+    return f'<span class="nav-icon" aria-hidden="true">{esc(icon)}</span>'
+
+
+def page_intro(kicker: str, heading: str, copy: str, facts: list[tuple[str, str]] | None = None, tone: str = "neutral") -> str:
+    fact_html = "".join(
+        f"""
+        <div class="intro-fact">
+          <span>{esc(label)}</span>
+          <strong>{esc(value)}</strong>
+        </div>
+        """
+        for label, value in (facts or [])
+    )
+    return f"""
+      <section class="page-intro {esc(tone)}">
+        <div>
+          <div class="page-kicker">{esc(kicker)}</div>
+          <h2>{esc(heading)}</h2>
+          <p>{esc(copy)}</p>
+        </div>
+        {f'<div class="intro-facts">{fact_html}</div>' if fact_html else ''}
+      </section>
+    """
+
+
 def page_shell(active: str, title: str, subtitle: str, body: str, actions: str = "", flash: str = "", auto_refresh: bool = True) -> bytes:
     nav = [
-        ("/", "overview", "总览"),
-        ("/servers/new", "servers", "新增服务器"),
-        ("/logs", "logs", "服务器日志"),
-        ("/notifications", "notifications", "通知设置"),
-        ("/domain", "domain", "域名反代"),
-        ("/security", "security", "账号安全"),
+        ("/", "overview", "总览", "⌂"),
+        ("/servers/new", "servers", "新增服务器", "+"),
+        ("/logs", "logs", "服务器日志", "≡"),
+        ("/notifications", "notifications", "通知设置", "●"),
+        ("/domain", "domain", "域名反代", "⇄"),
+        ("/security", "security", "账号安全", "◇"),
     ]
     nav_html = "".join(
-        f'<li class="nav-item {"active" if key == active else ""}"><a class="nav-link" href="{href}"><span class="nav-link-title">{label}</span></a></li>'
-        for href, key, label in nav
+        f'<li class="nav-item {"active" if key == active else ""}"><a class="nav-link" href="{href}">{nav_icon(icon)}<span class="nav-link-title">{label}</span></a></li>'
+        for href, key, label, icon in nav
     )
     flash_html = f'<div class="alert {flash_class(flash)}">{esc(flash_message(flash))}</div>' if flash else ""
     refresh_meta = '<meta http-equiv="refresh" content="60">' if auto_refresh else ""
@@ -891,12 +917,28 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       text-transform: uppercase;
     }}
     .navbar .nav-link {{
+      align-items: center;
       border-radius: 8px;
       color: #b7c0cf;
+      display: flex;
       font-size: 14px;
+      gap: 10px;
       margin: 3px 12px;
       padding: 10px 12px;
       transition: background .15s ease, color .15s ease;
+    }}
+    .nav-icon {{
+      align-items: center;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 7px;
+      color: currentColor;
+      display: inline-flex;
+      flex: 0 0 28px;
+      font-size: 13px;
+      height: 28px;
+      justify-content: center;
+      line-height: 1;
+      width: 28px;
     }}
     .navbar .nav-link:hover {{
       background: rgba(255,255,255,0.07);
@@ -2368,6 +2410,167 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .traffic-modal {{
       background: rgba(0, 0, 0, .58);
     }}
+    .page-intro {{
+      align-items: stretch;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 38%);
+      margin-bottom: 18px;
+      overflow: hidden;
+      padding: 22px;
+    }}
+    .page-intro.warning {{ border-color: color-mix(in srgb, #f59f00 42%, var(--line)); }}
+    .page-intro.danger {{ border-color: color-mix(in srgb, #ff7b83 42%, var(--line)); }}
+    .page-kicker {{
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 820;
+      letter-spacing: .04em;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }}
+    .page-intro h2 {{
+      color: var(--ink);
+      font-size: clamp(24px, 3vw, 34px);
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1.12;
+      margin: 0;
+    }}
+    .page-intro p {{
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      margin: 12px 0 0;
+      max-width: 720px;
+    }}
+    .intro-facts {{
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      gap: 1px;
+      overflow: hidden;
+    }}
+    .intro-fact {{
+      background: var(--surface);
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+      padding: 13px 14px;
+    }}
+    .intro-fact span {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+    }}
+    .intro-fact strong {{
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 780;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }}
+    .control-plane-theme .form-label,
+    .control-plane-theme .form-section-title,
+    .control-plane-theme .guide-step strong,
+    .control-plane-theme .proxy-step-card strong,
+    .control-plane-theme .proxy-status-value,
+    .control-plane-theme .channel-status-value,
+    .control-plane-theme .chart-stat-value,
+    .control-plane-theme .saved-channel-title,
+    .control-plane-theme .telegram-command code,
+    .control-plane-theme .power-title,
+    .control-plane-theme .recovery-title,
+    .control-plane-theme .reset-time,
+    .control-plane-theme .reset-duration,
+    .control-plane-theme .recovery-days,
+    .control-plane-theme .detail-disclosure > summary {{
+      color: var(--ink) !important;
+    }}
+    .control-plane-theme .proxy-step-card span,
+    .control-plane-theme .proxy-status-hint,
+    .control-plane-theme .guide-step span,
+    .control-plane-theme .saved-channel-subtitle,
+    .control-plane-theme .telegram-command span,
+    .control-plane-theme .saved-channel-meta,
+    .control-plane-theme .power-copy,
+    .control-plane-theme .recovery-copy,
+    .control-plane-theme .reset-source,
+    .control-plane-theme .reset-foot,
+    .control-plane-theme .recovery-unit,
+    .control-plane-theme .channel-status-label,
+    .control-plane-theme .chart-stat-label,
+    .control-plane-theme .empty-state {{
+      color: var(--muted) !important;
+    }}
+    .control-plane-theme .server-group,
+    .control-plane-theme .server-group-body,
+    .control-plane-theme .telegram-command,
+    .control-plane-theme .range-tab,
+    .control-plane-theme .reset-count,
+    .control-plane-theme .recovery-count {{
+      background: var(--surface);
+      border-color: var(--line);
+      color: var(--ink);
+    }}
+    .control-plane-theme .server-group-pill,
+    .control-plane-theme .pool-chip,
+    .control-plane-theme .product-code,
+    .control-plane-theme .chat-id-code,
+    .control-plane-theme .kbd-soft,
+    .control-plane-theme .traffic-delta.flat,
+    .control-plane-theme .proxy-status-chip.muted,
+    .control-plane-theme .saved-channel-badge {{
+      background: var(--surface-soft);
+      border-color: var(--line);
+      color: var(--muted);
+    }}
+    .control-plane-theme .range-tab.active,
+    .control-plane-theme .log-filter-tab.active {{
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #071211;
+    }}
+    .control-plane-theme[data-theme="light"] .range-tab.active,
+    .control-plane-theme[data-theme="light"] .log-filter-tab.active {{
+      color: #fff;
+    }}
+    .control-plane-theme .chart-legend {{
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      border-color: var(--line);
+    }}
+    .control-plane-theme .legend-item,
+    .control-plane-theme .log-filter-tab {{
+      color: var(--muted);
+    }}
+    .control-plane-theme .status-note {{
+      background: var(--accent-soft);
+      border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+      color: var(--accent);
+    }}
+    .control-plane-theme .proxy-apply-log {{
+      background: var(--warning-soft);
+      border-color: color-mix(in srgb, #f59f00 36%, var(--line));
+      color: #f5c46b;
+    }}
+    .control-plane-theme[data-theme="light"] .proxy-apply-log {{
+      color: #9a3412;
+    }}
+    .control-plane-theme .reset-summary,
+    .control-plane-theme .reset-summary.recovery-ok,
+    .control-plane-theme .reset-summary.recovery-paused,
+    .control-plane-theme .power-running,
+    .control-plane-theme .power-stopped,
+    .control-plane-theme .power-muted,
+    .control-plane-theme .recovery-ok,
+    .control-plane-theme .recovery-paused,
+    .control-plane-theme .recovery-neutral {{
+      background: var(--surface-soft);
+    }}
     @media (max-width: 1180px) {{
       .asset-workspace {{ grid-template-columns: 1fr; }}
       .form-layout {{ grid-template-columns: 1fr; }}
@@ -2393,6 +2596,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         gap: 12px;
       }}
       .navbar-nav.flex-row.order-md-last.ms-auto {{ margin-left: 0 !important; }}
+      .page-intro {{ grid-template-columns: 1fr; padding: 18px; }}
       .page-title {{ font-size: 22px; }}
       .asset-toolbar {{ align-items: flex-start; flex-direction: column; }}
       .asset-workspace {{ padding: 10px; }}
@@ -2431,7 +2635,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
   </style>
 </head>
-<body class="control-plane-theme">
+<body class="control-plane-theme page-view-{esc(active)}">
   <div class="page">
     <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
       <div class="container-fluid">
@@ -3484,6 +3688,46 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
     """
 
 
+def render_overview_intro(summary: dict, instances: list[dict], generated_at: str) -> str:
+    total = int(summary.get("total", 0) or 0)
+    enabled = int(summary.get("enabled", 0) or 0)
+    warnings = int(summary.get("warnings", 0) or 0)
+    errors = int(summary.get("errors", 0) or 0)
+    stopped = int(summary.get("stopped", 0) or 0)
+    pools = int(summary.get("pools", 0) or 0)
+    risky = sorted(
+        [item for item in instances if item.get("traffic_gb") is not None],
+        key=lambda item: (server_health(item)[2], -used_percent(item)),
+    )
+    top = risky[0] if risky else {}
+    top_name = first_value(top.get("label"), top.get("instance_name"), top.get("instance_id"), default="暂无服务器数据")
+    top_pct = used_percent(top) if top else 0
+    top_traffic = fmt_gb(top.get("traffic_gb")) if top else "暂无"
+    if errors:
+        tone = "danger"
+        heading = f"有 {errors} 台机器检查异常"
+        copy = "优先查看服务器日志和阿里云权限，异常机器可能无法正确执行流量保护或开关机动作。"
+    elif warnings:
+        tone = "warning"
+        heading = f"{warnings} 台机器进入流量预警"
+        copy = f"当前风险最高的是 {top_name}，已用 {top_traffic}，约 {top_pct:.0f}% 阈值。建议先确认是否共享同一 CDT 流量池。"
+    elif stopped:
+        tone = "warning"
+        heading = f"{stopped} 台机器处于关机状态"
+        copy = "如果是自动触发保护，面板会根据真实账期重置时间判断是否需要恢复开机。"
+    else:
+        tone = "neutral"
+        heading = "当前没有需要立即处理的风险"
+        copy = "面板会持续巡检 CDT 用量、实例状态、账期重置时间和通知发送情况。"
+    facts = [
+        ("状态更新时间", str(generated_at or "暂无")),
+        ("受管服务器", f"{enabled}/{total} 台启用保护"),
+        ("流量池", f"{pools} 个"),
+        ("当前关注", f"预警 {warnings} · 错误 {errors} · 已停机 {stopped}"),
+    ]
+    return page_intro("Overview", heading, copy, facts, tone=tone)
+
+
 def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     query = query or {}
     status = read_json(STATUS_FILE, {"summary": {}, "instances": [], "generated_at": "暂无"})
@@ -3493,7 +3737,7 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     metadata = config_by_id(config)
     history = read_history(1000)
     flash = query.get("flash", [""])[0]
-    body = render_summary_cards(summary) + render_assets_card(instances, metadata, history)
+    body = render_overview_intro(summary, instances, status.get("generated_at")) + render_summary_cards(summary) + render_assets_card(instances, metadata, history)
     return page_shell(
         "overview",
         "CDT 流量保护与服务器资产面板",
@@ -3511,7 +3755,19 @@ def render_server_form_page(query: dict[str, list[str]] | None = None) -> bytes:
     edit_id = query.get("id", [""])[0]
     editing = selected_instance(config, edit_id)
     pool_options = collect_traffic_pool_options(config, status)
+    is_edit = bool(editing)
+    intro = page_intro(
+        "Server",
+        "编辑服务器配置" if is_edit else "添加一台新的阿里云服务器",
+        "只填写必需信息就能接入保护；账号备注、登录网站、SSH 备注和高级流量池信息可以以后再补。",
+        [
+            ("必填", "AccessKey、Secret、实例 ID、ECS 区域"),
+            ("推荐默认", "180GB 停机，175GB 恢复，160GB 预警"),
+            ("流量池", "留空时按阿里云账号自动归组"),
+        ],
+    )
     body = f"""
+    {intro}
     <div class="form-layout">
       <div>{render_form(editing, pool_options)}</div>
       {render_form_guide()}
@@ -3647,6 +3903,17 @@ def render_logs_page(query: dict[str, list[str]] | None = None) -> bytes:
         )
 
     body = f"""
+    {page_intro(
+        "Logs",
+        "只看需要处理的事件",
+        "默认隐藏普通巡检流水，优先展示异常、启停、预警和停机保持。需要排查趋势时再切到正常记录或全部日志。",
+        [
+            ("当前服务器", str(current_name or "暂无")),
+            ("重要事件", f"{len(important_logs)} 条"),
+            ("普通巡检", f"{len(normal_logs)} 条"),
+        ],
+        tone="warning" if important_logs else "neutral",
+    )}
     <div class="log-layout">
       <div class="card">
         <div class="card-header"><h3 class="card-title">服务器</h3></div>
@@ -3862,6 +4129,16 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
     smtp = config.get("smtp", {})
     flash = query.get("flash", [""])[0]
     body = f"""
+    {page_intro(
+        "Notify",
+        "把风险、停机和每日报告送到你手上",
+        "已保存的推送渠道会放在顶部；新增 Telegram、Webhook、SMTP 时不会覆盖已有渠道，方便一个面板给多个人发消息。",
+        [
+            ("Telegram", "支持多个 Chat ID"),
+            ("主动查询", "/status /traffic /pools /report"),
+            ("每日报告", "按指定时区和时间发送"),
+        ],
+    )}
     <form class="card save-form" method="post" action="/notifications/save" data-save-form>
       <div class="card-header">
         <div class="asset-toolbar w-100">
@@ -4179,6 +4456,16 @@ def render_security_page(query: dict[str, list[str]] | None = None) -> bytes:
         cookie_text = "未启用 Secure Cookie；建议通过 HTTPS 域名访问后开启自动模式。"
     session_ttl = env.get("WEB_SESSION_TTL", "86400")
     body = f"""
+    {page_intro(
+        "Security",
+        "管理面板登录账号和会话安全",
+        "这里修改的是面板管理员账号，不会影响阿里云 AccessKey、服务器 SSH 备注或通知渠道。",
+        [
+            ("当前用户名", username),
+            ("会话有效期", f"{session_ttl} 秒"),
+            ("Cookie", "HTTPS 域名建议启用自动 Secure"),
+        ],
+    )}
     <div class="form-layout">
       <form class="card save-form" method="post" action="/security/save" data-save-form>
         <div class="card-header">
@@ -4349,6 +4636,16 @@ server {{
 """
     env_config = "WEB_COOKIE_SECURE=true"
     body = f"""
+    {page_intro(
+        "Proxy",
+        "用域名和 HTTPS 访问面板",
+        "这里负责生成 Cloudflare + Caddy/Nginx 的反代配置。DNS 仍需要你确认后再添加，避免误改域名。",
+        [
+            ("域名", saved_domain or "未配置"),
+            ("源站", f"{saved_origin_ip or '未填写'}:{origin_port}"),
+            ("Caddy", caddy_state),
+        ],
+    )}
     <div class="card mb-3">
       <div class="card-header"><h3 class="card-title">当前反代状态</h3></div>
       <div class="card-body">
