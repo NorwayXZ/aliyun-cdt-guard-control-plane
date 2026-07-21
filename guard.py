@@ -420,6 +420,17 @@ def traffic_pool_key(item: dict[str, Any]) -> str:
     return f"{credential_fingerprint(item.get('access_key_id'))}:{scope}:{pool_id}"
 
 
+def traffic_display_pool_key(item: dict[str, Any]) -> str:
+    scope = normalize_traffic_scope(item.get("traffic_scope"))
+    pool_id = traffic_pool_id(item)
+    if item.get("traffic_pool_custom", has_custom_traffic_pool_id(item)):
+        return f"custom:{scope}:{pool_id}"
+    account_key = str(item.get("account_fingerprint") or credential_fingerprint(item.get("access_key_id")) or "").strip()
+    if account_key:
+        return f"account:{account_key}"
+    return traffic_pool_key(item)
+
+
 def traffic_cache_key(item: dict[str, Any]) -> tuple[str, str, str | None]:
     scope = normalize_traffic_scope(item.get("traffic_scope"))
     traffic_region_id = item.get("traffic_region_id") if scope == TRAFFIC_SCOPE_REGION else None
@@ -582,6 +593,7 @@ def merged_instance(raw: dict[str, Any], defaults: dict[str, Any]) -> dict[str, 
     item["access_key_id"] = item.get("access_key_id") or os.environ.get("ALIYUN_ACCESS_KEY_ID", "")
     item["access_key_secret"] = item.get("access_key_secret") or os.environ.get("ALIYUN_ACCESS_KEY_SECRET", "")
     item["traffic_pool_key"] = traffic_pool_key(item)
+    item["traffic_display_pool_key"] = traffic_display_pool_key(item)
     item["traffic_pool_label"] = traffic_pool_label(item)
     return item
 
@@ -623,7 +635,7 @@ def run_guard() -> dict[str, Any]:
     pool_member_counts: dict[str, int] = {}
     for item in merged_instances:
         if item.get("enabled"):
-            pool_key = item["traffic_pool_key"]
+            pool_key = item["traffic_display_pool_key"]
             pool_member_counts[pool_key] = pool_member_counts.get(pool_key, 0) + 1
 
     previous_status = read_status() or {}
@@ -661,14 +673,17 @@ def run_guard() -> dict[str, Any]:
                 "label": item["label"],
                 "enabled": item["enabled"],
                 "manual_stop": item["manual_stop"],
+                "account_fingerprint": credential_fingerprint(item.get("access_key_id")),
                 "region_id": region_id,
                 "traffic_region_id": traffic_region_id,
                 "traffic_scope": traffic_scope,
                 "traffic_scope_label": traffic_scope_label(traffic_scope),
                 "traffic_pool_id": item["traffic_pool_id"],
                 "traffic_pool_key": pool_key,
+                "traffic_display_pool_key": item["traffic_display_pool_key"],
+                "traffic_pool_custom": item["traffic_pool_custom"],
                 "traffic_pool_label": item["traffic_pool_label"],
-                "traffic_pool_member_count": pool_member_counts.get(pool_key, 0),
+                "traffic_pool_member_count": pool_member_counts.get(item["traffic_display_pool_key"], 0),
                 "instance_id": item["instance_id"],
                 "warning_threshold_gb": item["warning_threshold_gb"],
                 "start_threshold_gb": item["start_threshold_gb"],
@@ -707,7 +722,9 @@ def run_guard() -> dict[str, Any]:
                             "traffic_scope": result.get("traffic_scope"),
                             "traffic_pool_id": result.get("traffic_pool_id"),
                             "traffic_pool_key": result.get("traffic_pool_key"),
+                            "traffic_display_pool_key": result.get("traffic_display_pool_key"),
                             "traffic_pool_label": result.get("traffic_pool_label"),
+                            "account_fingerprint": result.get("account_fingerprint"),
                             "status": result.get("instance_status"),
                             "action": result.get("action"),
                             "reason": result.get("reason"),
@@ -817,8 +834,10 @@ def run_guard() -> dict[str, Any]:
                     "traffic_scope": result.get("traffic_scope"),
                     "traffic_pool_id": result.get("traffic_pool_id"),
                     "traffic_pool_key": result.get("traffic_pool_key"),
+                    "traffic_display_pool_key": result.get("traffic_display_pool_key"),
                     "traffic_pool_label": result.get("traffic_pool_label"),
                     "traffic_products": result.get("traffic_products"),
+                    "account_fingerprint": result.get("account_fingerprint"),
                     "status": result.get("instance_status"),
                     "action": result.get("action"),
                     "reason": result.get("reason"),
@@ -853,9 +872,9 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     stopped = [item for item in results if item.get("instance_status") == "Stopped"]
     actions = [item for item in results if item.get("action") in {"start", "stop"}]
     pools = {
-        str(item.get("traffic_pool_key"))
+        str(item.get("traffic_display_pool_key") or item.get("traffic_pool_key"))
         for item in enabled
-        if item.get("traffic_pool_key")
+        if item.get("traffic_display_pool_key") or item.get("traffic_pool_key")
     }
     account_balances = []
     seen_accounts: set[str] = set()

@@ -803,8 +803,34 @@ def page_intro(kicker: str, heading: str, copy: str, facts: list[tuple[str, str]
     """
 
 
-def traffic_total_key(item: dict) -> str:
+def traffic_display_pool_key(item: dict) -> str:
+    explicit_key = str(item.get("traffic_display_pool_key") or "").strip()
+    if explicit_key:
+        return explicit_key
+    custom = bool(item.get("traffic_pool_custom"))
+    if custom:
+        scope = normalize_traffic_scope(item.get("traffic_scope"))
+        pool_id = str(item.get("traffic_pool_id") or item.get("traffic_region_id") or "custom").strip()
+        return f"custom:{scope}:{pool_id}"
+    account_key = str(item.get("account_fingerprint") or "").strip()
+    if account_key:
+        return f"account:{account_key}"
     return str(item.get("traffic_pool_key") or item.get("id") or item.get("instance_id") or "unknown")
+
+
+def display_pool_count(instances: list[dict]) -> int:
+    pools = set()
+    for item in instances:
+        if not item.get("enabled", True):
+            continue
+        key = traffic_display_pool_key(item)
+        if key:
+            pools.add(key)
+    return len(pools)
+
+
+def traffic_total_key(item: dict) -> str:
+    return traffic_display_pool_key(item)
 
 
 def current_total_traffic(instances: list[dict]) -> tuple[float, int]:
@@ -825,6 +851,21 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     events: list[tuple[datetime, str, float]] = []
     all_records = []
+    key_aliases: dict[str, str] = {}
+    for item in instances:
+        display_key = traffic_display_pool_key(item)
+        for raw_key in (
+            item.get("traffic_display_pool_key"),
+            item.get("traffic_pool_key"),
+            item.get("id"),
+            item.get("instance_id"),
+        ):
+            raw_key = str(raw_key or "").strip()
+            if raw_key:
+                key_aliases[raw_key] = display_key
+        account_key = str(item.get("account_fingerprint") or "").strip()
+        if account_key:
+            key_aliases[f"account:{account_key}"] = display_key
     for event in history:
         event_time = parse_event_time(event.get("at"))
         if event_time is None:
@@ -836,16 +877,33 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
             traffic_gb = float(traffic)
         except (TypeError, ValueError):
             continue
-        key = str(event.get("traffic_pool_key") or event.get("id") or "")
+        raw_key = str(event.get("traffic_display_pool_key") or event.get("traffic_pool_key") or event.get("id") or "").strip()
+        if not raw_key:
+            account_key = str(event.get("account_fingerprint") or "").strip()
+            raw_key = f"account:{account_key}" if account_key else ""
+        key = key_aliases.get(raw_key, raw_key)
         if not key:
             continue
         all_records.append((event_time, key, traffic_gb))
+
+    bucketed_records: dict[tuple[str, str], tuple[datetime, float]] = {}
+    for event_time, key, traffic_gb in all_records:
+        bucket = event_time.strftime("%Y-%m-%d %H:%M")
+        record_key = (bucket, key)
+        previous = bucketed_records.get(record_key)
+        if previous is None or traffic_gb > previous[1]:
+            bucketed_records[record_key] = (event_time, traffic_gb)
+
+    sorted_records = sorted(
+        ((event_time, key, traffic_gb) for (_bucket, key), (event_time, traffic_gb) in bucketed_records.items()),
+        key=lambda row: row[0],
+    )
 
     last_by_key: dict[str, float] = {}
     points: list[dict] = []
     current_bucket = ""
     bucket_time: datetime | None = None
-    for event_time, key, traffic_gb in sorted(all_records, key=lambda row: row[0]):
+    for event_time, key, traffic_gb in sorted_records:
         bucket = event_time.strftime("%Y-%m-%d %H:%M")
         if event_time >= cutoff and current_bucket and bucket != current_bucket and bucket_time is not None:
             points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
@@ -3865,7 +3923,7 @@ def group_scope_summary(items: list[dict]) -> str:
 def render_server_group(group_key: str, items: list[dict], metadata: dict[str, dict], history: list[dict], active_id: str | None) -> str:
     priorities = [server_health(item)[2] for item in items]
     group_priority = min(priorities) if priorities else 9
-    total_traffic = sum(as_float(item.get("traffic_gb"), 0) for item in items if item.get("traffic_gb") is not None)
+    total_traffic, _ = current_total_traffic(items)
     balance_text, balance_level = group_balance_summary(items)
     scope_text = group_scope_summary(items)
     regions = sorted({str(item.get("region_id") or "") for item in items if item.get("region_id")})
@@ -4369,8 +4427,9 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     query = query or {}
     status = read_json(STATUS_FILE, {"summary": {}, "instances": [], "generated_at": "暂无"})
     config = read_config()
-    summary = status.get("summary", {})
     instances = status.get("instances", [])
+    summary = dict(status.get("summary", {}) or {})
+    summary["pools"] = display_pool_count(instances) or int(summary.get("pools", 0) or 0)
     metadata = config_by_id(config)
     history = read_history(1000)
     flash = query.get("flash", [""])[0]
