@@ -77,7 +77,7 @@ function openPage(id) {
     }
   });
 
-  const title = page.dataset.title || "总览";
+  const title = page.dataset.title || "主页";
   currentTitle.textContent = title;
   pageHeading.textContent = title;
   document.querySelector(".app-shell").dataset.view = id;

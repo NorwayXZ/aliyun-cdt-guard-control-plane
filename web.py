@@ -812,7 +812,7 @@ def page_intro(kicker: str, heading: str, copy: str, facts: list[tuple[str, str]
 
 def page_shell(active: str, title: str, subtitle: str, body: str, actions: str = "", flash: str = "", auto_refresh: bool = True) -> bytes:
     run_nav = [
-        ("/", "overview", "总览", "⌂"),
+        ("/", "overview", "主页", "⌂"),
         ("/servers/new", "servers", "新增服务器", "+"),
         ("/logs", "logs", "服务器日志", "≡"),
     ]
@@ -4068,7 +4068,7 @@ def render_server_form_page(query: dict[str, list[str]] | None = None) -> bytes:
         "新增服务器",
         "填写阿里云凭证、实例、阈值和资产备注",
         body,
-        actions='<a href="/" class="btn">返回总览</a>',
+        actions='<a href="/" class="btn">返回主页</a>',
         auto_refresh=False,
     )
 
@@ -4364,7 +4364,7 @@ def render_telegram_status(config: dict, state: dict) -> str:
         </div>
         """
         for command, description in [
-            ("/status", "查看面板总览、机器数量、预警和错误。"),
+            ("/status", "查看面板主页、机器数量、预警和错误。"),
             ("/traffic", "查看每台机器当前 CDT 用量、本次新增和重置时间。"),
             ("/pools", "查看共享 CDT 流量池用量和成员机器。"),
             ("/server 关键词", "按产品名、实例 ID 或公网 IP 查询单台服务器。"),
@@ -4524,7 +4524,7 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
         "通知设置",
         "Telegram、Webhook、邮件和每日流量报告",
         body,
-        actions='<a href="/" class="btn">返回总览</a>',
+        actions='<a href="/" class="btn">返回主页</a>',
         flash=flash,
         auto_refresh=False,
     )
@@ -4804,7 +4804,7 @@ def render_security_page(query: dict[str, list[str]] | None = None) -> bytes:
         "账号安全",
         "修改面板登录用户名和密码",
         body,
-        actions='<a href="/" class="btn">返回总览</a>',
+        actions='<a href="/" class="btn">返回主页</a>',
         flash=query.get("flash", [""])[0],
         auto_refresh=False,
     )
@@ -5032,7 +5032,7 @@ server {{
         "域名反代",
         "用 Cloudflare + Caddy/Nginx 把 IP:端口 变成 HTTPS 域名",
         body,
-        actions='<a href="/" class="btn">返回总览</a>',
+        actions='<a href="/" class="btn">返回主页</a>',
         flash=query.get("flash", [""])[0],
         auto_refresh=False,
     )
@@ -5292,7 +5292,7 @@ def render_form_guide() -> str:
         </div>
         <div class="guide-step">
           <strong>8. 保存后的反应</strong>
-          <span>点击保存后会立即写入配置并做一次检查，按钮会进入等待状态，完成后回到总览页。</span>
+          <span>点击保存后会立即写入配置并做一次检查，按钮会进入等待状态，完成后回到主页。</span>
         </div>
       </div>
     </aside>
