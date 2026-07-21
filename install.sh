@@ -65,6 +65,18 @@ wait_for_apt_locks() {
   done
 }
 
+repair_dpkg_state() {
+  if ! need_cmd dpkg; then
+    return 0
+  fi
+
+  wait_for_apt_locks
+  if dpkg --audit 2>/dev/null | grep -q .; then
+    echo "dpkg has unfinished package configuration. Running: dpkg --configure -a"
+    DEBIAN_FRONTEND=noninteractive dpkg --configure -a
+  fi
+}
+
 apt_run() {
   local waited=0
   local max_wait="${APT_LOCK_WAIT_SECONDS:-300}"
@@ -74,6 +86,7 @@ apt_run() {
 
   while true; do
     wait_for_apt_locks
+    repair_dpkg_state
     set +e
     output="$(apt-get -o DPkg::Lock::Timeout="$max_wait" "$@" 2>&1)"
     status=$?
@@ -82,6 +95,14 @@ apt_run() {
 
     if [ "$status" -eq 0 ]; then
       return 0
+    fi
+
+    if printf '%s\n' "$output" | grep -q 'dpkg was interrupted'; then
+      echo "dpkg was interrupted. Repairing package state and retrying..."
+      wait_for_apt_locks
+      DEBIAN_FRONTEND=noninteractive dpkg --configure -a
+      sleep 2
+      continue
     fi
 
     if ! printf '%s\n' "$output" | grep -Eq 'Could not get lock|Unable to acquire the dpkg frontend lock|Unable to lock directory|is another process using it'; then
@@ -108,6 +129,7 @@ apt_run() {
 install_packages() {
   if need_cmd apt-get; then
     export DEBIAN_FRONTEND=noninteractive
+    repair_dpkg_state
     apt_run update -y
     apt_run install -y python3 python3-venv python3-pip git curl openssl cron ca-certificates
   elif need_cmd dnf; then

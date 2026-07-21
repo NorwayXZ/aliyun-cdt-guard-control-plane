@@ -31,6 +31,20 @@ curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-p
 
 安装完成后终端会输出面板地址、用户名和随机生成的密码。
 
+如果系统提示：
+
+```text
+E: dpkg was interrupted, you must manually run 'sudo dpkg --configure -a'
+```
+
+可以先执行：
+
+```bash
+sudo dpkg --configure -a
+```
+
+然后重新运行安装命令。新版安装脚本也会尝试自动修复这个状态。
+
 ## 一键卸载
 
 ```bash
