@@ -1950,7 +1950,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       align-items: center;
       display: flex;
       gap: 8px;
-      justify-content: space-between;
+      justify-content: flex-start;
     }}
     .traffic-amount {{
       color: #111827;
@@ -1958,9 +1958,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .traffic-percent {{
       border-radius: 999px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 720;
-      padding: 3px 8px;
+      line-height: 1;
+      padding: 4px 7px;
       white-space: nowrap;
     }}
     .usage-pill {{
@@ -4103,7 +4104,7 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
         </div>
         <div class="server-group-body" data-server-group-body>
           <div class="server-list-head">
-            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div class="traffic-head"><span>CDT 用量</span><span class="usage-pill">占阈值</span></div>
+            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div class="traffic-head"><span>CDT 用量</span><span class="usage-pill">总占比</span></div>
           </div>
           {rows}
         </div>
