@@ -317,7 +317,6 @@ def render_recovery_plan(item: dict) -> str:
     countdown_label = plan.get("reset_countdown_label") or f"{plan.get('days_until_reset', '未知')}天"
     will_auto_start = bool(plan.get("will_auto_start_after_reset"))
     paused = bool(plan.get("auto_start_paused"))
-    status_text = "会自动开机" if will_auto_start else ("手动关机保持中" if paused else "未处于自动恢复队列")
     status_class = "recovery-ok" if will_auto_start else ("recovery-paused" if paused else "recovery-neutral")
     source = plan.get("reset_source")
     source_label = plan.get("reset_source_label") or ("BSS 账单 API" if source == "bss" else "配置推算")
@@ -329,19 +328,9 @@ def render_recovery_plan(item: dict) -> str:
         reset_title = f"来源：{source_label}；按配置每月 {plan.get('traffic_reset_day') or 1} 日重置"
     return f"""
       <div class="reset-summary {status_class}" title="{esc(reset_title)}">
-        <div class="reset-main">
-          <div class="reset-eyebrow">账期重置</div>
-          <div class="reset-time">{esc(fmt_chinese_date(plan.get('next_reset_at')))}</div>
-          <div class="reset-source">{esc(reset_hint)}</div>
-        </div>
-        <div class="reset-count">
-          <div class="reset-duration">{esc(countdown_label)}</div>
-          <div class="recovery-unit">后重置</div>
-        </div>
-      </div>
-      <div class="reset-foot">
-        <span>{esc(status_text)}</span>
-        <span>恢复阈值 {fmt_gb(item.get('start_threshold_gb'))}</span>
+        <span class="reset-eyebrow">账单重置</span>
+        <strong class="reset-duration">{esc(countdown_label)}后重置</strong>
+        <span class="reset-source">{esc(reset_hint)}</span>
       </div>
     """
 
@@ -1413,7 +1402,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-group {{
       background: #fff;
       border-bottom: 1px solid var(--line);
-      min-width: 980px;
+      min-width: 1040px;
     }}
     .server-group-head {{
       align-items: center;
@@ -1466,13 +1455,15 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-group-body {{
       display: grid;
+      gap: 10px;
+      padding: 10px;
     }}
     .server-list-head,
     .server-row {{
       display: grid;
       gap: 12px;
-      grid-template-columns: 126px minmax(210px, 1.4fr) minmax(126px, .8fr) 112px minmax(190px, 1fr) 132px;
-      min-width: 980px;
+      grid-template-columns: 126px minmax(230px, 1.45fr) minmax(140px, .8fr) 112px minmax(220px, 1fr) 126px;
+      min-width: 1040px;
     }}
     .server-list-head {{
       background: #f7f9fc;
@@ -1487,30 +1478,37 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-row {{
       background: #fff;
-      border: 0;
-      border-bottom: 1px solid var(--line);
+      border: 1px solid var(--line);
+      border-radius: 8px;
       color: var(--ink);
       cursor: pointer;
-      padding: 14px;
+      padding: 16px;
       text-align: left;
+      transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
       width: 100%;
     }}
     .server-row:hover {{ background: #fbfcfe; }}
     .server-row.active {{
       background: #eef5ff;
-      box-shadow: inset 3px 0 0 var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent) inset;
     }}
     .server-row:focus-visible {{
       outline: 3px solid rgba(23, 99, 209, .16);
       outline-offset: -3px;
     }}
-    .server-row.is-danger {{ box-shadow: inset 3px 0 0 #d63939; }}
-    .server-row.is-warning {{ box-shadow: inset 3px 0 0 #f59f00; }}
+    .server-row.is-danger:not(.active) {{ border-left-color: #d63939; border-left-width: 3px; }}
+    .server-row.is-warning:not(.active) {{ border-left-color: #f59f00; border-left-width: 3px; }}
     .server-row.active.is-danger,
     .server-row.active.is-warning {{ background: #fffaf2; }}
     .server-cell {{
       align-items: center;
       display: flex;
+      min-width: 0;
+    }}
+    .server-name-stack {{
+      display: grid;
+      gap: 6px;
       min-width: 0;
     }}
     .server-state {{
@@ -1624,56 +1622,36 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .reset-summary {{
       align-items: center;
-      background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+      background: #f8fafc;
       border: 1px solid var(--line);
       border-radius: 8px;
       display: grid;
-      gap: 14px;
-      grid-template-columns: minmax(0, 1fr) auto;
-      padding: 14px;
+      gap: 10px;
+      grid-template-columns: auto auto minmax(0, 1fr);
+      padding: 11px 12px;
     }}
     .reset-summary.recovery-ok {{
-      background: linear-gradient(135deg, #f1fbf5 0%, #ffffff 100%);
+      background: #f1fbf5;
       border-color: #bde8ca;
     }}
     .reset-summary.recovery-paused {{
-      background: linear-gradient(135deg, #fff8e7 0%, #ffffff 100%);
+      background: #fff8e7;
       border-color: #ffd98a;
     }}
     .reset-eyebrow {{
       color: var(--muted);
       font-size: 12px;
       font-weight: 760;
-      margin-bottom: 6px;
-    }}
-    .reset-time {{
-      color: #111827;
-      font-size: 20px;
-      font-weight: 760;
-      line-height: 1.2;
+      white-space: nowrap;
     }}
     .reset-source {{
       color: var(--muted);
       font-size: 12px;
       line-height: 1.45;
-      margin-top: 6px;
-    }}
-    .reset-count {{
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      min-width: 118px;
-      padding: 10px 12px;
-      text-align: center;
-    }}
-    .reset-foot {{
-      color: var(--muted);
-      display: flex;
-      flex-wrap: wrap;
-      font-size: 12px;
-      gap: 8px 14px;
-      justify-content: space-between;
-      margin-top: 8px;
+      overflow: hidden;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }}
     .traffic-delta {{
       border-radius: 999px;
@@ -1983,11 +1961,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       line-height: 1.15;
       overflow-wrap: normal;
       white-space: nowrap;
-    }}
-    .recovery-unit {{
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 4px;
     }}
     .detail-actions {{
       align-items: center;
@@ -3055,7 +3028,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .saved-channel-title,
     .control-plane-theme .power-title,
     .control-plane-theme .recovery-title,
-    .control-plane-theme .reset-time,
     .control-plane-theme .reset-duration,
     .control-plane-theme .recovery-days,
     .control-plane-theme .detail-disclosure > summary {{
@@ -3070,8 +3042,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .power-copy,
     .control-plane-theme .recovery-copy,
     .control-plane-theme .reset-source,
-    .control-plane-theme .reset-foot,
-    .control-plane-theme .recovery-unit,
     .control-plane-theme .channel-status-label,
     .control-plane-theme .chart-stat-label,
     .control-plane-theme .empty-state {{
@@ -3081,7 +3051,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .server-group-body,
     .control-plane-theme .telegram-command,
     .control-plane-theme .range-tab,
-    .control-plane-theme .reset-count,
     .control-plane-theme .recovery-count {{
       background: var(--surface);
       border-color: var(--line);
