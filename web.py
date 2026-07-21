@@ -811,24 +811,33 @@ def page_intro(kicker: str, heading: str, copy: str, facts: list[tuple[str, str]
 
 
 def page_shell(active: str, title: str, subtitle: str, body: str, actions: str = "", flash: str = "", auto_refresh: bool = True) -> bytes:
-    nav = [
+    run_nav = [
         ("/", "overview", "总览", "⌂"),
         ("/servers/new", "servers", "新增服务器", "+"),
         ("/logs", "logs", "服务器日志", "≡"),
+    ]
+    config_nav = [
         ("/notifications", "notifications", "通知设置", "●"),
         ("/domain", "domain", "域名反代", "⇄"),
         ("/security", "security", "账号安全", "◇"),
     ]
-    nav_html = "".join(
-        f'<li class="nav-item {"active" if key == active else ""}"><a class="nav-link" href="{href}">{nav_icon(icon)}<span class="nav-link-title">{label}</span></a></li>'
-        for href, key, label, icon in nav
+
+    def render_nav(items: list[tuple[str, str, str, str]]) -> str:
+        return "".join(
+            f'<a class="nav-item {"active" if key == active else ""}" href="{href}">{nav_icon(icon)}<span>{label}</span></a>'
+            for href, key, label, icon in items
+        )
+
+    run_nav_html = render_nav(run_nav)
+    config_nav_html = render_nav(config_nav)
+    active_label = next(
+        (label for href, key, label, icon in run_nav + config_nav if key == active),
+        title,
     )
     flash_html = f'<div class="alert {flash_class(flash)}">{esc(flash_message(flash))}</div>' if flash else ""
     refresh_meta = '<meta http-equiv="refresh" content="60">' if auto_refresh else ""
     header_actions = f"""
-      <button class="theme-switch" type="button" data-theme-toggle>浅色模式</button>
       {actions}
-      <a class="logout-link" href="/logout" aria-label="退出登录">退出登录</a>
     """
     html_doc = f"""<!doctype html>
 <html lang="zh-CN">
@@ -2216,59 +2225,267 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .grid-full {{ grid-column: 1 / -1; }}
     .asset-toolbar {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }}
     body.control-plane-theme {{
-      --page-bg: #101617;
-      --surface: #151d1e;
-      --surface-soft: #111819;
-      --line: #2d3a3b;
-      --line-strong: #405052;
-      --ink: #e9f0ee;
-      --muted: #91a19e;
-      --accent: #6bf1c0;
-      --accent-soft: #112b24;
+      color-scheme: dark;
+      --page-bg: #0c1112;
+      --sidebar-bg: rgba(8, 13, 14, 0.96);
+      --topbar-bg: rgba(12, 17, 18, 0.78);
+      --surface: #12191a;
+      --surface-soft: #162021;
+      --surface-strong: #1a2526;
+      --line: #263334;
+      --line-strong: #344849;
+      --ink: #edf4f1;
+      --soft: #aebbb8;
+      --muted: #778683;
+      --accent: #65e8b5;
+      --accent-soft: #113126;
+      --blue: #7bd8ff;
       --success-soft: #10271f;
-      --warning-soft: #2b2414;
-      --danger-soft: #30191d;
-      background: var(--page-bg);
+      --warning-soft: #2c2514;
+      --danger-soft: #2c171b;
+      --yellow: #ffd166;
+      --red: #ff6b75;
+      --button-bg: #11191a;
+      --input-bg: #0d1415;
+      --hover-bg: #111b1c;
+      --panel-bg: rgba(18, 25, 26, 0.92);
+      --shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+      background:
+        radial-gradient(circle at 72% -10%, rgba(101, 232, 181, 0.08), transparent 32rem),
+        linear-gradient(180deg, #0e1415, var(--page-bg));
       color: var(--ink);
     }}
     body.control-plane-theme[data-theme="light"] {{
-      --page-bg: #f6f7f4;
+      color-scheme: light;
+      --page-bg: #f4f7f6;
+      --sidebar-bg: rgba(255, 255, 255, 0.98);
+      --topbar-bg: rgba(255, 255, 255, 0.82);
       --surface: #ffffff;
-      --surface-soft: #f3f5f2;
-      --line: #dde3df;
-      --line-strong: #cbd5d1;
-      --ink: #1c2423;
-      --muted: #66736f;
-      --accent: #0f7a5a;
-      --accent-soft: #e5f6ef;
+      --surface-soft: #f8fbfa;
+      --surface-strong: #eef5f2;
+      --line: #d9e5e1;
+      --line-strong: #b8ccc6;
+      --ink: #17211f;
+      --soft: #354641;
+      --muted: #6a7a76;
+      --accent: #087f61;
+      --accent-soft: #e4f6ef;
+      --blue: #16729a;
       --success-soft: #e7f8ef;
-      --warning-soft: #fff6df;
-      --danger-soft: #ffeded;
-      background: var(--page-bg);
+      --warning-soft: #fff4d6;
+      --danger-soft: #fde8eb;
+      --yellow: #a96d00;
+      --red: #c94352;
+      --button-bg: #ffffff;
+      --input-bg: #ffffff;
+      --hover-bg: #eef6f3;
+      --panel-bg: rgba(255, 255, 255, 0.94);
+      --shadow: 0 20px 60px rgba(18, 38, 32, 0.12);
+      background:
+        radial-gradient(circle at 75% -10%, rgba(8, 127, 97, 0.12), transparent 32rem),
+        linear-gradient(180deg, #f8fbfa, var(--page-bg));
       color: var(--ink);
     }}
+    .app-shell {{
+      display: grid;
+      grid-template-columns: 256px minmax(0, 1fr);
+      min-height: 100vh;
+    }}
+    .sidebar {{
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      height: 100vh;
+      padding: 22px 14px;
+      position: sticky;
+      top: 0;
+    }}
+    .brand {{
+      align-items: center;
+      display: flex;
+      gap: 12px;
+      padding: 0 8px 10px;
+    }}
+    .brand .brand-lockup {{
+      align-items: center;
+      display: flex;
+      gap: 12px;
+      min-width: 0;
+    }}
+    .brand .brand-mark {{
+      background: linear-gradient(135deg, var(--accent-soft), var(--button-bg));
+      border: 1px solid color-mix(in srgb, var(--accent) 72%, transparent);
+      box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 14%, transparent);
+      flex: 0 0 auto;
+      height: 34px;
+      width: 34px;
+    }}
+    .brand .brand-name {{
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 760;
+      line-height: 1.1;
+    }}
+    .brand .brand-subtitle {{
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: 0;
+      text-transform: none;
+    }}
+    .nav-block p {{
+      color: var(--muted);
+      font: 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      margin: 0 10px 8px;
+    }}
+    .nav-block .nav-item {{
+      align-items: center;
+      background: transparent;
+      border: 0;
+      border-left: 2px solid transparent;
+      border-radius: 0 7px 7px 0;
+      color: var(--soft);
+      display: flex;
+      gap: 11px;
+      min-height: 42px;
+      padding: 0 12px;
+      text-align: left;
+      text-decoration: none;
+      width: 100%;
+    }}
+    .nav-block .nav-item:hover,
+    .nav-block .nav-item.active {{
+      background: var(--hover-bg);
+      color: var(--ink);
+      text-decoration: none;
+    }}
+    .nav-block .nav-item.active {{
+      border-left-color: var(--accent);
+      color: var(--accent);
+    }}
+    .nav-block .nav-icon {{
+      border: 0;
+      border-radius: 0;
+      flex: 0 0 18px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      height: auto;
+      width: 18px;
+    }}
+    .sidebar-account {{
+      border-top: 1px solid var(--line);
+      margin-top: auto;
+      padding-top: 16px;
+    }}
+    .user-menu {{
+      align-items: center;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--ink);
+      display: flex;
+      gap: 10px;
+      padding: 9px;
+      text-align: left;
+      text-decoration: none;
+      width: 100%;
+    }}
+    .user-menu:hover {{
+      background: var(--hover-bg);
+      border-color: var(--line);
+      color: var(--ink);
+      text-decoration: none;
+    }}
+    .avatar {{
+      align-items: center;
+      border: 1px solid var(--line-strong);
+      color: var(--accent);
+      display: inline-flex;
+      font-weight: 760;
+      height: 30px;
+      justify-content: center;
+      width: 30px;
+    }}
+    .user-menu span:nth-child(2) {{
+      flex: 1;
+      min-width: 0;
+    }}
+    .user-menu strong,
+    .user-menu small {{
+      display: block;
+    }}
+    .user-menu small {{
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 2px;
+    }}
+    .sidebar-logout {{
+      margin-top: 8px;
+      width: 100%;
+    }}
+    .workspace {{
+      min-width: 0;
+    }}
+    .topbar {{
+      align-items: center;
+      background: var(--topbar-bg);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      min-height: 74px;
+      padding: 0 34px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }}
+    .crumb {{
+      color: var(--muted);
+      font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }}
+    .topbar h1 {{
+      color: var(--ink);
+      font-size: 20px;
+      font-weight: 650;
+      letter-spacing: 0;
+      line-height: 1.2;
+      margin: 4px 0 0;
+    }}
+    .topbar p {{
+      color: var(--muted);
+      font-size: 12px;
+      margin: 3px 0 0;
+    }}
+    .top-actions {{
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }}
+    .engine-state {{
+      align-items: center;
+      color: var(--accent);
+      display: inline-flex;
+      font-size: 12px;
+      gap: 8px;
+      white-space: nowrap;
+    }}
+    .engine-state i {{
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 12px var(--accent);
+      height: 7px;
+      width: 7px;
+    }}
     .control-plane-theme .page {{
-      background: var(--page-bg);
-    }}
-    .control-plane-theme .navbar-vertical {{
-      background: #0b1112;
-      border-right-color: var(--line);
-      box-shadow: none;
-    }}
-    .control-plane-theme[data-theme="light"] .navbar-vertical {{
-      background: #101617;
-    }}
-    .control-plane-theme .page-wrapper {{
-      background: var(--page-bg);
-    }}
-    .control-plane-theme .navbar-expand-md.d-print-none {{
-      background: color-mix(in srgb, var(--surface) 92%, transparent);
-      border-bottom-color: var(--line);
-      min-height: 78px;
-    }}
-    .control-plane-theme .page-body {{
-      margin-top: 22px;
-      padding-bottom: 34px;
+      background: transparent;
+      display: block;
+      margin: 0 auto;
+      max-width: 1480px;
+      min-height: auto;
+      padding: 30px 34px 54px;
     }}
     .control-plane-theme .page-title,
     .control-plane-theme .card-title,
@@ -2289,6 +2506,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       color: var(--muted) !important;
     }}
     .control-plane-theme .card,
+    .control-plane-theme .metric-card,
+    .control-plane-theme .page-intro,
     .control-plane-theme .asset-workspace,
     .control-plane-theme .server-detail.active,
     .control-plane-theme .detail-section,
@@ -2299,7 +2518,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .proxy-status-card,
     .control-plane-theme .proxy-status-item,
     .control-plane-theme .chat-candidate {{
-      background: var(--surface);
+      background: var(--panel-bg);
       border-color: var(--line);
       box-shadow: none;
       color: var(--ink);
@@ -2352,11 +2571,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .control-plane-theme .btn,
     .control-plane-theme .logout-link,
-    .control-plane-theme .theme-switch {{
+    .control-plane-theme .theme-switch,
+    .control-plane-theme .ghost-btn {{
       align-items: center;
-      background: var(--surface-soft);
+      background: var(--button-bg);
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 0;
       color: var(--ink);
       display: inline-flex;
       font-weight: 700;
@@ -2367,7 +2587,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .control-plane-theme .btn:hover,
     .control-plane-theme .logout-link:hover,
-    .control-plane-theme .theme-switch:hover {{
+    .control-plane-theme .theme-switch:hover,
+    .control-plane-theme .ghost-btn:hover {{
       border-color: var(--accent);
       color: var(--accent);
       text-decoration: none;
@@ -2375,7 +2596,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .btn-primary {{
       background: var(--accent);
       border-color: var(--accent);
-      color: #071211;
+      color: #071211 !important;
     }}
     .control-plane-theme[data-theme="light"] .btn-primary {{
       color: #ffffff;
@@ -2412,18 +2633,21 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .page-intro {{
       align-items: stretch;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 10px;
+      background: var(--line);
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow);
       display: grid;
-      gap: 18px;
+      gap: 1px;
       grid-template-columns: minmax(0, 1fr) minmax(280px, 38%);
       margin-bottom: 18px;
       overflow: hidden;
-      padding: 22px;
     }}
     .page-intro.warning {{ border-color: color-mix(in srgb, #f59f00 42%, var(--line)); }}
     .page-intro.danger {{ border-color: color-mix(in srgb, #ff7b83 42%, var(--line)); }}
+    .page-intro > div:first-child {{
+      background: var(--panel-bg);
+      padding: 22px;
+    }}
     .page-kicker {{
       color: var(--accent);
       font-size: 12px;
@@ -2448,19 +2672,19 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       max-width: 720px;
     }}
     .intro-facts {{
-      background: var(--surface-soft);
-      border: 1px solid var(--line);
-      border-radius: 8px;
+      background: var(--line);
+      border: 0;
+      border-radius: 0;
       display: grid;
       gap: 1px;
       overflow: hidden;
     }}
     .intro-fact {{
-      background: var(--surface);
+      background: var(--panel-bg);
       display: grid;
       gap: 4px;
       min-width: 0;
-      padding: 13px 14px;
+      padding: 18px;
     }}
     .intro-fact span {{
       color: var(--muted);
@@ -2473,6 +2697,41 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       font-weight: 780;
       line-height: 1.45;
       overflow-wrap: anywhere;
+    }}
+    .metric-grid {{
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      margin-bottom: 16px;
+    }}
+    .metric-card {{
+      border: 1px solid var(--line);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.025) inset;
+      padding: 17px;
+    }}
+    .metric-card span {{
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+    }}
+    .metric-card strong {{
+      color: var(--ink);
+      display: block;
+      font-size: 26px;
+      font-weight: 760;
+      line-height: 1.15;
+      margin-top: 10px;
+    }}
+    .metric-card small {{
+      color: var(--soft);
+      display: block;
+      margin-top: 4px;
+    }}
+    .metric-card.warning strong {{
+      color: var(--yellow);
+    }}
+    .metric-card.danger strong {{
+      color: var(--red);
     }}
     .control-plane-theme .form-label,
     .control-plane-theme .form-section-title,
@@ -2596,8 +2855,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         gap: 12px;
       }}
       .navbar-nav.flex-row.order-md-last.ms-auto {{ margin-left: 0 !important; }}
-      .page-intro {{ grid-template-columns: 1fr; padding: 18px; }}
+      .page-intro {{ grid-template-columns: 1fr; }}
+      .metric-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .page-title {{ font-size: 22px; }}
+      .metric-grid {{ grid-template-columns: 1fr; }}
       .asset-toolbar {{ align-items: flex-start; flex-direction: column; }}
       .asset-workspace {{ padding: 10px; }}
       .server-list-head {{ display: none; }}
@@ -2636,32 +2897,52 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
   </style>
 </head>
 <body class="control-plane-theme page-view-{esc(active)}">
-  <div class="page">
-    <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
-      <div class="container-fluid">
-        <h1 class="navbar-brand navbar-brand-autodark">{render_brand_logo()}</h1>
-        <div class="collapse navbar-collapse show">
-          <ul class="navbar-nav pt-lg-3">{nav_html}</ul>
-        </div>
+  <div class="app-shell" data-view="{esc(active)}">
+    <aside class="sidebar">
+      <div class="brand">{render_brand_logo()}</div>
+
+      <nav class="nav-block" aria-label="运行导航">
+        <p>运行</p>
+        {run_nav_html}
+      </nav>
+
+      <nav class="nav-block" aria-label="配置导航">
+        <p>配置</p>
+        {config_nav_html}
+      </nav>
+
+      <div class="sidebar-account">
+        <a class="user-menu" href="/security">
+          <span class="avatar">A</span>
+          <span>
+            <strong>admin</strong>
+            <small>面板管理员</small>
+          </span>
+          <b>›</b>
+        </a>
+        <a class="logout-link sidebar-logout" href="/logout" aria-label="退出登录">退出登录</a>
       </div>
     </aside>
-    <div class="page-wrapper">
-      <header class="navbar navbar-expand-md d-print-none">
-        <div class="container-xl">
-          <div>
-            <h2 class="page-title">{esc(title)}</h2>
-            <div class="text-secondary small">{esc(subtitle)}</div>
-          </div>
-          <div class="navbar-nav flex-row order-md-last ms-auto page-actions">{header_actions}</div>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <span class="crumb">控制台 / <b>{esc(active_label)}</b></span>
+          <h1>{esc(title)}</h1>
+          <p>{esc(subtitle)}</p>
+        </div>
+        <div class="top-actions">
+          <span class="engine-state"><i></i>保护引擎正常</span>
+          <button class="ghost-btn theme-switch" type="button" data-theme-toggle>浅色模式</button>
+          {header_actions}
         </div>
       </header>
-      <div class="page-body">
-        <div class="container-xl">
-          {flash_html}
-          {body}
-        </div>
-      </div>
-    </div>
+
+      <section class="page active">
+        {flash_html}
+        {body}
+      </section>
+    </main>
   </div>
   <div class="traffic-modal" data-traffic-modal aria-hidden="true">
     <div class="traffic-modal-card" role="dialog" aria-modal="true" aria-labelledby="traffic-modal-title">
@@ -3243,17 +3524,33 @@ def render_summary_cards(summary: dict) -> str:
     errors = int(summary.get("errors", 0) or 0)
     stopped = int(summary.get("stopped", 0) or 0)
     pools = int(summary.get("pools", 0) or 0)
-    warning_class = "is-warning" if warnings else "is-muted"
-    error_class = "is-danger" if errors else "is-muted"
-    stopped_class = "is-danger" if stopped else "is-muted"
     return f"""
-    <div class="row row-deck row-cards mb-4">
-      <div class="col-sm-6 col-xl"><div class="card stat-card"><div class="card-body"><div class="subheader">总机器</div><div class="h1 mb-0">{esc(summary.get('total', 0))}</div><div class="stat-line"><span style="width:100%"></span></div></div></div></div>
-      <div class="col-sm-6 col-xl"><div class="card stat-card"><div class="card-body"><div class="subheader">启用保护</div><div class="h1 mb-0">{esc(summary.get('enabled', 0))}</div><div class="stat-line"><span style="width:70%"></span></div></div></div></div>
-      <div class="col-sm-6 col-xl"><div class="card stat-card"><div class="card-body"><div class="subheader">流量池</div><div class="h1 mb-0">{esc(pools)}</div><div class="stat-line"><span style="width:{min(100, max(18, pools * 25))}%"></span></div></div></div></div>
-      <div class="col-sm-6 col-xl"><div class="card stat-card {warning_class}"><div class="card-body"><div class="subheader">流量预警</div><div class="h1 mb-0 text-yellow">{esc(warnings)}</div><div class="stat-line"><span style="width:{100 if warnings else 18}%; background:#f59f00"></span></div></div></div></div>
-      <div class="col-sm-6 col-xl"><div class="card stat-card {error_class}"><div class="card-body"><div class="subheader">检查错误</div><div class="h1 mb-0 text-red">{esc(errors)}</div><div class="stat-line"><span style="width:{100 if errors else 18}%; background:#d63939"></span></div></div></div></div>
-      <div class="col-sm-6 col-xl"><div class="card stat-card {stopped_class}"><div class="card-body"><div class="subheader">已停止</div><div class="h1 mb-0">{esc(stopped)}</div><div class="stat-line"><span style="width:{100 if stopped else 18}%; background:#64748b"></span></div></div></div></div>
+    <div class="metric-grid">
+      <article class="metric-card">
+        <span>受管服务器</span>
+        <strong>{esc(summary.get('total', 0))} 台</strong>
+        <small>{esc(summary.get('enabled', 0))} 台启用自动保护</small>
+      </article>
+      <article class="metric-card">
+        <span>流量池</span>
+        <strong>{esc(pools)} 个</strong>
+        <small>按阿里云账号和统计范围归组</small>
+      </article>
+      <article class="metric-card {'warning' if warnings else ''}">
+        <span>流量预警</span>
+        <strong>{esc(warnings)} 台</strong>
+        <small>{'需要关注阈值和共享池' if warnings else '当前没有预警'}</small>
+      </article>
+      <article class="metric-card {'danger' if errors else ''}">
+        <span>检查错误</span>
+        <strong>{esc(errors)} 台</strong>
+        <small>{'请查看服务器日志' if errors else '阿里云接口正常'}</small>
+      </article>
+      <article class="metric-card {'danger' if stopped else ''}">
+        <span>已停止</span>
+        <strong>{esc(stopped)} 台</strong>
+        <small>{'可能是流量保护触发' if stopped else '暂无停机实例'}</small>
+      </article>
     </div>
     """
 
