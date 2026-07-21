@@ -1487,6 +1487,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-radius: 8px;
       color: var(--ink);
       cursor: pointer;
+      align-items: stretch;
       padding: 14px 16px;
       text-align: left;
       transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
@@ -1509,7 +1510,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-cell {{
       align-items: center;
       display: flex;
+      min-height: 74px;
       min-width: 0;
+    }}
+    .server-cell + .server-cell {{
+      border-left: 1px solid transparent;
+      padding-left: 14px;
     }}
     .server-name-stack {{
       display: grid;
@@ -1724,6 +1730,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .traffic-tags .asset-sub {{
       margin-top: 0;
+    }}
+    .server-row .asset-sub,
+    .server-row .text-secondary {{
+      line-height: 1.4;
     }}
     .chart-trigger {{
       background: transparent;
@@ -2695,6 +2705,21 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: var(--surface-soft);
       border-color: var(--accent);
     }}
+    .control-plane-theme .server-row.active {{
+      background: var(--input-bg);
+      border-color: color-mix(in srgb, var(--accent) 64%, var(--line));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent) inset;
+    }}
+    .control-plane-theme .server-row.active .server-cell + .server-cell {{
+      border-left-color: color-mix(in srgb, var(--line-strong) 72%, transparent);
+    }}
+    .control-plane-theme .server-row.active .asset-sub,
+    .control-plane-theme .server-row.active .text-secondary {{
+      color: var(--soft) !important;
+    }}
+    .control-plane-theme .server-row.active .account-key {{
+      color: var(--muted);
+    }}
     .control-plane-theme .table thead th,
     .control-plane-theme .table td,
     .control-plane-theme .table th {{
@@ -3145,7 +3170,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .server-cell {{
         align-items: flex-start;
         display: block;
+        min-height: 0;
+        padding-left: 0;
       }}
+      .server-cell + .server-cell {{ border-left: 0; }}
       .server-state {{ min-width: 0; }}
       .traffic-compact {{ display: block; }}
       .server-detail.active {{ padding: 14px; }}
