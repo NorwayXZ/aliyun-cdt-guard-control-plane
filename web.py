@@ -1474,6 +1474,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-list-head,
     .server-row {{
+      align-items: center;
       display: grid;
       gap: 16px;
       grid-template-columns: 126px minmax(230px, 1.35fr) minmax(150px, .8fr) 120px minmax(230px, 1fr);
@@ -1486,6 +1487,17 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       font-size: 12px;
       font-weight: 720;
       padding: 10px 16px;
+    }}
+    .server-list-head > div {{
+      align-items: center;
+      display: flex;
+      min-height: 26px;
+    }}
+    .server-list-head > div:first-child,
+    .server-list-head > div:nth-child(3),
+    .server-list-head > div:nth-child(4) {{
+      justify-content: center;
+      text-align: center;
     }}
     .server-row {{
       background: #fff;
@@ -1519,6 +1531,15 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       display: flex;
       min-height: 74px;
       min-width: 0;
+    }}
+    .server-cell.status-cell,
+    .server-cell.ip-cell,
+    .server-cell.region-cell {{
+      justify-content: center;
+      text-align: center;
+    }}
+    .server-cell.traffic-cell {{
+      align-items: center;
     }}
     .server-cell + .server-cell {{
       border-left: 1px solid transparent;
@@ -1555,11 +1576,15 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-state-main {{ font-weight: 760; line-height: 1; }}
     .server-state-sub {{ color: currentColor; display: block; font-size: 11px; opacity: .75; }}
     .server-state-detail {{
-      align-items: flex-start;
+      align-items: center;
       border-radius: 8px;
       display: flex;
       gap: 10px;
-      padding: 12px;
+      justify-content: center;
+      min-height: 70px;
+      min-width: 92px;
+      padding: 12px 14px;
+      text-align: center;
     }}
     .server-state-detail.running {{ background: var(--success-soft); color: #148341; }}
     .server-state-detail.stopped {{ background: var(--danger-soft); color: #c92a2a; }}
@@ -4062,7 +4087,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], _history: list[dict
       <article class="{' '.join(row_classes)}" data-server-row data-server-id="{esc(identity['id'])}" role="button" tabindex="0"
         data-search="{esc(search_text)}" data-filter-state="{esc(health_class)}" data-priority="{priority}"
         data-used="{pct:.4f}" data-name="{esc(identity['product_name'].lower())}" aria-selected="{'true' if active else 'false'}">
-        <span class="server-cell">
+        <span class="server-cell status-cell">
           <span class="server-state {state_class}">
             <span class="server-state-dot"></span>
             <span>
@@ -4071,16 +4096,16 @@ def render_server_row(item: dict, metadata: dict[str, dict], _history: list[dict
             </span>
           </span>
         </span>
-        <span class="server-cell">
+        <span class="server-cell server-info-cell">
           <span class="server-name-stack">
             <span class="asset-name d-block text-truncate">{esc(identity['product_name'])}</span>
             <span class="asset-sub d-block text-truncate">{esc(identity['asset_label'])} · {esc(identity['provider'])}</span>
             {render_server_account_balance(item)}
           </span>
         </span>
-        <span class="server-cell"><span class="ip-main text-truncate">{esc(identity['primary_ip'])}</span></span>
-        <span class="server-cell"><span class="text-secondary small">{esc(item.get('region_id'))}</span></span>
-        <span class="server-cell">
+        <span class="server-cell ip-cell"><span class="ip-main text-truncate">{esc(identity['primary_ip'])}</span></span>
+        <span class="server-cell region-cell"><span class="text-secondary small">{esc(item.get('region_id'))}</span></span>
+        <span class="server-cell traffic-cell">
           <span class="traffic-compact">
             <span class="traffic-meta">
               <span class="traffic-amount">{fmt_gb(item.get('traffic_gb'))}</span>
