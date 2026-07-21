@@ -1414,21 +1414,28 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: #fbfcff;
       border-bottom: 1px solid var(--line);
       display: grid;
-      gap: 12px;
+      gap: 10px;
       grid-template-columns: minmax(260px, 1fr) auto;
-      padding: 12px 14px;
+      padding: 8px 14px;
+    }}
+    .server-group-info {{
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      min-width: 0;
     }}
     .server-group-title {{
       color: #111827;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 780;
-      line-height: 1.3;
+      line-height: 1.2;
     }}
     .server-group-sub {{
       color: var(--muted);
       font-size: 12px;
-      line-height: 1.45;
-      margin-top: 3px;
+      line-height: 1.2;
+      margin-top: 0;
     }}
     .server-group-metrics {{
       align-items: center;
@@ -1460,8 +1467,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-group-body {{
       display: grid;
-      gap: 10px;
-      padding: 10px;
+      gap: 8px;
+      padding: 8px 10px 10px;
     }}
     .server-list-head,
     .server-row {{
@@ -2682,9 +2689,13 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .card-footer,
     .control-plane-theme .log-note,
     .control-plane-theme .server-list-head,
-    .control-plane-theme .server-group-head,
     .control-plane-theme .traffic-modal-head {{
       background: var(--surface-soft);
+      border-color: var(--line);
+      color: var(--ink);
+    }}
+    .control-plane-theme .server-group-head {{
+      background: var(--input-bg);
       border-color: var(--line);
       color: var(--ink);
     }}
@@ -3804,7 +3815,7 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
     return f"""
       <section class="server-group" data-server-group data-group-priority="{group_priority}" data-group-used="{total_traffic:.4f}" data-group-name="{esc(group_name.lower())}">
         <div class="server-group-head">
-          <div>
+          <div class="server-group-info">
             <div class="server-group-title">{esc(group_name)}</div>
             <div class="server-group-sub">
               <span data-group-visible-count>{len(items)}</span> / {len(items)} 台 · {esc(scope_text)}{f' · {esc(region_text)}' if region_text else ''}
