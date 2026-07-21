@@ -578,10 +578,14 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>登录 - Aliyun CDT Guard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
-      --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-sans: "Geist", "Noto Sans SC", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --bg: #101617;
       --panel: #151d1e;
       --panel-soft: #111819;
@@ -997,10 +1001,14 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
   <meta name="viewport" content="width=device-width, initial-scale=1">
   {refresh_meta}
   <title>Aliyun CDT Guard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
-      --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-sans: "Geist", "Noto Sans SC", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --page-bg: #f6f7f9;
       --surface: #ffffff;
       --surface-soft: #fafbfc;
@@ -1233,7 +1241,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .account-key {{
       color: #667085;
       flex: 0 1 auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 11px;
       max-width: 100%;
       min-width: 0;
@@ -1310,7 +1318,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .ip-main {{
       color: #111827;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 15px;
       font-weight: 650;
     }}
@@ -1752,7 +1760,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: #eef2f6;
       border-radius: 6px;
       color: #475569;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       padding: 2px 6px;
     }}
@@ -2249,7 +2257,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: #0f172a;
       border-radius: 8px;
       color: #e5edf7;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       line-height: 1.65;
       margin: 10px 0 0;
@@ -2287,7 +2295,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-radius: 6px;
       color: #475569;
       display: inline-block;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       margin-top: 4px;
       padding: 3px 6px;
@@ -2542,7 +2550,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .nav-block p {{
       color: var(--muted);
-      font: 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font: 11px/1 var(--font-mono);
       margin: 0 10px 8px;
     }}
     .nav-block .nav-item {{
@@ -2574,7 +2582,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border: 0;
       border-radius: 0;
       flex: 0 0 18px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       height: auto;
       width: 18px;
     }}
@@ -2647,7 +2655,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .crumb {{
       color: var(--muted);
-      font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font: 11px var(--font-mono);
     }}
     .topbar h1 {{
       color: var(--ink);
