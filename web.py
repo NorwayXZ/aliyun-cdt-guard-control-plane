@@ -1514,7 +1514,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-row:hover {{ background: #fbfcfe; }}
     .server-row.active {{
       background: #eef5ff;
-      box-shadow: inset 3px 0 0 var(--accent);
+      box-shadow: inset 4px 0 0 var(--red);
     }}
     .server-row:focus-visible {{
       outline: 3px solid rgba(23, 99, 209, .16);
@@ -1540,7 +1540,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       align-items: center;
     }}
     .server-cell + .server-cell {{
-      border-left: 1px solid transparent;
+      border-left: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
       padding-left: 14px;
     }}
     .server-name-stack {{
@@ -2753,10 +2753,13 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .control-plane-theme .server-row.active {{
       background: var(--input-bg);
-      box-shadow: inset 3px 0 0 var(--accent);
+      box-shadow: inset 4px 0 0 var(--red);
+    }}
+    .control-plane-theme .server-cell + .server-cell {{
+      border-left-color: color-mix(in srgb, var(--line-strong) 52%, transparent);
     }}
     .control-plane-theme .server-row.active .server-cell + .server-cell {{
-      border-left-color: color-mix(in srgb, var(--line-strong) 72%, transparent);
+      border-left-color: color-mix(in srgb, var(--line-strong) 76%, transparent);
     }}
     .control-plane-theme .server-row.active .asset-sub,
     .control-plane-theme .server-row.active .text-secondary {{
