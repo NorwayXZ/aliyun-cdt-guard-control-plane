@@ -1836,6 +1836,49 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       font-size: 18px;
       font-weight: 720;
     }}
+    .traffic-detail-box {{
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+    }}
+    .traffic-primary-grid {{
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .traffic-primary-card {{
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 0;
+      padding: 12px;
+    }}
+    .traffic-primary-card .info-label {{
+      margin-bottom: 10px;
+    }}
+    .traffic-threshold-line {{
+      align-items: center;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 12px;
+      font-weight: 720;
+      gap: 8px 14px;
+      justify-content: space-between;
+    }}
+    .traffic-secondary-grid {{
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .traffic-secondary-grid .detail-item {{
+      background: transparent;
+      border: 0;
+      padding: 0;
+    }}
     .reset-summary {{
       align-items: center;
       background: #f8fafc;
@@ -1922,6 +1965,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       display: flex;
       gap: 8px;
       justify-content: flex-start;
+    }}
+    .traffic-label {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+      white-space: nowrap;
     }}
     .traffic-amount {{
       color: #111827;
@@ -3361,7 +3410,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     @media (max-width: 992px) {{
       .navbar-vertical {{ width: 100%; }}
       .container-xl {{ padding-left: 16px; padding-right: 16px; }}
-      .credential-grid, .log-layout, .log-meta, .asset-filter-bar, .detail-grid {{ grid-template-columns: 1fr; }}
+      .credential-grid, .log-layout, .log-meta, .asset-filter-bar, .detail-grid, .traffic-primary-grid, .traffic-secondary-grid {{ grid-template-columns: 1fr; }}
       .proxy-grid {{ grid-template-columns: 1fr; }}
       .channel-status {{ grid-template-columns: 1fr; }}
       .chat-candidate {{ grid-template-columns: 1fr; }}
@@ -4042,13 +4091,13 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
             </div>
           </div>
           <div class="server-group-metrics">
-            <span class="server-group-pill">合计 {fmt_gb(total_traffic)}</span>
+            <span class="server-group-pill">账号池合计 {fmt_gb(total_traffic)}</span>
             <span class="server-group-pill {balance_level}">余额 {esc(balance_text)}</span>
           </div>
         </div>
         <div class="server-group-body" data-server-group-body>
           <div class="server-list-head">
-            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>CDT 用量</div>
+            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>本机 CDT</div>
           </div>
           {rows}
         </div>
@@ -4266,8 +4315,9 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     today_traffic = today_server_traffic_gb(item, history)
     member_count = int(item.get("display_pool_member_count") or item.get("traffic_pool_member_count") or 0)
     self_traffic = item.get("traffic_gb")
-    show_self_total = member_count > 1 or abs(as_float(str(pool_traffic or 0), 0) - as_float(str(self_traffic or 0), 0)) > 0.0001
-    self_total_html = f'<span class="asset-sub">本机累计 {fmt_gb(self_traffic)}</span>' if show_self_total else ""
+    pool_total_html = ""
+    if member_count > 1 or abs(as_float(str(pool_traffic or 0), 0) - as_float(str(self_traffic or 0), 0)) > 0.0001:
+        pool_total_html = f'<span class="asset-sub">账号池合计 {fmt_gb(pool_traffic)}</span>'
     account_balance = item.get("account_balance") or {}
     search_text = " ".join(
         [
@@ -4314,12 +4364,13 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
         <span class="server-cell traffic-cell">
           <span class="traffic-compact">
             <span class="traffic-meta">
-              <span class="traffic-amount">{fmt_gb(pool_traffic)}</span>
+              <span class="traffic-label">本机累计</span>
+              <span class="traffic-amount">{fmt_gb(self_traffic)}</span>
             </span>
             <span class="traffic-daily">今日本机 <strong>{fmt_gb(today_traffic)}</strong></span>
             <span class="traffic-tags">
               <span class="asset-sub">{traffic_pool_badge(item)}</span>
-              {self_total_html}
+              {pool_total_html}
               <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看曲线</button>
             </span>
           </span>
@@ -4334,6 +4385,7 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
     pct = used_percent(item)
     pool_traffic = protection_traffic_gb(item)
     today_traffic = today_server_traffic_gb(item, history)
+    self_traffic = item.get("traffic_gb")
     state_class, state_label, state_sub = status_view(item.get("instance_status"))
     panel_username = first_value(meta.get("panel_username"), meta.get("login_username"), meta.get("username"))
     panel_password = first_value(meta.get("panel_password"), meta.get("login_password"), meta.get("password"))
@@ -4361,36 +4413,43 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
           </div>
         </div>
         <div class="detail-section">
-          <div class="traffic-row">
-            <div>
-              <div class="info-label">CDT 保护池用量</div>
-              <div class="traffic-value">{fmt_gb(pool_traffic)}</div>
+          <div class="traffic-detail-box">
+            <div class="traffic-primary-grid">
+              <div class="traffic-primary-card">
+                <div class="info-label">本机累计</div>
+                <div class="traffic-value">{fmt_gb(self_traffic)}</div>
+              </div>
+              <div class="traffic-primary-card">
+                <div class="info-label">今日本机</div>
+                <div class="traffic-value">{fmt_gb(today_traffic)}</div>
+              </div>
             </div>
-            <div class="text-secondary small">停机阈值 {fmt_gb(item.get('stop_threshold_gb'))}</div>
+            <div class="traffic-threshold-line">
+              <span>账号保护池 {fmt_gb(pool_traffic)}</span>
+              <span>停机阈值 {fmt_gb(item.get('stop_threshold_gb'))}</span>
+            </div>
+            <div class="progress">
+              <div class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></div>
+            </div>
+            <div class="traffic-secondary-grid">
+              <div class="detail-item">
+                <div class="info-label">保护池剩余</div>
+                <div class="info-value">{fmt_gb(item.get('remaining_gb'))}</div>
+              </div>
+              <div class="detail-item">
+                <div class="info-label">共享关系</div>
+                <div class="info-value">{esc(traffic_pool_badge(item))}</div>
+              </div>
+              <div class="detail-item">
+                <div class="info-label">本次检查</div>
+                <div>{traffic_delta_badge(item.get('traffic_delta_gb'))}</div>
+              </div>
+              <div class="detail-item">
+                <div class="info-label">曲线</div>
+                <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看 1天/3天/7天/1个月曲线</button>
+              </div>
+            </div>
           </div>
-          <div class="progress mt-3">
-            <div class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></div>
-          </div>
-          <div class="detail-grid mt-3">
-            <div class="detail-item">
-              <div class="info-label">保护池剩余</div>
-              <div class="info-value">{fmt_gb(item.get('remaining_gb'))}</div>
-            </div>
-            <div class="detail-item">
-              <div class="info-label">本机累计</div>
-              <div class="info-value">{fmt_gb(item.get('traffic_gb'))}</div>
-            </div>
-            <div class="detail-item">
-              <div class="info-label">今日本机</div>
-              <div class="info-value">{fmt_gb(today_traffic)}</div>
-            </div>
-            <div class="detail-item">
-              <div class="info-label">共享关系</div>
-              <div class="info-value">{esc(traffic_pool_badge(item))}</div>
-            </div>
-          </div>
-          <div class="mt-2">{traffic_delta_badge(item.get('traffic_delta_gb'))}</div>
-          <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看 1天/3天/7天/1个月曲线</button>
         </div>
         <div class="detail-section">
           {render_recovery_plan(item)}
