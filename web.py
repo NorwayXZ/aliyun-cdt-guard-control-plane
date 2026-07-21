@@ -2100,15 +2100,21 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       margin-top: 10px;
     }}
     .telegram-command {{
-      background: #fff;
+      background: var(--surface-soft);
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 10px 12px;
     }}
     .telegram-command code {{
-      color: #111827;
+      background: var(--accent-soft);
+      border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--line));
+      border-radius: 6px;
+      color: var(--accent);
+      display: inline-flex;
       font-size: 12px;
       font-weight: 720;
+      line-height: 1.2;
+      padding: 4px 7px;
     }}
     .telegram-command span {{
       color: var(--muted);
@@ -2741,7 +2747,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .channel-status-value,
     .control-plane-theme .chart-stat-value,
     .control-plane-theme .saved-channel-title,
-    .control-plane-theme .telegram-command code,
     .control-plane-theme .power-title,
     .control-plane-theme .recovery-title,
     .control-plane-theme .reset-time,
@@ -4052,19 +4057,7 @@ def render_server_form_page(query: dict[str, list[str]] | None = None) -> bytes:
     edit_id = query.get("id", [""])[0]
     editing = selected_instance(config, edit_id)
     pool_options = collect_traffic_pool_options(config, status)
-    is_edit = bool(editing)
-    intro = page_intro(
-        "Server",
-        "编辑服务器配置" if is_edit else "添加一台新的阿里云服务器",
-        "只填写必需信息就能接入保护；账号备注、登录网站、SSH 备注和高级流量池信息可以以后再补。",
-        [
-            ("必填", "AccessKey、Secret、实例 ID、ECS 区域"),
-            ("推荐默认", "180GB 停机，175GB 恢复，160GB 预警"),
-            ("流量池", "留空时按阿里云账号自动归组"),
-        ],
-    )
     body = f"""
-    {intro}
     <div class="form-layout">
       <div>{render_form(editing, pool_options)}</div>
       {render_form_guide()}
@@ -4753,16 +4746,6 @@ def render_security_page(query: dict[str, list[str]] | None = None) -> bytes:
         cookie_text = "未启用 Secure Cookie；建议通过 HTTPS 域名访问后开启自动模式。"
     session_ttl = env.get("WEB_SESSION_TTL", "86400")
     body = f"""
-    {page_intro(
-        "Security",
-        "管理面板登录账号和会话安全",
-        "这里修改的是面板管理员账号，不会影响阿里云 AccessKey、服务器 SSH 备注或通知渠道。",
-        [
-            ("当前用户名", username),
-            ("会话有效期", f"{session_ttl} 秒"),
-            ("Cookie", "HTTPS 域名建议启用自动 Secure"),
-        ],
-    )}
     <div class="form-layout">
       <form class="card save-form" method="post" action="/security/save" data-save-form>
         <div class="card-header">
@@ -4933,16 +4916,6 @@ server {{
 """
     env_config = "WEB_COOKIE_SECURE=true"
     body = f"""
-    {page_intro(
-        "Proxy",
-        "用域名和 HTTPS 访问面板",
-        "这里负责生成 Cloudflare + Caddy/Nginx 的反代配置。DNS 仍需要你确认后再添加，避免误改域名。",
-        [
-            ("域名", saved_domain or "未配置"),
-            ("源站", f"{saved_origin_ip or '未填写'}:{origin_port}"),
-            ("Caddy", caddy_state),
-        ],
-    )}
     <div class="card mb-3">
       <div class="card-header"><h3 class="card-title">当前反代状态</h3></div>
       <div class="card-body">
