@@ -593,19 +593,18 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
   <style>
     :root {{
       --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      --ink: #111827;
-      --muted: #64748b;
-      --accent: #1763d1;
-      --line: #e5e7eb;
+      --bg: #101617;
+      --panel: #151d1e;
+      --panel-soft: #111819;
+      --ink: #e9f0ee;
+      --muted: #91a19e;
+      --accent: #6bf1c0;
+      --line: #2d3a3b;
     }}
     html, body {{ font-family: var(--font-sans); letter-spacing: 0; }}
     body {{
       min-height: 100vh;
-      background:
-        radial-gradient(circle at 50% 22%, rgba(34, 211, 238, .16), transparent 310px),
-        radial-gradient(circle at 50% 72%, rgba(23, 99, 209, .10), transparent 360px),
-        linear-gradient(135deg, rgba(23, 99, 209, .08), rgba(20, 131, 65, .06)),
-        #f6f7f9;
+      background: var(--bg);
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
     }}
@@ -616,14 +615,14 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
       place-items: center;
     }}
     .login-panel {{
-      width: min(460px, 100%);
+      width: min(470px, 100%);
     }}
     .login-card {{
-      background: rgba(255, 255, 255, .94);
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 14px;
-      box-shadow: 0 24px 70px rgba(15, 23, 42, .12);
-      padding: 34px;
+      border-radius: 10px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .28);
+      padding: 38px;
     }}
     .login-logo {{
       display: grid;
@@ -639,7 +638,7 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     .login-logo .brand-mark {{
       height: 104px;
       width: 104px;
-      filter: drop-shadow(0 18px 28px rgba(23, 99, 209, .24));
+      filter: drop-shadow(0 18px 28px rgba(107, 241, 192, .14));
       margin-bottom: 12px;
     }}
     .login-logo .brand-text {{
@@ -648,16 +647,16 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
       justify-items: center;
     }}
     .login-logo .brand-name {{
-      color: #111827;
+      color: var(--ink);
       font-size: 24px;
       font-weight: 840;
       line-height: 1.05;
     }}
     .login-logo .brand-name span {{
-      color: #1763d1;
+      color: var(--accent);
     }}
     .login-logo .brand-subtitle {{
-      color: #64748b;
+      color: var(--muted);
       font-size: 11px;
       font-weight: 780;
       letter-spacing: .08em;
@@ -665,6 +664,7 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
       text-transform: uppercase;
     }}
     .login-card h1 {{
+      color: var(--ink);
       font-size: 26px;
       font-weight: 820;
       margin: 0 0 6px;
@@ -677,21 +677,37 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
       text-align: center;
     }}
     .form-control {{
-      border-color: #d6d9df;
+      background: var(--panel-soft);
+      border-color: #3a4947;
       border-radius: 8px;
+      color: var(--ink);
       min-height: 44px;
     }}
     .form-control:focus {{
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(23, 99, 209, .12);
+      box-shadow: 0 0 0 3px rgba(107, 241, 192, .09);
+    }}
+    .form-control::placeholder {{
+      color: #63716f;
+    }}
+    .form-label {{
+      color: #c4d0cd;
+      font-size: 12px;
+      font-weight: 650;
     }}
     .btn-primary {{
-      background: var(--accent);
-      border-color: var(--accent);
+      background: #112b24;
+      border-color: #437869;
       border-radius: 7px;
+      color: var(--accent);
       font-weight: 700;
       min-height: 44px;
       width: 100%;
+    }}
+    .btn-primary:hover {{
+      background: #18392f;
+      border-color: var(--accent);
+      color: var(--accent);
     }}
     .login-alert {{
       background: #fff7df;
@@ -784,6 +800,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     flash_html = f'<div class="alert {flash_class(flash)}">{esc(flash_message(flash))}</div>' if flash else ""
     refresh_meta = '<meta http-equiv="refresh" content="60">' if auto_refresh else ""
     header_actions = f"""
+      <button class="theme-switch" type="button" data-theme-toggle>浅色模式</button>
       {actions}
       <a class="logout-link" href="/logout" aria-label="退出登录">退出登录</a>
     """
@@ -2156,6 +2173,201 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .grid-full {{ grid-column: 1 / -1; }}
     .asset-toolbar {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }}
+    body.control-plane-theme {{
+      --page-bg: #101617;
+      --surface: #151d1e;
+      --surface-soft: #111819;
+      --line: #2d3a3b;
+      --line-strong: #405052;
+      --ink: #e9f0ee;
+      --muted: #91a19e;
+      --accent: #6bf1c0;
+      --accent-soft: #112b24;
+      --success-soft: #10271f;
+      --warning-soft: #2b2414;
+      --danger-soft: #30191d;
+      background: var(--page-bg);
+      color: var(--ink);
+    }}
+    body.control-plane-theme[data-theme="light"] {{
+      --page-bg: #f6f7f4;
+      --surface: #ffffff;
+      --surface-soft: #f3f5f2;
+      --line: #dde3df;
+      --line-strong: #cbd5d1;
+      --ink: #1c2423;
+      --muted: #66736f;
+      --accent: #0f7a5a;
+      --accent-soft: #e5f6ef;
+      --success-soft: #e7f8ef;
+      --warning-soft: #fff6df;
+      --danger-soft: #ffeded;
+      background: var(--page-bg);
+      color: var(--ink);
+    }}
+    .control-plane-theme .page {{
+      background: var(--page-bg);
+    }}
+    .control-plane-theme .navbar-vertical {{
+      background: #0b1112;
+      border-right-color: var(--line);
+      box-shadow: none;
+    }}
+    .control-plane-theme[data-theme="light"] .navbar-vertical {{
+      background: #101617;
+    }}
+    .control-plane-theme .page-wrapper {{
+      background: var(--page-bg);
+    }}
+    .control-plane-theme .navbar-expand-md.d-print-none {{
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      border-bottom-color: var(--line);
+      min-height: 78px;
+    }}
+    .control-plane-theme .page-body {{
+      margin-top: 22px;
+      padding-bottom: 34px;
+    }}
+    .control-plane-theme .page-title,
+    .control-plane-theme .card-title,
+    .control-plane-theme .asset-name,
+    .control-plane-theme .info-value,
+    .control-plane-theme .traffic-value,
+    .control-plane-theme .server-group-title,
+    .control-plane-theme .traffic-amount,
+    .control-plane-theme .ip-main,
+    .control-plane-theme .fw-semibold {{
+      color: var(--ink) !important;
+    }}
+    .control-plane-theme .text-secondary,
+    .control-plane-theme .asset-sub,
+    .control-plane-theme .form-hint,
+    .control-plane-theme .info-label,
+    .control-plane-theme .server-group-sub {{
+      color: var(--muted) !important;
+    }}
+    .control-plane-theme .card,
+    .control-plane-theme .asset-workspace,
+    .control-plane-theme .server-detail.active,
+    .control-plane-theme .detail-section,
+    .control-plane-theme .saved-channel-card,
+    .control-plane-theme .setup-box,
+    .control-plane-theme .guide-step,
+    .control-plane-theme .proxy-step-card,
+    .control-plane-theme .proxy-status-card,
+    .control-plane-theme .proxy-status-item,
+    .control-plane-theme .chat-candidate {{
+      background: var(--surface);
+      border-color: var(--line);
+      box-shadow: none;
+      color: var(--ink);
+    }}
+    .control-plane-theme .card-header,
+    .control-plane-theme .card-footer,
+    .control-plane-theme .log-note,
+    .control-plane-theme .server-list-head,
+    .control-plane-theme .server-group-head,
+    .control-plane-theme .traffic-modal-head {{
+      background: var(--surface-soft);
+      border-color: var(--line);
+      color: var(--ink);
+    }}
+    .control-plane-theme .server-row,
+    .control-plane-theme .list-group-item,
+    .control-plane-theme .breakdown-row,
+    .control-plane-theme .detail-item,
+    .control-plane-theme .chart-stat,
+    .control-plane-theme .traffic-chart-wrap,
+    .control-plane-theme .traffic-table-wrap,
+    .control-plane-theme .traffic-modal-card {{
+      background: var(--surface);
+      border-color: var(--line);
+      color: var(--ink);
+    }}
+    .control-plane-theme .server-row:hover,
+    .control-plane-theme .server-row.active {{
+      background: var(--surface-soft);
+      border-color: var(--accent);
+    }}
+    .control-plane-theme .table thead th,
+    .control-plane-theme .table td,
+    .control-plane-theme .table th {{
+      background: transparent;
+      border-color: var(--line);
+      color: var(--ink);
+    }}
+    .control-plane-theme .form-control,
+    .control-plane-theme .form-select,
+    .control-plane-theme textarea.form-control {{
+      background: var(--surface-soft);
+      border-color: var(--line-strong);
+      color: var(--ink);
+    }}
+    .control-plane-theme .form-control:focus,
+    .control-plane-theme .form-select:focus {{
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+    }}
+    .control-plane-theme .btn,
+    .control-plane-theme .logout-link,
+    .control-plane-theme .theme-switch {{
+      align-items: center;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      display: inline-flex;
+      font-weight: 700;
+      justify-content: center;
+      min-height: 38px;
+      padding: 8px 12px;
+      text-decoration: none;
+    }}
+    .control-plane-theme .btn:hover,
+    .control-plane-theme .logout-link:hover,
+    .control-plane-theme .theme-switch:hover {{
+      border-color: var(--accent);
+      color: var(--accent);
+      text-decoration: none;
+    }}
+    .control-plane-theme .btn-primary {{
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #071211;
+    }}
+    .control-plane-theme[data-theme="light"] .btn-primary {{
+      color: #ffffff;
+    }}
+    .control-plane-theme .btn-danger {{
+      background: #ff7b83;
+      border-color: #ff7b83;
+      color: #1b080a;
+    }}
+    .control-plane-theme .stat-card .h1 {{
+      color: var(--ink);
+    }}
+    .control-plane-theme .stat-card .stat-line {{
+      background: var(--accent-soft);
+    }}
+    .control-plane-theme .stat-card .stat-line span,
+    .control-plane-theme .progress-bar.bg-green {{
+      background: var(--accent) !important;
+    }}
+    .control-plane-theme .progress {{
+      background: var(--surface-soft);
+    }}
+    .control-plane-theme .server-state.running,
+    .control-plane-theme .server-state-detail.running {{
+      background: var(--accent-soft);
+      color: var(--accent);
+    }}
+    .control-plane-theme .reset-summary,
+    .control-plane-theme .power-panel {{
+      border-color: var(--line);
+    }}
+    .control-plane-theme .traffic-modal {{
+      background: rgba(0, 0, 0, .58);
+    }}
     @media (max-width: 1180px) {{
       .asset-workspace {{ grid-template-columns: 1fr; }}
       .form-layout {{ grid-template-columns: 1fr; }}
@@ -2219,7 +2431,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
   </style>
 </head>
-<body>
+<body class="control-plane-theme">
   <div class="page">
     <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
       <div class="container-fluid">
@@ -2289,6 +2501,23 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
   <script>
+    (function () {{
+      const body = document.body;
+      const button = document.querySelector("[data-theme-toggle]");
+      const stored = localStorage.getItem("cdtGuardTheme") || "dark";
+      function applyTheme(theme) {{
+        body.dataset.theme = theme;
+        if (button) button.textContent = theme === "light" ? "深色模式" : "浅色模式";
+      }}
+      applyTheme(stored);
+      if (button) {{
+        button.addEventListener("click", function () {{
+          const next = body.dataset.theme === "light" ? "dark" : "light";
+          localStorage.setItem("cdtGuardTheme", next);
+          applyTheme(next);
+        }});
+      }}
+    }})();
     function toggleSecret(button) {{
       const shown = button.dataset.shown === "1";
       if (shown) {{
