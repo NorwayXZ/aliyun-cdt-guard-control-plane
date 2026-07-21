@@ -9,6 +9,7 @@ const modalClose = document.querySelector("[data-modal-close]");
 const modalOk = document.querySelector("[data-modal-ok]");
 const menu = document.querySelector("[data-menu]");
 const menuToggle = document.querySelector("[data-menu-toggle]");
+const themeToggle = document.querySelector("[data-theme-toggle]");
 
 const chartSets = {
   "1d": {
@@ -51,6 +52,19 @@ TTL: Auto`,
 };
 
 let activeRange = "1d";
+
+function cssVar(name) {
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
+}
+
+function applyTheme(theme) {
+  document.body.dataset.theme = theme;
+  localStorage.setItem("cdt-control-plane-theme", theme);
+  if (themeToggle) {
+    themeToggle.textContent = theme === "light" ? "深色模式" : "浅色模式";
+  }
+  requestAnimationFrame(() => drawChart(activeRange));
+}
 
 function openPage(id) {
   const page = document.getElementById(id);
@@ -95,6 +109,11 @@ function drawChart(range = activeRange) {
   const canvas = document.getElementById("trafficChart");
   if (!canvas) return;
 
+  const chartBg = cssVar("--chart-bg") || "#0d1415";
+  const chartGrid = cssVar("--chart-grid") || "#263334";
+  const muted = cssVar("--muted") || "#778683";
+  const green = cssVar("--green") || "#65e8b5";
+  const isLight = document.body.dataset.theme === "light";
   const ctx = canvas.getContext("2d");
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
@@ -111,13 +130,13 @@ function drawChart(range = activeRange) {
   const innerH = height - padding.top - padding.bottom;
 
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#0d1415";
+  ctx.fillStyle = chartBg;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.strokeStyle = "#263334";
+  ctx.strokeStyle = chartGrid;
   ctx.lineWidth = 1;
   ctx.font = "12px system-ui";
-  ctx.fillStyle = "#778683";
+  ctx.fillStyle = muted;
 
   for (let i = 0; i <= 4; i += 1) {
     const y = padding.top + (innerH / 4) * i;
@@ -136,8 +155,8 @@ function drawChart(range = activeRange) {
   });
 
   const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
-  gradient.addColorStop(0, "rgba(101, 232, 181, .28)");
-  gradient.addColorStop(1, "rgba(101, 232, 181, 0)");
+  gradient.addColorStop(0, isLight ? "rgba(8, 127, 97, .2)" : "rgba(101, 232, 181, .28)");
+  gradient.addColorStop(1, isLight ? "rgba(8, 127, 97, 0)" : "rgba(101, 232, 181, 0)");
   ctx.beginPath();
   points.forEach((point, index) => {
     if (index === 0) ctx.moveTo(point.x, point.y);
@@ -154,18 +173,18 @@ function drawChart(range = activeRange) {
     if (index === 0) ctx.moveTo(point.x, point.y);
     else ctx.lineTo(point.x, point.y);
   });
-  ctx.strokeStyle = "#65e8b5";
+  ctx.strokeStyle = green;
   ctx.lineWidth = 2;
   ctx.stroke();
 
   points.forEach((point) => {
     ctx.beginPath();
     ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = "#65e8b5";
+    ctx.fillStyle = green;
     ctx.fill();
   });
 
-  ctx.fillStyle = "#778683";
+  ctx.fillStyle = muted;
   points.forEach((point, index) => {
     if (index === 0 || index === points.length - 1 || index % 2 === 0) {
       ctx.fillText(point.label, point.x - 16, height - 14);
@@ -218,6 +237,12 @@ document.addEventListener("click", (event) => {
       entry.hidden = filter !== "all" && entry.dataset.logType !== filter;
     });
   }
+
+  const themeButton = event.target.closest("[data-theme-toggle]");
+  if (themeButton) {
+    const nextTheme = document.body.dataset.theme === "light" ? "dark" : "light";
+    applyTheme(nextTheme);
+  }
 });
 
 menuToggle?.addEventListener("click", () => {
@@ -253,4 +278,5 @@ document.getElementById("trafficChart")?.addEventListener("mouseleave", () => {
 });
 
 window.addEventListener("resize", () => drawChart(activeRange));
+applyTheme(localStorage.getItem("cdt-control-plane-theme") || "dark");
 drawChart(activeRange);

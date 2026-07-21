@@ -59,6 +59,7 @@
           </div>
           <div class="top-actions">
             <span class="engine-state"><i></i>保护引擎正常</span>
+            <button class="ghost-btn theme-toggle" type="button" data-theme-toggle>浅色模式</button>
             <a class="ghost-link" href="login.html">预览登录页</a>
           </div>
         </header>
@@ -72,6 +73,32 @@
             </div>
             <button class="primary-btn" type="button" data-toast="已开始手动检查，完成后会刷新流量和日志。">手动检查流量</button>
           </div>
+
+          <section class="status-brief danger">
+            <div class="brief-main">
+              <span class="brief-label">当前结论</span>
+              <h3>A账号海外共享池已进入危险区</h3>
+              <p>已用 173.6GB，距离 180GB 自动关机阈值只剩 6.4GB。按最近 24 小时速度估算，约 5 小时后可能触发保护。</p>
+              <div class="brief-actions">
+                <button class="primary-btn" type="button" data-target="servers">查看受影响服务器</button>
+                <button class="ghost-btn" type="button" data-target="logs">查看最近事件</button>
+              </div>
+            </div>
+            <div class="brief-facts">
+              <article>
+                <span>受影响服务器</span>
+                <strong>香港代理 01、日本缓存 01、新加坡节点 01</strong>
+              </article>
+              <article>
+                <span>系统已处理</span>
+                <strong>已发送 Telegram 预警，hk-edge-02 已自动关机</strong>
+              </article>
+              <article>
+                <span>恢复时间</span>
+                <strong>2026年8月1日账期重置后自动恢复开机</strong>
+              </article>
+            </div>
+          </section>
 
           <div class="metric-grid">
             <article class="metric-card">
