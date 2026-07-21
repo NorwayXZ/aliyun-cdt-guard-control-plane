@@ -290,7 +290,9 @@ def traffic_pool_text(item: dict) -> str:
 
 def traffic_pool_badge(item: dict) -> str:
     scope = item.get("traffic_scope") or TRAFFIC_SCOPE_REGION
-    count = int(item.get("traffic_pool_member_count") or 0)
+    count = int(item.get("display_pool_member_count") or item.get("traffic_pool_member_count") or 0)
+    if count > 1:
+        return f"账号共享池 · {count} 台机器"
     if scope == TRAFFIC_SCOPE_REGION:
         return f"区域池 · {esc(item.get('traffic_region_id') or '未设置')}"
     if count > 1:
@@ -835,6 +837,37 @@ def traffic_total_key(item: dict) -> str:
     return f"{display_key}:{source_key}"
 
 
+def enrich_display_traffic(instances: list[dict]) -> None:
+    source_values: dict[str, float] = {}
+    source_display: dict[str, str] = {}
+    pool_member_counts: dict[str, int] = {}
+    for item in instances:
+        if not item.get("enabled", True):
+            continue
+        display_key = traffic_display_pool_key(item)
+        source_key = traffic_total_key(item)
+        pool_member_counts[display_key] = pool_member_counts.get(display_key, 0) + 1
+        if item.get("traffic_gb") is None:
+            continue
+        try:
+            traffic_gb = float(item.get("traffic_gb"))
+        except (TypeError, ValueError):
+            continue
+        source_values[source_key] = max(source_values.get(source_key, 0), traffic_gb)
+        source_display[source_key] = display_key
+
+    pool_totals: dict[str, float] = {}
+    for source_key, traffic_gb in source_values.items():
+        display_key = source_display.get(source_key, source_key)
+        pool_totals[display_key] = pool_totals.get(display_key, 0) + traffic_gb
+
+    for item in instances:
+        display_key = traffic_display_pool_key(item)
+        if display_key in pool_totals:
+            item["display_protection_traffic_gb"] = pool_totals[display_key]
+        item["display_pool_member_count"] = pool_member_counts.get(display_key, item.get("traffic_pool_member_count", 0))
+
+
 def current_total_traffic(instances: list[dict]) -> tuple[float, int]:
     totals: dict[str, float] = {}
     for item in instances:
@@ -847,6 +880,51 @@ def current_total_traffic(instances: list[dict]) -> tuple[float, int]:
         key = traffic_total_key(item)
         totals[key] = max(totals.get(key, 0), traffic_gb)
     return sum(totals.values()), display_pool_count(instances)
+
+
+def protection_traffic_gb(item: dict):
+    for key in ("display_protection_traffic_gb", "protection_traffic_gb", "traffic_gb"):
+        value = item.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def today_server_traffic_gb(item: dict, history: list[dict]) -> float:
+    server_id = str(item.get("id") or item.get("instance_id") or "")
+    if not server_id:
+        return 0.0
+    local_tz = timezone(timedelta(hours=8))
+    start = datetime.now(local_tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    previous_traffic = None
+    total = 0.0
+    for event in sorted(history, key=lambda row: str(row.get("at") or "")):
+        if str(event.get("id") or "") != server_id:
+            continue
+        event_time = parse_event_time(event.get("at"))
+        if event_time is None:
+            continue
+        traffic = event.get("traffic_gb")
+        if traffic is None:
+            continue
+        try:
+            traffic_gb = float(traffic)
+        except (TypeError, ValueError):
+            continue
+        if event_time.astimezone(local_tz) < start:
+            previous_traffic = traffic_gb
+            continue
+        delta = event.get("traffic_delta_gb")
+        try:
+            delta_gb = float(delta) if delta is not None else None
+        except (TypeError, ValueError):
+            delta_gb = None
+        if delta_gb is None and previous_traffic is not None:
+            delta_gb = traffic_gb - previous_traffic if traffic_gb >= previous_traffic else traffic_gb
+        previous_traffic = traffic_gb
+        if delta_gb is not None and delta_gb > 0:
+            total += delta_gb
+    return total
 
 
 def aggregate_total_traffic_series(instances: list[dict], history: list[dict], generated_at: str | None, days: int = 30) -> dict:
@@ -1841,6 +1919,21 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .traffic-amount {{
       color: #111827;
+      font-weight: 720;
+    }}
+    .traffic-percent {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+      white-space: nowrap;
+    }}
+    .traffic-daily {{
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.4;
+    }}
+    .traffic-daily strong {{
+      color: var(--ink);
       font-weight: 720;
     }}
     .traffic-tags {{
@@ -4009,6 +4102,13 @@ def progress_class(item: dict) -> str:
 
 
 def used_percent(item: dict) -> float:
+    threshold = item.get("stop_threshold_gb")
+    traffic = protection_traffic_gb(item)
+    if threshold and traffic is not None:
+        try:
+            return max(0, min(float(traffic) / float(threshold) * 100, 100))
+        except (TypeError, ValueError, ZeroDivisionError):
+            pass
     value = item.get("used_pct")
     if value is None:
         return 0
@@ -4156,11 +4256,17 @@ def render_diagnostics(item: dict, identity: dict[str, Any], manual_note: str) -
     """
 
 
-def render_server_row(item: dict, metadata: dict[str, dict], _history: list[dict], active: bool = False) -> str:
+def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict], active: bool = False) -> str:
     identity = server_identity(item, metadata)
     state_class, state_label, state_sub = status_view(item.get("instance_status"))
     health_class, _filter_label, priority = server_health(item)
     pct = used_percent(item)
+    pool_traffic = protection_traffic_gb(item)
+    today_traffic = today_server_traffic_gb(item, history)
+    member_count = int(item.get("display_pool_member_count") or item.get("traffic_pool_member_count") or 0)
+    self_traffic = item.get("traffic_gb")
+    show_self_total = member_count > 1 or abs(as_float(str(pool_traffic or 0), 0) - as_float(str(self_traffic or 0), 0)) > 0.0001
+    self_total_html = f'<span class="asset-sub">本机累计 {fmt_gb(self_traffic)}</span>' if show_self_total else ""
     account_balance = item.get("account_balance") or {}
     search_text = " ".join(
         [
@@ -4207,13 +4313,13 @@ def render_server_row(item: dict, metadata: dict[str, dict], _history: list[dict
         <span class="server-cell traffic-cell">
           <span class="traffic-compact">
             <span class="traffic-meta">
-              <span class="traffic-amount">{fmt_gb(item.get('traffic_gb'))}</span>
-              <span class="text-secondary small">{pct:.0f}%</span>
+              <span class="traffic-amount">{fmt_gb(pool_traffic)}</span>
+              <span class="traffic-percent">{pct:.0f}%</span>
             </span>
-            <span class="progress"><span class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></span></span>
+            <span class="traffic-daily">今日本机 <strong>{fmt_gb(today_traffic)}</strong></span>
             <span class="traffic-tags">
               <span class="asset-sub">{traffic_pool_badge(item)}</span>
-              <span class="asset-sub">{esc(fmt_delta(item.get('traffic_delta_gb')))}</span>
+              {self_total_html}
               <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看曲线</button>
             </span>
           </span>
@@ -4222,10 +4328,12 @@ def render_server_row(item: dict, metadata: dict[str, dict], _history: list[dict
     """
 
 
-def render_server_detail(item: dict, metadata: dict[str, dict], active: bool = False) -> str:
+def render_server_detail(item: dict, metadata: dict[str, dict], history: list[dict], active: bool = False) -> str:
     identity = server_identity(item, metadata)
     meta = identity["meta"]
     pct = used_percent(item)
+    pool_traffic = protection_traffic_gb(item)
+    today_traffic = today_server_traffic_gb(item, history)
     state_class, state_label, state_sub = status_view(item.get("instance_status"))
     panel_username = first_value(meta.get("panel_username"), meta.get("login_username"), meta.get("username"))
     panel_password = first_value(meta.get("panel_password"), meta.get("login_password"), meta.get("password"))
@@ -4255,18 +4363,19 @@ def render_server_detail(item: dict, metadata: dict[str, dict], active: bool = F
         <div class="detail-section">
           <div class="traffic-row">
             <div>
-              <div class="info-label">CDT 用量</div>
-              <div class="traffic-value">{fmt_gb(item.get('traffic_gb'))}</div>
+              <div class="info-label">CDT 保护池用量</div>
+              <div class="traffic-value">{fmt_gb(pool_traffic)}</div>
             </div>
-            <div class="text-secondary small">停机 {fmt_gb(item.get('stop_threshold_gb'))}</div>
+            <div class="text-secondary small">停机 {fmt_gb(item.get('stop_threshold_gb'))} · {pct:.0f}%</div>
           </div>
           <div class="progress mt-3">
             <div class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></div>
           </div>
           <div class="d-flex justify-content-between mt-2 text-secondary small">
             <span>剩余 {fmt_gb(item.get('remaining_gb'))}</span>
-            <span>{pct:.0f}% 已用</span>
+            <span>本机累计 {fmt_gb(item.get('traffic_gb'))}</span>
           </div>
+          <div class="text-secondary small mt-2">今日本机 {fmt_gb(today_traffic)}</div>
           <div class="pool-chip mt-2">{esc(traffic_pool_badge(item))}</div>
           <div class="mt-2">{traffic_delta_badge(item.get('traffic_delta_gb'))}</div>
           <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看 1天/3天/7天/1个月曲线</button>
@@ -4326,14 +4435,14 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
         if index == 0:
             active_id = identity["id"]
         groups.setdefault(account_group_key(item), []).append(item)
-        details.append(render_server_detail(item, metadata, active=index == 0))
+        details.append(render_server_detail(item, metadata, history, active=index == 0))
     group_html = "".join(
         render_server_group(group_key, group_items, metadata, history, active_id)
         for group_key, group_items in sorted(
             groups.items(),
             key=lambda pair: (
                 min(server_health(item)[2] for item in pair[1]),
-                -sum(as_float(item.get("traffic_gb"), 0) for item in pair[1] if item.get("traffic_gb") is not None),
+                -current_total_traffic(pair[1])[0],
                 account_group_title(pair[0]),
             ),
         )
@@ -4433,6 +4542,7 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     status = read_json(STATUS_FILE, {"summary": {}, "instances": [], "generated_at": "暂无"})
     config = read_config()
     instances = status.get("instances", [])
+    enrich_display_traffic(instances)
     summary = dict(status.get("summary", {}) or {})
     summary["pools"] = display_pool_count(instances) or int(summary.get("pools", 0) or 0)
     metadata = config_by_id(config)
