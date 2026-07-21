@@ -1479,14 +1479,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-list-head {{
       background: #f7f9fc;
-      border-bottom: 1px solid var(--line);
+      border: 1px solid var(--line);
+      border-radius: 8px;
       color: #687386;
       font-size: 12px;
       font-weight: 720;
-      padding: 10px 14px;
-      position: sticky;
-      top: 0;
-      z-index: 2;
+      padding: 9px 16px;
     }}
     .server-row {{
       background: #fff;
@@ -3827,6 +3825,9 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
           </div>
         </div>
         <div class="server-group-body" data-server-group-body>
+          <div class="server-list-head">
+            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>CDT 用量</div>
+          </div>
           {rows}
         </div>
       </section>
@@ -4238,9 +4239,6 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
             </select>
           </div>
           <div class="asset-count-line">当前显示 <span data-visible-count>{len(sorted_instances)}</span> / {len(sorted_instances)} 台</div>
-          <div class="server-list-head">
-            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>CDT 用量</div>
-          </div>
           <div class="server-list" data-server-list>
             {group_html}
           </div>
