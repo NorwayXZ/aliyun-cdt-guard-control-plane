@@ -953,7 +953,6 @@ def render_total_traffic_chart(series: dict) -> str:
         <line x1="{pad_left}" y1="{pad_top}" x2="{pad_left}" y2="{height - pad_bottom}" class="total-axis-line"/>
         <line x1="{pad_left}" y1="{height - pad_bottom}" x2="{width - pad_right}" y2="{height - pad_bottom}" class="total-axis-line"/>
         <text x="{pad_left}" y="17" class="total-axis-title">纵轴：累计消耗 GB</text>
-        <text x="{width - pad_right}" y="{height - 4}" class="total-axis-title" text-anchor="end">横轴：时间点</text>
         {"".join(ticks)}
         <polygon class="total-chart-area" points="{area_points}"/>
         <polyline class="total-chart-line" points="{line_points}"/>
@@ -2925,28 +2924,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       margin: 10px 0 0;
       max-width: 760px;
     }}
-    .total-chart-current {{
-      background: var(--surface-soft);
-      border: 1px solid var(--line);
-      min-width: 150px;
-      padding: 12px 14px;
-      text-align: right;
-    }}
-    .total-chart-current span {{
-      color: var(--muted);
-      display: block;
-      font-size: 12px;
-      font-weight: 720;
-      margin-bottom: 5px;
-    }}
-    .total-chart-current strong {{
-      color: var(--accent);
-      display: block;
-      font-size: 20px;
-      font-weight: 780;
-      line-height: 1.1;
-      white-space: nowrap;
-    }}
     .total-chart-svg {{
       background: var(--input-bg);
       border: 1px solid var(--line);
@@ -3021,6 +2998,11 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       font-weight: 780;
       line-height: 1.45;
       overflow-wrap: anywhere;
+    }}
+    .total-chart-facts article:first-child strong {{
+      color: var(--accent);
+      font-size: 24px;
+      line-height: 1.15;
     }}
     .control-plane-theme .form-label,
     .control-plane-theme .form-section-title,
@@ -3142,7 +3124,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .page-intro {{ grid-template-columns: 1fr; }}
       .overview-traffic-hero {{ grid-template-columns: 1fr; }}
       .total-chart-head {{ flex-direction: column; }}
-      .total-chart-current {{ text-align: left; }}
       .metric-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .page-title {{ font-size: 22px; }}
       .metric-grid {{ grid-template-columns: 1fr; }}
@@ -3577,7 +3558,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       add("line", {{ x1: pad.left, y1: pad.top, x2: pad.left, y2: barY, stroke: chartColors.lineStrong, "stroke-width": "1" }});
       add("line", {{ x1: pad.left, y1: barY, x2: width - pad.right, y2: barY, stroke: chartColors.lineStrong, "stroke-width": "1" }});
       add("text", {{ x: pad.left, y: 18, fill: chartColors.soft, "font-size": "12", "font-weight": "700" }}).textContent = "纵轴：累计流量 GB";
-      add("text", {{ x: width - pad.right, y: height - 8, fill: chartColors.soft, "font-size": "12", "font-weight": "700", "text-anchor": "end" }}).textContent = "横轴：时间点";
 
       const tickCount = Math.min(5, points.length);
       for (let i = 0; i < tickCount; i += 1) {{
@@ -4255,16 +4235,15 @@ def render_overview_intro(summary: dict, instances: list[dict], history: list[di
             <div>
               <div class="page-kicker">主页 · 总流量</div>
               <h2>总流量消耗曲线</h2>
-              <p>统计所有已添加服务器的 CDT 用量；共享流量池按池去重，普通服务器单独计入，避免多台机器共用 200G 时重复计算。</p>
-            </div>
-            <div class="total-chart-current">
-              <span>当前累计</span>
-              <strong>{fmt_gb(series.get("current_total_gb"))}</strong>
             </div>
           </div>
           {chart_html}
         </div>
         <aside class="total-chart-facts">
+          <article>
+            <span>当前累计使用流量</span>
+            <strong>{fmt_gb(series.get("current_total_gb"))}</strong>
+          </article>
           <article>
             <span>统计范围</span>
             <strong>{enabled}/{total} 台启用保护 · {series.get("source_count", 0)} 个去重统计源</strong>
