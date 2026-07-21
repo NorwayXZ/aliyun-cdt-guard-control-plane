@@ -65,6 +65,24 @@ wait_for_apt_locks() {
   done
 }
 
+backup_bad_dpkg_update_file() {
+  local output="$1"
+  local bad_file=""
+  local backup_dir=""
+
+  bad_file="$(printf '%s\n' "$output" | sed -n "s#.*parsing file '\\(/var/lib/dpkg/updates/[0-9][0-9]*\\)'.*#\\1#p" | head -n 1)"
+  if [ -z "$bad_file" ] || [ ! -f "$bad_file" ]; then
+    return 1
+  fi
+
+  backup_dir="/root/dpkg-updates-backup-$(date +%Y%m%d%H%M%S)"
+  install -d -m 700 "$backup_dir"
+  echo "dpkg update file looks corrupted: $bad_file"
+  echo "Moving it to backup directory: $backup_dir"
+  mv "$bad_file" "$backup_dir/"
+  return 0
+}
+
 repair_dpkg_state() {
   if ! need_cmd dpkg; then
     return 0
@@ -73,7 +91,19 @@ repair_dpkg_state() {
   wait_for_apt_locks
   if dpkg --audit 2>/dev/null | grep -q .; then
     echo "dpkg has unfinished package configuration. Running: dpkg --configure -a"
-    DEBIAN_FRONTEND=noninteractive dpkg --configure -a
+    local output=""
+    local status=0
+    set +e
+    output="$(DEBIAN_FRONTEND=noninteractive dpkg --configure -a 2>&1)"
+    status=$?
+    set -e
+    printf '%s\n' "$output"
+    if [ "$status" -ne 0 ] && backup_bad_dpkg_update_file "$output"; then
+      echo "Retrying: dpkg --configure -a"
+      DEBIAN_FRONTEND=noninteractive dpkg --configure -a
+      return 0
+    fi
+    return "$status"
   fi
 }
 
@@ -100,7 +130,15 @@ apt_run() {
     if printf '%s\n' "$output" | grep -q 'dpkg was interrupted'; then
       echo "dpkg was interrupted. Repairing package state and retrying..."
       wait_for_apt_locks
-      DEBIAN_FRONTEND=noninteractive dpkg --configure -a
+      set +e
+      repair_output="$(DEBIAN_FRONTEND=noninteractive dpkg --configure -a 2>&1)"
+      repair_status=$?
+      set -e
+      printf '%s\n' "$repair_output"
+      if [ "$repair_status" -ne 0 ]; then
+        backup_bad_dpkg_update_file "$repair_output" || return "$repair_status"
+        DEBIAN_FRONTEND=noninteractive dpkg --configure -a
+      fi
       sleep 2
       continue
     fi

@@ -45,6 +45,25 @@ sudo dpkg --configure -a
 
 然后重新运行安装命令。新版安装脚本也会尝试自动修复这个状态。
 
+如果继续提示类似：
+
+```text
+dpkg: error: parsing file '/var/lib/dpkg/updates/0000' near line 0:
+ end of file after field name ''
+```
+
+说明 dpkg 的临时 updates 文件损坏。可以先备份并移走这个坏文件：
+
+```bash
+sudo mkdir -p /root/dpkg-updates-backup
+sudo cp -a /var/lib/dpkg/updates /root/dpkg-updates-backup/updates.$(date +%s)
+sudo mv /var/lib/dpkg/updates/0000 /root/dpkg-updates-backup/0000.broken.$(date +%s)
+sudo dpkg --configure -a
+sudo apt-get -f install
+```
+
+确认修复后再重新运行安装命令。新版安装脚本也会尝试自动把 dpkg 错误中点名的坏文件移动到 `/root/dpkg-updates-backup-*`。
+
 ## 一键卸载
 
 ```bash
