@@ -4702,17 +4702,6 @@ def render_logs_page(query: dict[str, list[str]] | None = None) -> bytes:
         )
 
     body = f"""
-    {page_intro(
-        "Logs",
-        "只看需要处理的事件",
-        "默认隐藏普通巡检流水，优先展示异常、启停、预警和停机保持。需要排查趋势时再切到正常记录或全部日志。",
-        [
-            ("当前服务器", str(current_name or "暂无")),
-            ("重要事件", f"{len(important_logs)} 条"),
-            ("普通巡检", f"{len(normal_logs)} 条"),
-        ],
-        tone="warning" if important_logs else "neutral",
-    )}
     <div class="log-layout">
       <div class="card">
         <div class="card-header"><h3 class="card-title">服务器</h3></div>
