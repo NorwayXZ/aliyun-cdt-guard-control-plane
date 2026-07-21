@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Aliyun CDT Guard Control Plane every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Persistent=true
+Unit=cdt-guard-control-plane.service
+
+[Install]
+WantedBy=timers.target

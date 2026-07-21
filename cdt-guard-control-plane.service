@@ -1,0 +1,12 @@
+[Unit]
+Description=Aliyun CDT Guard Control Plane check
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/aliyun-cdt-guard-control-plane
+Environment=CDT_GUARD_HOME=/opt/aliyun-cdt-guard-control-plane
+ExecStart=/opt/aliyun-cdt-guard-control-plane/venv/bin/python /opt/aliyun-cdt-guard-control-plane/guard.py run
+User=root
+Group=root

@@ -1,0 +1,17 @@
+[Unit]
+Description=Aliyun CDT Guard Control Plane web dashboard
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/aliyun-cdt-guard-control-plane
+Environment=CDT_GUARD_HOME=/opt/aliyun-cdt-guard-control-plane
+ExecStart=/usr/bin/python3 /opt/aliyun-cdt-guard-control-plane/web.py
+Restart=always
+RestartSec=3
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

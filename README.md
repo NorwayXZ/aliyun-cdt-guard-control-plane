@@ -1,8 +1,70 @@
 # Aliyun CDT Guard Control Plane
 
-Aliyun CDT Guard Control Plane 是新版面板 UI 原型项目，用来验证下一代阿里云 CDT 流量保护控制台的页面结构、视觉风格和交互方案。
+Aliyun CDT Guard Control Plane 是新版阿里云 CDT 流量保护控制台项目，用来管理多台 ECS、统计 CDT 流量、到阈值自动关机、账期重置后自动恢复、发送 Telegram/邮件/Webhook 通知，并提供账号安全和域名反代配置。
 
-这个仓库目前是静态前端原型，不连接真实阿里云 API，不保存真实 AccessKey，也不会执行真实开机、关机、通知或反代配置。
+仓库同时保留新版静态 UI 原型文件，方便继续打磨视觉；正式一键安装使用 Python 后端面板，具备真实阿里云 API 调用能力。
+
+## 一键安装
+
+推荐系统：
+
+- Ubuntu 22.04 LTS
+- Debian 12
+
+安装命令：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main/install.sh | sudo bash
+```
+
+默认安装目录：
+
+```text
+/opt/aliyun-cdt-guard-control-plane
+```
+
+默认端口：
+
+```text
+8788
+```
+
+安装完成后终端会输出面板地址、用户名和随机生成的密码。
+
+## 一键卸载
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main/uninstall.sh | sudo bash
+```
+
+卸载脚本只移除 systemd 服务和命令入口，默认保留配置、密钥、状态和历史记录目录：
+
+```text
+/opt/aliyun-cdt-guard-control-plane
+```
+
+确认不再需要后可以手动删除。
+
+## 命令行
+
+```bash
+cdt-guard-control-plane status
+cdt-guard-control-plane run
+systemctl status cdt-guard-control-plane.timer
+systemctl status cdt-guard-control-plane-web.service
+```
+
+## 功能范围
+
+- 从网页新增/编辑 ECS，不需要 SSH 到服务器手动改配置。
+- 支持 AccessKey ID/Secret、ECS Instance ID、区域、阈值、备注等配置。
+- 支持一个阿里云账号多台服务器共享 CDT 流量池的归组统计。
+- 支持 CDT 流量查询、ECS 状态查询、自动关机、恢复开机。
+- 支持 BSS 账单 API 查询真实账期重置时间和账户余额。
+- 支持 Telegram、邮件、Webhook 通知。
+- 支持 Telegram 主动查询命令。
+- 支持面板账号密码修改。
+- 支持 Caddy 域名反代配置。
 
 ## 页面范围
 
@@ -17,7 +79,7 @@ Aliyun CDT Guard Control Plane 是新版面板 UI 原型项目，用来验证下
 
 ## 本地预览
 
-直接打开 `index.html` 即可预览：
+静态 UI 原型可以直接打开 `index.html` 预览：
 
 ```bash
 open index.html
@@ -43,12 +105,10 @@ http://127.0.0.1:5173
 
 ## 后续接入计划
 
-1. 将静态假数据替换成后端接口数据。
-2. 接入阿里云 ECS、CDT、CloudMonitor、BSS 账单 API。
-3. 实现真实的服务器新增、编辑、开机、关机。
-4. 实现 Telegram、邮件、Webhook 通知。
-5. 实现账号共享 CDT 流量池的自动归组。
-6. 实现一键安装、一键卸载和反代配置。
+1. 把正式后端页面逐步替换为新版 Control Plane 视觉。
+2. 将静态原型中的首页结论区接入真实 `/api/status` 和 `/api/history`。
+3. 增强流量曲线图的小时级/天级数据展示。
+4. 增加更细的阿里云云监控和 VPC Flow Logs 分析入口。
 
 ## 安全说明
 
