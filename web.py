@@ -1466,9 +1466,11 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       color: #9a6700;
     }}
     .server-group-body {{
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
       display: grid;
-      gap: 8px;
-      padding: 8px 10px 10px;
+      overflow: hidden;
     }}
     .server-list-head,
     .server-row {{
@@ -1479,17 +1481,17 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-list-head {{
       background: #f7f9fc;
-      border: 1px solid var(--line);
-      border-radius: 8px;
+      border-bottom: 1px solid var(--line);
       color: #687386;
       font-size: 12px;
       font-weight: 720;
-      padding: 9px 16px;
+      padding: 10px 16px;
     }}
     .server-row {{
       background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 8px;
+      border: 0;
+      border-top: 1px solid var(--line);
+      border-radius: 0;
       color: var(--ink);
       cursor: pointer;
       align-items: stretch;
@@ -1498,18 +1500,18 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
       width: 100%;
     }}
+    .server-list-head + .server-row {{ border-top: 0; }}
     .server-row:hover {{ background: #fbfcfe; }}
     .server-row.active {{
       background: #eef5ff;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px var(--accent) inset;
+      box-shadow: inset 3px 0 0 var(--accent);
     }}
     .server-row:focus-visible {{
       outline: 3px solid rgba(23, 99, 209, .16);
       outline-offset: -3px;
     }}
-    .server-row.is-danger:not(.active) {{ border-left-color: #d63939; border-left-width: 3px; }}
-    .server-row.is-warning:not(.active) {{ border-left-color: #f59f00; border-left-width: 3px; }}
+    .server-row.is-danger:not(.active) {{ box-shadow: inset 3px 0 0 #d63939; }}
+    .server-row.is-warning:not(.active) {{ box-shadow: inset 3px 0 0 #f59f00; }}
     .server-row.active.is-danger,
     .server-row.active.is-warning {{ background: #fffaf2; }}
     .server-cell {{
@@ -2709,15 +2711,17 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-color: var(--line);
       color: var(--ink);
     }}
+    .control-plane-theme .server-group-body {{
+      background: var(--surface);
+      border-color: color-mix(in srgb, var(--accent) 54%, var(--line));
+    }}
     .control-plane-theme .server-row:hover,
     .control-plane-theme .server-row.active {{
       background: var(--surface-soft);
-      border-color: var(--accent);
     }}
     .control-plane-theme .server-row.active {{
       background: var(--input-bg);
-      border-color: color-mix(in srgb, var(--accent) 64%, var(--line));
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent) inset;
+      box-shadow: inset 3px 0 0 var(--accent);
     }}
     .control-plane-theme .server-row.active .server-cell + .server-cell {{
       border-left-color: color-mix(in srgb, var(--line-strong) 72%, transparent);
