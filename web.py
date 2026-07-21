@@ -1654,6 +1654,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       text-align: center;
       width: 100%;
     }}
+    .server-list-head .traffic-head {{
+      gap: 8px;
+    }}
     .server-row {{
       background: #fff;
       border: 0;
@@ -1922,10 +1925,26 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       font-weight: 720;
     }}
     .traffic-percent {{
-      color: var(--muted);
+      border-radius: 999px;
       font-size: 12px;
       font-weight: 720;
+      padding: 3px 8px;
       white-space: nowrap;
+    }}
+    .usage-pill {{
+      background: var(--success-soft);
+      border: 1px solid color-mix(in srgb, #22c55e 42%, transparent);
+      color: #148341;
+    }}
+    .usage-pill.is-warning {{
+      background: var(--warning-soft);
+      border-color: color-mix(in srgb, #f59f00 48%, transparent);
+      color: #b7791f;
+    }}
+    .usage-pill.is-danger {{
+      background: var(--danger-soft);
+      border-color: color-mix(in srgb, #ef4444 48%, transparent);
+      color: #c92a2a;
     }}
     .traffic-daily {{
       color: var(--soft);
@@ -4047,7 +4066,7 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
         </div>
         <div class="server-group-body" data-server-group-body>
           <div class="server-list-head">
-            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>CDT 用量</div>
+            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div class="traffic-head"><span>CDT 用量</span><span class="usage-pill">占阈值</span></div>
           </div>
           {rows}
         </div>
@@ -4116,6 +4135,14 @@ def used_percent(item: dict) -> float:
         return max(0, min(float(value), 100))
     except (TypeError, ValueError):
         return 0
+
+
+def usage_level(pct: float) -> str:
+    if pct >= 100:
+        return "is-danger"
+    if pct >= 80:
+        return "is-warning"
+    return ""
 
 
 def server_health(item: dict) -> tuple[str, str, int]:
@@ -4261,6 +4288,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     state_class, state_label, state_sub = status_view(item.get("instance_status"))
     health_class, _filter_label, priority = server_health(item)
     pct = used_percent(item)
+    pct_class = usage_level(pct)
     pool_traffic = protection_traffic_gb(item)
     today_traffic = today_server_traffic_gb(item, history)
     member_count = int(item.get("display_pool_member_count") or item.get("traffic_pool_member_count") or 0)
@@ -4314,7 +4342,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
           <span class="traffic-compact">
             <span class="traffic-meta">
               <span class="traffic-amount">{fmt_gb(pool_traffic)}</span>
-              <span class="traffic-percent">{pct:.0f}%</span>
+              <span class="traffic-percent usage-pill {pct_class}">{pct:.0f}%</span>
             </span>
             <span class="traffic-daily">今日本机 <strong>{fmt_gb(today_traffic)}</strong></span>
             <span class="traffic-tags">
