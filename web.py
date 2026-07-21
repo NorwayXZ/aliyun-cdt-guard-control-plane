@@ -1372,6 +1372,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       opacity: .85;
     }}
     .asset-workspace {{
+      --asset-panel-height: clamp(680px, calc(100vh - 220px), 880px);
+      align-items: stretch;
       display: grid;
       gap: 16px;
       grid-template-columns: minmax(0, 1fr) 392px;
@@ -1380,9 +1382,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .asset-list-panel {{
       border: 1px solid var(--line);
       border-radius: 8px;
-      overflow-x: auto;
-      overflow-y: hidden;
+      display: flex;
+      flex-direction: column;
+      height: var(--asset-panel-height);
+      min-height: 0;
       min-width: 0;
+      overflow: hidden;
     }}
     .asset-filter-bar {{
       align-items: center;
@@ -1400,9 +1405,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-list {{
       display: grid;
-      max-height: 68vh;
-      overflow-x: visible;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-x: auto;
       overflow-y: auto;
+      scrollbar-color: color-mix(in srgb, var(--accent) 46%, var(--line)) transparent;
+      scrollbar-width: thin;
     }}
     .server-group {{
       background: #fff;
@@ -1598,13 +1606,16 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-state-detail.pending {{ background: var(--warning-soft); color: #b7791f; }}
     .server-state-detail.muted {{ background: #eef2f6; color: #64748b; }}
     .server-detail-panel {{
-      align-self: start;
       border: 1px solid var(--line);
       border-radius: 8px;
+      height: var(--asset-panel-height);
       min-width: 0;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
       position: sticky;
       top: 88px;
+      scrollbar-color: color-mix(in srgb, var(--accent) 46%, var(--line)) transparent;
+      scrollbar-width: thin;
     }}
     .server-detail {{
       display: none;
@@ -3170,7 +3181,14 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: var(--surface-soft);
     }}
     @media (max-width: 1180px) {{
-      .asset-workspace {{ grid-template-columns: 1fr; }}
+      .asset-workspace {{
+        --asset-panel-height: auto;
+        grid-template-columns: 1fr;
+      }}
+      .asset-list-panel,
+      .server-detail-panel {{
+        height: auto;
+      }}
       .form-layout {{ grid-template-columns: 1fr; }}
       .guide-panel {{ position: static; }}
       .server-detail-panel {{ position: static; }}
