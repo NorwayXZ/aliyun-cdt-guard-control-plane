@@ -810,6 +810,169 @@ def page_intro(kicker: str, heading: str, copy: str, facts: list[tuple[str, str]
     """
 
 
+def traffic_total_key(item: dict) -> str:
+    return str(item.get("traffic_pool_key") or item.get("id") or item.get("instance_id") or "unknown")
+
+
+def current_total_traffic(instances: list[dict]) -> tuple[float, int]:
+    totals: dict[str, float] = {}
+    for item in instances:
+        if item.get("traffic_gb") is None:
+            continue
+        try:
+            traffic_gb = float(item.get("traffic_gb"))
+        except (TypeError, ValueError):
+            continue
+        key = traffic_total_key(item)
+        totals[key] = max(totals.get(key, 0), traffic_gb)
+    return sum(totals.values()), len(totals)
+
+
+def aggregate_total_traffic_series(instances: list[dict], history: list[dict], generated_at: str | None, days: int = 30) -> dict:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    events: list[tuple[datetime, str, float]] = []
+    all_records = []
+    for event in history:
+        event_time = parse_event_time(event.get("at"))
+        if event_time is None:
+            continue
+        traffic = event.get("traffic_gb")
+        if traffic is None:
+            continue
+        try:
+            traffic_gb = float(traffic)
+        except (TypeError, ValueError):
+            continue
+        key = str(event.get("traffic_pool_key") or event.get("id") or "")
+        if not key:
+            continue
+        all_records.append((event_time, key, traffic_gb))
+
+    last_by_key: dict[str, float] = {}
+    points: list[dict] = []
+    current_bucket = ""
+    bucket_time: datetime | None = None
+    for event_time, key, traffic_gb in sorted(all_records, key=lambda row: row[0]):
+        bucket = event_time.strftime("%Y-%m-%d %H:%M")
+        if event_time >= cutoff and current_bucket and bucket != current_bucket and bucket_time is not None:
+            points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
+        last_by_key[key] = traffic_gb
+        if event_time >= cutoff:
+            current_bucket = bucket
+            bucket_time = event_time
+    if current_bucket and bucket_time is not None:
+        points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
+
+    current_total, current_sources = current_total_traffic(instances)
+    if current_total > 0:
+        current_time = parse_event_time(generated_at) or datetime.now(timezone.utc)
+        if not points or abs(float(points[-1].get("total_gb") or 0) - current_total) > 0.0001:
+            points.append({"at": current_time.isoformat(), "total_gb": current_total})
+        else:
+            points[-1]["at"] = current_time.isoformat()
+
+    compacted: list[dict] = []
+    for point in points:
+        if compacted and compacted[-1]["at"] == point["at"]:
+            compacted[-1] = point
+        else:
+            compacted.append(point)
+    if len(compacted) > 80:
+        step = max(1, len(compacted) // 70)
+        sampled = compacted[::step]
+        if sampled[-1] != compacted[-1]:
+            sampled.append(compacted[-1])
+        compacted = sampled
+
+    first = float(compacted[0]["total_gb"]) if compacted else None
+    last = float(compacted[-1]["total_gb"]) if compacted else current_total
+    delta = max(last - first, 0) if first is not None else 0
+    return {
+        "days": days,
+        "points": compacted,
+        "current_total_gb": current_total,
+        "source_count": current_sources,
+        "delta_gb": delta,
+    }
+
+
+def chart_time_label(value: str | None) -> str:
+    parsed = parse_event_time(value)
+    if not parsed:
+        return "暂无"
+    return parsed.astimezone(timezone.utc).strftime("%m-%d %H:%M")
+
+
+def render_total_traffic_chart(series: dict) -> str:
+    points = series.get("points") or []
+    width = 900
+    height = 280
+    pad_left = 58
+    pad_right = 26
+    pad_top = 30
+    pad_bottom = 42
+    values = [float(point.get("total_gb") or 0) for point in points]
+    if not values:
+        return """
+          <div class="total-chart-empty">
+            暂无历史曲线。点击“手动检查流量”或等待定时巡检后，这里会开始展示所有服务器的总流量消耗。
+          </div>
+        """
+    low = min(values)
+    high = max(values)
+    if high <= 0:
+        high = 1
+    if abs(high - low) < 0.01:
+        low = 0
+    span = high - low or 1
+
+    def x_at(index: int) -> float:
+        if len(values) == 1:
+            return pad_left
+        return pad_left + index * (width - pad_left - pad_right) / (len(values) - 1)
+
+    def y_at(value: float) -> float:
+        return pad_top + (high - value) / span * (height - pad_top - pad_bottom)
+
+    line_points = " ".join(f"{x_at(index):.1f},{y_at(value):.1f}" for index, value in enumerate(values))
+    area_points = f"{pad_left},{height - pad_bottom} {line_points} {width - pad_right},{height - pad_bottom}"
+    grid_rows = []
+    for index in range(4):
+        value = low + (high - low) * index / 3
+        y = y_at(value)
+        grid_rows.append(
+            f'<line x1="{pad_left}" y1="{y:.1f}" x2="{width - pad_right}" y2="{y:.1f}" class="total-grid-line"/>'
+            f'<text x="{pad_left - 10}" y="{y + 4:.1f}" class="total-axis-label" text-anchor="end">{esc(f"{value:.1f}G")}</text>'
+        )
+    tick_indexes = sorted({0, max(0, len(points) // 2), len(points) - 1})
+    ticks = []
+    for index in tick_indexes:
+        x = x_at(index)
+        anchor = "start" if index == 0 else ("end" if index == len(points) - 1 else "middle")
+        ticks.append(
+            f'<line x1="{x:.1f}" y1="{height - pad_bottom}" x2="{x:.1f}" y2="{height - pad_bottom + 5}" class="total-axis-tick"/>'
+            f'<text x="{x:.1f}" y="{height - 14}" class="total-axis-label" text-anchor="{anchor}">{esc(chart_time_label(points[index].get("at")))}</text>'
+        )
+    dots = "".join(
+        f'<circle cx="{x_at(index):.1f}" cy="{y_at(value):.1f}" r="3.5" class="total-chart-dot">'
+        f'<title>{esc(chart_time_label(points[index].get("at")))} · {value:.2f} GB</title></circle>'
+        for index, value in enumerate(values[-18:], start=max(0, len(values) - 18))
+    )
+    return f"""
+      <svg class="total-chart-svg" viewBox="0 0 {width} {height}" role="img" aria-label="总流量消耗曲线">
+        {"".join(grid_rows)}
+        <line x1="{pad_left}" y1="{pad_top}" x2="{pad_left}" y2="{height - pad_bottom}" class="total-axis-line"/>
+        <line x1="{pad_left}" y1="{height - pad_bottom}" x2="{width - pad_right}" y2="{height - pad_bottom}" class="total-axis-line"/>
+        <text x="{pad_left}" y="17" class="total-axis-title">纵轴：累计消耗 GB</text>
+        <text x="{width - pad_right}" y="{height - 4}" class="total-axis-title" text-anchor="end">横轴：时间点</text>
+        {"".join(ticks)}
+        <polygon class="total-chart-area" points="{area_points}"/>
+        <polyline class="total-chart-line" points="{line_points}"/>
+        {dots}
+      </svg>
+    """
+
+
 def page_shell(active: str, title: str, subtitle: str, body: str, actions: str = "", flash: str = "", auto_refresh: bool = True) -> bytes:
     run_nav = [
         ("/", "overview", "主页", "⌂"),
@@ -2739,6 +2902,149 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .metric-card.danger strong {{
       color: var(--red);
     }}
+    .overview-traffic-hero {{
+      background: var(--line);
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 1px;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 28%);
+      margin-bottom: 18px;
+      overflow: hidden;
+    }}
+    .overview-traffic-hero.warning {{
+      border-color: color-mix(in srgb, var(--yellow) 40%, var(--line));
+    }}
+    .overview-traffic-hero.danger {{
+      border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+    }}
+    .total-chart-panel,
+    .total-chart-facts article {{
+      background: var(--panel-bg);
+    }}
+    .total-chart-panel {{
+      min-width: 0;
+      padding: 22px;
+    }}
+    .total-chart-head {{
+      align-items: flex-start;
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }}
+    .total-chart-head h2 {{
+      color: var(--ink);
+      font-size: clamp(24px, 3vw, 34px);
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1.12;
+      margin: 0;
+    }}
+    .total-chart-head p {{
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+      margin: 10px 0 0;
+      max-width: 760px;
+    }}
+    .total-chart-current {{
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      min-width: 150px;
+      padding: 12px 14px;
+      text-align: right;
+    }}
+    .total-chart-current span {{
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      font-weight: 720;
+      margin-bottom: 5px;
+    }}
+    .total-chart-current strong {{
+      color: var(--accent);
+      display: block;
+      font-size: 20px;
+      font-weight: 780;
+      line-height: 1.1;
+      white-space: nowrap;
+    }}
+    .total-chart-svg {{
+      background: var(--input-bg);
+      border: 1px solid var(--line);
+      display: block;
+      height: 280px;
+      width: 100%;
+    }}
+    .total-grid-line {{
+      stroke: var(--line);
+      stroke-width: 1;
+    }}
+    .total-axis-line,
+    .total-axis-tick {{
+      stroke: var(--line-strong);
+      stroke-width: 1;
+    }}
+    .total-axis-label {{
+      fill: var(--muted);
+      font-size: 11px;
+    }}
+    .total-axis-title {{
+      fill: var(--soft);
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    .total-chart-area {{
+      fill: color-mix(in srgb, var(--accent) 16%, transparent);
+      stroke: none;
+    }}
+    .total-chart-line {{
+      fill: none;
+      stroke: var(--accent);
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 3;
+    }}
+    .total-chart-dot {{
+      fill: var(--input-bg);
+      stroke: var(--accent);
+      stroke-width: 2;
+    }}
+    .total-chart-empty {{
+      align-items: center;
+      background: var(--input-bg);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      display: flex;
+      min-height: 280px;
+      justify-content: center;
+      line-height: 1.7;
+      padding: 24px;
+      text-align: center;
+    }}
+    .total-chart-facts {{
+      background: var(--line);
+      display: grid;
+      gap: 1px;
+    }}
+    .total-chart-facts article {{
+      display: grid;
+      gap: 6px;
+      padding: 18px;
+    }}
+    .total-chart-facts span {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+    }}
+    .total-chart-facts strong {{
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 780;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }}
     .control-plane-theme .form-label,
     .control-plane-theme .form-section-title,
     .control-plane-theme .guide-step strong,
@@ -2861,6 +3167,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       }}
       .navbar-nav.flex-row.order-md-last.ms-auto {{ margin-left: 0 !important; }}
       .page-intro {{ grid-template-columns: 1fr; }}
+      .overview-traffic-hero {{ grid-template-columns: 1fr; }}
+      .total-chart-head {{ flex-direction: column; }}
+      .total-chart-current {{ text-align: left; }}
       .metric-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .page-title {{ font-size: 22px; }}
       .metric-grid {{ grid-template-columns: 1fr; }}
@@ -3990,44 +4299,52 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
     """
 
 
-def render_overview_intro(summary: dict, instances: list[dict], generated_at: str) -> str:
+def render_overview_intro(summary: dict, instances: list[dict], history: list[dict], generated_at: str) -> str:
     total = int(summary.get("total", 0) or 0)
     enabled = int(summary.get("enabled", 0) or 0)
     warnings = int(summary.get("warnings", 0) or 0)
     errors = int(summary.get("errors", 0) or 0)
     stopped = int(summary.get("stopped", 0) or 0)
     pools = int(summary.get("pools", 0) or 0)
-    risky = sorted(
-        [item for item in instances if item.get("traffic_gb") is not None],
-        key=lambda item: (server_health(item)[2], -used_percent(item)),
-    )
-    top = risky[0] if risky else {}
-    top_name = first_value(top.get("label"), top.get("instance_name"), top.get("instance_id"), default="暂无服务器数据")
-    top_pct = used_percent(top) if top else 0
-    top_traffic = fmt_gb(top.get("traffic_gb")) if top else "暂无"
-    if errors:
-        tone = "danger"
-        heading = f"有 {errors} 台机器检查异常"
-        copy = "优先查看服务器日志和阿里云权限，异常机器可能无法正确执行流量保护或开关机动作。"
-    elif warnings:
-        tone = "warning"
-        heading = f"{warnings} 台机器进入流量预警"
-        copy = f"当前风险最高的是 {top_name}，已用 {top_traffic}，约 {top_pct:.0f}% 阈值。建议先确认是否共享同一 CDT 流量池。"
-    elif stopped:
-        tone = "warning"
-        heading = f"{stopped} 台机器处于关机状态"
-        copy = "如果是自动触发保护，面板会根据真实账期重置时间判断是否需要恢复开机。"
-    else:
-        tone = "neutral"
-        heading = "当前没有需要立即处理的风险"
-        copy = "面板会持续巡检 CDT 用量、实例状态、账期重置时间和通知发送情况。"
-    facts = [
-        ("状态更新时间", str(generated_at or "暂无")),
-        ("受管服务器", f"{enabled}/{total} 台启用保护"),
-        ("流量池", f"{pools} 个"),
-        ("当前关注", f"预警 {warnings} · 错误 {errors} · 已停机 {stopped}"),
-    ]
-    return page_intro("Overview", heading, copy, facts, tone=tone)
+    series = aggregate_total_traffic_series(instances, history, generated_at, days=30)
+    chart_html = render_total_traffic_chart(series)
+    tone = "danger" if errors else ("warning" if warnings or stopped else "neutral")
+    return f"""
+      <section class="overview-traffic-hero {tone}">
+        <div class="total-chart-panel">
+          <div class="total-chart-head">
+            <div>
+              <div class="page-kicker">主页 · 总流量</div>
+              <h2>总流量消耗曲线</h2>
+              <p>统计所有已添加服务器的 CDT 用量；共享流量池按池去重，普通服务器单独计入，避免多台机器共用 200G 时重复计算。</p>
+            </div>
+            <div class="total-chart-current">
+              <span>当前累计</span>
+              <strong>{fmt_gb(series.get("current_total_gb"))}</strong>
+            </div>
+          </div>
+          {chart_html}
+        </div>
+        <aside class="total-chart-facts">
+          <article>
+            <span>统计范围</span>
+            <strong>{enabled}/{total} 台启用保护 · {series.get("source_count", 0)} 个去重统计源</strong>
+          </article>
+          <article>
+            <span>近 {series.get("days", 30)} 天新增</span>
+            <strong>{fmt_gb(series.get("delta_gb"))}</strong>
+          </article>
+          <article>
+            <span>流量池</span>
+            <strong>{pools} 个</strong>
+          </article>
+          <article>
+            <span>当前关注</span>
+            <strong>预警 {warnings} · 错误 {errors} · 已停机 {stopped}</strong>
+          </article>
+        </aside>
+      </section>
+    """
 
 
 def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
@@ -4039,7 +4356,7 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     metadata = config_by_id(config)
     history = read_history(1000)
     flash = query.get("flash", [""])[0]
-    body = render_overview_intro(summary, instances, status.get("generated_at")) + render_summary_cards(summary) + render_assets_card(instances, metadata, history)
+    body = render_overview_intro(summary, instances, history, status.get("generated_at")) + render_summary_cards(summary) + render_assets_card(instances, metadata, history)
     return page_shell(
         "overview",
         "CDT 流量保护与服务器资产面板",
