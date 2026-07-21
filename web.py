@@ -1402,7 +1402,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-group {{
       background: #fff;
       border-bottom: 1px solid var(--line);
-      min-width: 1040px;
+      min-width: 900px;
     }}
     .server-group-head {{
       align-items: center;
@@ -1461,9 +1461,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-list-head,
     .server-row {{
       display: grid;
-      gap: 12px;
-      grid-template-columns: 126px minmax(230px, 1.45fr) minmax(140px, .8fr) 112px minmax(220px, 1fr) 126px;
-      min-width: 1040px;
+      gap: 16px;
+      grid-template-columns: 126px minmax(230px, 1.35fr) minmax(150px, .8fr) 120px minmax(230px, 1fr);
+      min-width: 900px;
     }}
     .server-list-head {{
       background: #f7f9fc;
@@ -1482,7 +1482,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-radius: 8px;
       color: var(--ink);
       cursor: pointer;
-      padding: 16px;
+      padding: 14px 16px;
       text-align: left;
       transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
       width: 100%;
@@ -1696,6 +1696,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       padding: 2px 6px;
     }}
     .traffic-compact {{
+      display: grid;
+      gap: 8px;
       min-width: 0;
       width: 100%;
     }}
@@ -1704,26 +1706,20 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       display: flex;
       gap: 8px;
       justify-content: space-between;
-      margin-bottom: 6px;
     }}
     .traffic-amount {{
       color: #111827;
       font-weight: 720;
     }}
-    .sparkline {{
-      display: block;
-      height: 28px;
-      margin-top: 7px;
-      width: 100%;
+    .traffic-tags {{
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
     }}
-    .sparkline path {{
-      fill: none;
-      stroke: var(--accent);
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      stroke-width: 2;
+    .traffic-tags .asset-sub {{
+      margin-top: 0;
     }}
-    .sparkline .area {{ fill: rgba(23, 99, 209, .08); stroke: none; }}
     .chart-trigger {{
       background: transparent;
       border: 0;
@@ -3899,44 +3895,6 @@ def server_identity(item: dict, metadata: dict[str, dict]) -> dict[str, str]:
     }
 
 
-def traffic_values(server_id: str, history: list[dict], current) -> list[float]:
-    values: list[float] = []
-    for event in history:
-        if str(event.get("id")) != server_id:
-            continue
-        value = event.get("traffic_gb")
-        if value is None:
-            continue
-        try:
-            values.append(float(value))
-        except (TypeError, ValueError):
-            continue
-    if current is not None:
-        try:
-            values.append(float(current))
-        except (TypeError, ValueError):
-            pass
-    return values[-18:]
-
-
-def sparkline_svg(values: list[float]) -> str:
-    if len(values) < 2:
-        return '<div class="text-secondary small mt-2">暂无趋势</div>'
-    width = 128
-    height = 28
-    low = min(values)
-    high = max(values)
-    span = high - low or 1
-    points = []
-    for index, value in enumerate(values):
-        x = index * width / (len(values) - 1)
-        y = height - ((value - low) / span * (height - 4)) - 2
-        points.append((x, y))
-    line = " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
-    area = f"0,{height} {line} {width},{height}"
-    return f'<svg class="sparkline" viewBox="0 0 {width} {height}" aria-hidden="true"><polygon class="area" points="{area}"></polygon><path d="M {line}"></path></svg>'
-
-
 def product_label(product: str) -> str:
     labels = {
         "eip": "弹性公网 IP",
@@ -4034,10 +3992,10 @@ def render_diagnostics(item: dict, identity: dict[str, Any], manual_note: str) -
     """
 
 
-def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict], active: bool = False) -> str:
+def render_server_row(item: dict, metadata: dict[str, dict], _history: list[dict], active: bool = False) -> str:
     identity = server_identity(item, metadata)
     state_class, state_label, state_sub = status_view(item.get("instance_status"))
-    health_class, filter_label, priority = server_health(item)
+    health_class, _filter_label, priority = server_health(item)
     pct = used_percent(item)
     account_balance = item.get("account_balance") or {}
     search_text = " ".join(
@@ -4089,17 +4047,11 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
               <span class="text-secondary small">{pct:.0f}%</span>
             </span>
             <span class="progress"><span class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></span></span>
-            <span class="asset-sub d-block mt-1">{traffic_pool_badge(item)}</span>
-            <span class="asset-sub d-block mt-1">{esc(fmt_delta(item.get('traffic_delta_gb')))}</span>
-            <span class="asset-sub d-block mt-1">{esc(recovery_status_badge(item))}</span>
-            {sparkline_svg(traffic_values(identity['id'], history, item.get('traffic_gb')))}
-            <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看曲线</button>
-          </span>
-        </span>
-        <span class="server-cell">
-          <span>
-            {badge(item.get('action'))}
-            <span class="asset-sub d-block mt-1">{esc(filter_label)}</span>
+            <span class="traffic-tags">
+              <span class="asset-sub">{traffic_pool_badge(item)}</span>
+              <span class="asset-sub">{esc(fmt_delta(item.get('traffic_delta_gb')))}</span>
+              <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看曲线</button>
+            </span>
           </span>
         </span>
       </article>
@@ -4252,7 +4204,7 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
           </div>
           <div class="asset-count-line">当前显示 <span data-visible-count>{len(sorted_instances)}</span> / {len(sorted_instances)} 台</div>
           <div class="server-list-head">
-            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>CDT 用量</div><div>动作</div>
+            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>CDT 用量</div>
           </div>
           <div class="server-list" data-server-list>
             {group_html}
