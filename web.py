@@ -830,7 +830,9 @@ def display_pool_count(instances: list[dict]) -> int:
 
 
 def traffic_total_key(item: dict) -> str:
-    return traffic_display_pool_key(item)
+    display_key = traffic_display_pool_key(item)
+    source_key = str(item.get("traffic_pool_key") or item.get("id") or item.get("instance_id") or "unknown")
+    return f"{display_key}:{source_key}"
 
 
 def current_total_traffic(instances: list[dict]) -> tuple[float, int]:
@@ -844,7 +846,7 @@ def current_total_traffic(instances: list[dict]) -> tuple[float, int]:
             continue
         key = traffic_total_key(item)
         totals[key] = max(totals.get(key, 0), traffic_gb)
-    return sum(totals.values()), len(totals)
+    return sum(totals.values()), display_pool_count(instances)
 
 
 def aggregate_total_traffic_series(instances: list[dict], history: list[dict], generated_at: str | None, days: int = 30) -> dict:
@@ -853,19 +855,22 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
     all_records = []
     key_aliases: dict[str, str] = {}
     for item in instances:
-        display_key = traffic_display_pool_key(item)
+        total_key = traffic_total_key(item)
         for raw_key in (
-            item.get("traffic_display_pool_key"),
             item.get("traffic_pool_key"),
             item.get("id"),
             item.get("instance_id"),
         ):
             raw_key = str(raw_key or "").strip()
             if raw_key:
-                key_aliases[raw_key] = display_key
+                key_aliases[raw_key] = total_key
+        display_key = traffic_display_pool_key(item)
+        explicit_display_key = str(item.get("traffic_display_pool_key") or "").strip()
+        if explicit_display_key:
+            key_aliases[explicit_display_key] = total_key
         account_key = str(item.get("account_fingerprint") or "").strip()
-        if account_key:
-            key_aliases[f"account:{account_key}"] = display_key
+        if account_key and str(item.get("traffic_pool_key") or "").strip() == "":
+            key_aliases[f"account:{account_key}"] = total_key
     for event in history:
         event_time = parse_event_time(event.get("at"))
         if event_time is None:

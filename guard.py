@@ -652,6 +652,8 @@ def run_guard() -> dict[str, Any]:
     traffic_cache: dict[tuple[str, str, str | None], dict[str, Any]] = {}
     billing_cache: dict[str, dict[str, Any]] = {}
     balance_cache: dict[str, dict[str, Any]] = {}
+    pool_traffic_totals: dict[str, float] = {}
+    counted_pool_sources: set[tuple[str, tuple[str, str, str | None]]] = set()
     results: list[dict[str, Any]] = []
     events: list[dict[str, Any]] = []
 
@@ -661,6 +663,26 @@ def run_guard() -> dict[str, Any]:
         except BlockingIOError:
             logger.info("another guard run is still active; skipping")
             return read_status() or {"generated_at": iso_now(), "skipped": True, "instances": []}
+
+        for item in merged_instances:
+            if not item.get("enabled"):
+                continue
+            try:
+                region_id = item["region_id"]
+                client = client_cache.setdefault(
+                    f"{region_id}:{item['access_key_id']}",
+                    get_client(region_id, item["access_key_id"], item["access_key_secret"]),
+                )
+                key = traffic_cache_key(item)
+                if key not in traffic_cache:
+                    traffic_cache[key] = get_traffic_report(client, item["traffic_region_id"], item["traffic_scope"])
+                display_key = item["traffic_display_pool_key"]
+                source_key = (display_key, key)
+                if source_key not in counted_pool_sources:
+                    pool_traffic_totals[display_key] = pool_traffic_totals.get(display_key, 0.0) + float(traffic_cache[key]["traffic_gb"])
+                    counted_pool_sources.add(source_key)
+            except Exception as exc:
+                logger.warning("preload traffic failed for %s: %s", item.get("id"), exc)
 
         for item in merged_instances:
             region_id = item["region_id"]
@@ -749,6 +771,7 @@ def run_guard() -> dict[str, Any]:
                     balance_cache[billing_key] = query_account_balance_info(item)
                 balance_info = balance_cache[billing_key]
                 traffic_gb = float(traffic_report["traffic_gb"])
+                protection_traffic_gb = float(pool_traffic_totals.get(item["traffic_display_pool_key"], traffic_gb))
                 previous_traffic = previous_by_pool.get(pool_key, previous_by_id.get(str(item["id"]), {})).get("traffic_gb")
                 traffic_delta_gb = None
                 if previous_traffic is not None:
@@ -758,7 +781,9 @@ def run_guard() -> dict[str, Any]:
                 ecs_status = instance.get("Status") if instance else None
                 public_ips = instance_public_ips(instance)
                 private_ips = instance_private_ips(instance)
-                action, reason = decide_action(item, traffic_gb, ecs_status)
+                action, reason = decide_action(item, protection_traffic_gb, ecs_status)
+                if abs(protection_traffic_gb - traffic_gb) > 0.0001:
+                    reason = f"流量池合计 {protection_traffic_gb:.2f} GB，{reason}"
                 api_response = None
 
                 if action == "stop":
@@ -766,14 +791,15 @@ def run_guard() -> dict[str, Any]:
                 elif action == "start":
                     api_response = ecs_start(client, item["instance_id"])
 
-                warning = traffic_gb >= item["warning_threshold_gb"]
-                remaining_gb = max(item["stop_threshold_gb"] - traffic_gb, 0)
-                used_pct = (traffic_gb / item["stop_threshold_gb"] * 100) if item["stop_threshold_gb"] else 0
+                warning = protection_traffic_gb >= item["warning_threshold_gb"]
+                remaining_gb = max(item["stop_threshold_gb"] - protection_traffic_gb, 0)
+                used_pct = (protection_traffic_gb / item["stop_threshold_gb"] * 100) if item["stop_threshold_gb"] else 0
 
                 result.update(
                     {
                         "traffic_gb": traffic_gb,
                         "traffic_delta_gb": traffic_delta_gb,
+                        "protection_traffic_gb": protection_traffic_gb,
                         "traffic_request_id": traffic_report.get("request_id"),
                         "traffic_scope": traffic_report.get("traffic_scope", traffic_scope),
                         "traffic_scope_label": traffic_report.get("traffic_scope_label", traffic_scope_label(traffic_scope)),
@@ -831,6 +857,7 @@ def run_guard() -> dict[str, Any]:
                     "label": result["label"],
                     "traffic_gb": result.get("traffic_gb"),
                     "traffic_delta_gb": result.get("traffic_delta_gb"),
+                    "protection_traffic_gb": result.get("protection_traffic_gb"),
                     "traffic_scope": result.get("traffic_scope"),
                     "traffic_pool_id": result.get("traffic_pool_id"),
                     "traffic_pool_key": result.get("traffic_pool_key"),
