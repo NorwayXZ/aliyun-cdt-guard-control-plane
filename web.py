@@ -1491,12 +1491,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-list-head > div {{
       align-items: center;
       display: flex;
-      min-height: 26px;
-    }}
-    .server-list-head > div:first-child,
-    .server-list-head > div:nth-child(3),
-    .server-list-head > div:nth-child(4) {{
       justify-content: center;
+      min-height: 26px;
       text-align: center;
     }}
     .server-row {{
@@ -1579,12 +1575,16 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       align-items: center;
       border-radius: 8px;
       display: flex;
-      gap: 10px;
+      flex-direction: column;
+      gap: 4px;
       justify-content: center;
       min-height: 70px;
       min-width: 92px;
       padding: 12px 14px;
       text-align: center;
+    }}
+    .server-state-detail .server-state-dot {{
+      display: none;
     }}
     .server-state-detail.running {{ background: var(--success-soft); color: #148341; }}
     .server-state-detail.stopped {{ background: var(--danger-soft); color: #c92a2a; }}
