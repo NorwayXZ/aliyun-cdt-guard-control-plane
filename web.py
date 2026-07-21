@@ -1486,6 +1486,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       color: #687386;
       font-size: 12px;
       font-weight: 720;
+      justify-items: stretch;
       padding: 10px 16px;
     }}
     .server-list-head > div {{
@@ -1494,6 +1495,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       justify-content: center;
       min-height: 26px;
       text-align: center;
+      width: 100%;
     }}
     .server-row {{
       background: #fff;
@@ -1585,6 +1587,11 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-state-detail .server-state-dot {{
       display: none;
+    }}
+    .server-state-detail .server-state-main,
+    .server-state-detail .server-state-sub {{
+      display: block;
+      text-align: center;
     }}
     .server-state-detail.running {{ background: var(--success-soft); color: #148341; }}
     .server-state-detail.stopped {{ background: var(--danger-soft); color: #c92a2a; }}
