@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>登录 · Aliyun CDT Guard</title>
+    <link rel="stylesheet" href="login.css" />
+    <script defer src="login.js"></script>
+  </head>
+  <body>
+    <main class="login-shell">
+      <section class="login-box">
+        <article class="login-art">
+          <div class="login-brand">
+            <span class="login-mark" aria-hidden="true">⌁</span>
+            <span>
+              ALIYUN CDT GUARD
+              <small>TRAFFIC PROTECTION CONTROL PLANE</small>
+            </span>
+          </div>
+          <div class="login-eyebrow">CONTROLLED ACCESS</div>
+          <h1>流量保护，<br />进入可控状态。</h1>
+          <p>只提供管理入口、操作审计与策略执行。没有欢迎页，没有营销话术。</p>
+          <div class="login-metrics">
+            <div>
+              <b>24</b>
+              <span>受管服务器</span>
+            </div>
+            <div>
+              <b>3</b>
+              <span>受保护流量池</span>
+            </div>
+            <div>
+              <b>99.9%</b>
+              <span>服务可用性</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="login-formarea">
+          <form id="loginForm">
+            <h2>进入控制平面</h2>
+            <p>使用授权的控制台管理员账号登录。</p>
+            <label class="login-field" for="account">
+              <span>用户名</span>
+              <input id="account" autocomplete="username" placeholder="输入用户名" />
+            </label>
+            <label class="login-field" for="password">
+              <span>密码</span>
+              <input id="password" type="password" autocomplete="current-password" placeholder="输入密码" />
+            </label>
+            <div class="login-error" id="loginError">请输入用户名和密码后再继续。</div>
+            <button class="login-btn" type="submit">验证并登录 →</button>
+            <p class="login-foot">SESSION PROTECTED · HTTPS REQUIRED</p>
+          </form>
+        </article>
+      </section>
+    </main>
+    <div class="login-notice" id="loginNotice">验证通过：这是静态原型，不会发起真实登录。</div>
+  </body>
+</html>
