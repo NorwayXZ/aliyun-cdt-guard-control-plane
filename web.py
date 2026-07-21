@@ -1654,9 +1654,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       text-align: center;
       width: 100%;
     }}
-    .server-list-head .traffic-head {{
-      gap: 8px;
-    }}
     .server-row {{
       background: #fff;
       border: 0;
@@ -1797,32 +1794,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       gap: 14px;
       grid-template-columns: minmax(0, 1fr) auto;
     }}
-    .server-contribution {{
-      align-items: stretch;
-      display: grid;
-      gap: 8px;
-      grid-template-columns: repeat(2, minmax(96px, 1fr));
-      min-width: 214px;
-    }}
-    .contribution-card {{
-      background: var(--surface-soft);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      display: grid;
-      gap: 4px;
-      min-height: 66px;
-      padding: 10px 12px;
-    }}
-    .contribution-card span {{
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 720;
-    }}
-    .contribution-card strong {{
-      color: var(--ink);
-      font-size: 16px;
-      line-height: 1.15;
-    }}
     .detail-disclosure > summary {{
       align-items: center;
       color: #111827;
@@ -1955,29 +1926,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .traffic-amount {{
       color: #111827;
       font-weight: 720;
-    }}
-    .traffic-percent {{
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 720;
-      line-height: 1;
-      padding: 4px 7px;
-      white-space: nowrap;
-    }}
-    .usage-pill {{
-      background: var(--success-soft);
-      border: 1px solid color-mix(in srgb, #22c55e 42%, transparent);
-      color: #148341;
-    }}
-    .usage-pill.is-warning {{
-      background: var(--warning-soft);
-      border-color: color-mix(in srgb, #f59f00 48%, transparent);
-      color: #b7791f;
-    }}
-    .usage-pill.is-danger {{
-      background: var(--danger-soft);
-      border-color: color-mix(in srgb, #ef4444 48%, transparent);
-      color: #c92a2a;
     }}
     .traffic-daily {{
       color: var(--soft);
@@ -3459,10 +3407,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .server-state {{ min-width: 0; }}
       .traffic-compact {{ display: block; }}
       .detail-hero {{ grid-template-columns: 1fr; }}
-      .server-contribution {{
-        grid-template-columns: 1fr;
-        min-width: 0;
-      }}
       .server-detail.active {{ padding: 14px; }}
       .traffic-modal {{ padding: 10px; }}
       .traffic-modal-head {{ flex-direction: column; }}
@@ -4104,7 +4048,7 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
         </div>
         <div class="server-group-body" data-server-group-body>
           <div class="server-list-head">
-            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div class="traffic-head"><span>CDT 用量</span><span class="usage-pill">总占比</span></div>
+            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>CDT 用量</div>
           </div>
           {rows}
         </div>
@@ -4173,25 +4117,6 @@ def used_percent(item: dict) -> float:
         return max(0, min(float(value), 100))
     except (TypeError, ValueError):
         return 0
-
-
-def usage_level(pct: float) -> str:
-    if pct >= 100:
-        return "is-danger"
-    if pct >= 80:
-        return "is-warning"
-    return ""
-
-
-def server_threshold_percent(item: dict) -> float:
-    threshold = item.get("stop_threshold_gb")
-    traffic = item.get("traffic_gb")
-    if threshold and traffic is not None:
-        try:
-            return max(0, min(float(traffic) / float(threshold) * 100, 100))
-        except (TypeError, ValueError, ZeroDivisionError):
-            return 0
-    return 0
 
 
 def server_health(item: dict) -> tuple[str, str, int]:
@@ -4337,7 +4262,6 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     state_class, state_label, state_sub = status_view(item.get("instance_status"))
     health_class, _filter_label, priority = server_health(item)
     pct = used_percent(item)
-    pct_class = usage_level(pct)
     pool_traffic = protection_traffic_gb(item)
     today_traffic = today_server_traffic_gb(item, history)
     member_count = int(item.get("display_pool_member_count") or item.get("traffic_pool_member_count") or 0)
@@ -4391,7 +4315,6 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
           <span class="traffic-compact">
             <span class="traffic-meta">
               <span class="traffic-amount">{fmt_gb(pool_traffic)}</span>
-              <span class="traffic-percent usage-pill {pct_class}">{pct:.0f}%</span>
             </span>
             <span class="traffic-daily">今日本机 <strong>{fmt_gb(today_traffic)}</strong></span>
             <span class="traffic-tags">
@@ -4410,8 +4333,6 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
     meta = identity["meta"]
     pct = used_percent(item)
     pool_traffic = protection_traffic_gb(item)
-    server_pct = server_threshold_percent(item)
-    server_pct_class = usage_level(server_pct)
     today_traffic = today_server_traffic_gb(item, history)
     state_class, state_label, state_sub = status_view(item.get("instance_status"))
     panel_username = first_value(meta.get("panel_username"), meta.get("login_username"), meta.get("username"))
@@ -4429,16 +4350,6 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
             <div class="text-truncate">
               <div class="asset-name text-truncate">{esc(identity['product_name'])}</div>
               <div class="asset-sub text-truncate">{esc(identity['asset_label'])} · {esc(item.get('instance_name') or '未识别 ECS 名')}</div>
-              <div class="server-contribution mt-3">
-                <div class="contribution-card">
-                  <span>本机占阈值</span>
-                  <strong><span class="usage-pill {server_pct_class}">{server_pct:.0f}%</span></strong>
-                </div>
-                <div class="contribution-card">
-                  <span>本机累计</span>
-                  <strong>{fmt_gb(item.get('traffic_gb'))}</strong>
-                </div>
-              </div>
             </div>
             <span class="server-state-detail {state_class}">
               <span class="server-state-dot"></span>
@@ -4455,17 +4366,29 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
               <div class="info-label">CDT 保护池用量</div>
               <div class="traffic-value">{fmt_gb(pool_traffic)}</div>
             </div>
-            <div class="text-secondary small">保护池占阈值 <span class="usage-pill {usage_level(pct)}">{pct:.0f}%</span></div>
+            <div class="text-secondary small">停机阈值 {fmt_gb(item.get('stop_threshold_gb'))}</div>
           </div>
           <div class="progress mt-3">
             <div class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></div>
           </div>
-          <div class="d-flex justify-content-between mt-2 text-secondary small">
-            <span>保护池剩余 {fmt_gb(item.get('remaining_gb'))}</span>
-            <span>停机阈值 {fmt_gb(item.get('stop_threshold_gb'))}</span>
+          <div class="detail-grid mt-3">
+            <div class="detail-item">
+              <div class="info-label">保护池剩余</div>
+              <div class="info-value">{fmt_gb(item.get('remaining_gb'))}</div>
+            </div>
+            <div class="detail-item">
+              <div class="info-label">本机累计</div>
+              <div class="info-value">{fmt_gb(item.get('traffic_gb'))}</div>
+            </div>
+            <div class="detail-item">
+              <div class="info-label">今日本机</div>
+              <div class="info-value">{fmt_gb(today_traffic)}</div>
+            </div>
+            <div class="detail-item">
+              <div class="info-label">共享关系</div>
+              <div class="info-value">{esc(traffic_pool_badge(item))}</div>
+            </div>
           </div>
-          <div class="text-secondary small mt-2">今日本机 {fmt_gb(today_traffic)}</div>
-          <div class="pool-chip mt-2">{esc(traffic_pool_badge(item))}</div>
           <div class="mt-2">{traffic_delta_badge(item.get('traffic_delta_gb'))}</div>
           <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看 1天/3天/7天/1个月曲线</button>
         </div>
