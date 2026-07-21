@@ -4674,16 +4674,6 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
     telegram = config.get("telegram", {})
     flash = query.get("flash", [""])[0]
     body = f"""
-    {page_intro(
-        "Notify",
-        "把风险、停机和每日报告送到你手上",
-        "通知页只保留 Telegram：用于告警、每日流量报告和主动查询命令，配置更清楚，也更适合长期使用。",
-        [
-            ("Telegram", "支持多个 Chat ID"),
-            ("主动查询", "/status /traffic /pools /report"),
-            ("每日报告", "按指定时区和时间发送"),
-        ],
-    )}
     <form class="card save-form" method="post" action="/notifications/save" data-save-form>
       <div class="card-header">
         <div class="asset-toolbar w-100">
