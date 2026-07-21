@@ -1186,6 +1186,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .table {{
       --tblr-table-bg: transparent;
+      --tblr-table-hover-bg: var(--surface-soft);
+      --tblr-table-hover-color: var(--ink);
       color: var(--ink);
       font-size: 14px;
     }}
@@ -1204,7 +1206,11 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       padding: 18px 16px;
       vertical-align: middle;
     }}
-    .table tbody tr:hover {{ background: #fbfcfe; }}
+    .table tbody tr:hover,
+    .table tbody tr:hover td {{
+      background: var(--surface-soft);
+      color: var(--ink);
+    }}
     .asset-name {{
       color: #111827;
       font-size: 15px;
@@ -1810,6 +1816,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       font-weight: 760;
     }}
     .traffic-chart-wrap {{
+      background: var(--input-bg);
       border: 1px solid var(--line);
       border-radius: 8px;
       min-height: 320px;
@@ -1823,7 +1830,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .chart-legend {{
       align-items: center;
-      background: rgba(255, 255, 255, .88);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
       border: 1px solid var(--line);
       border-radius: 7px;
       display: flex;
@@ -1836,7 +1843,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .legend-item {{
       align-items: center;
-      color: #475569;
+      color: var(--soft);
       display: inline-flex;
       font-size: 12px;
       font-weight: 720;
@@ -1849,7 +1856,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       width: 22px;
     }}
     .legend-bar {{
-      background: rgba(245, 159, 0, .42);
+      background: color-mix(in srgb, var(--yellow) 48%, transparent);
       border-radius: 3px;
       height: 12px;
       width: 12px;
@@ -1866,9 +1873,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .chart-empty.show {{ display: flex; }}
     .chart-tooltip {{
-      background: #111827;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
       border-radius: 7px;
-      color: #fff;
+      color: var(--ink);
       display: none;
       font-size: 12px;
       line-height: 1.5;
@@ -3542,6 +3550,16 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       const yAt = (value) => pad.top + plotH - ((value - minValue) / span * plotH);
       const barY = pad.top + plotH;
       const barW = Math.max(1, plotW / Math.max(points.length, 1) * .72);
+      const styles = getComputedStyle(document.body);
+      const chartColors = {{
+        accent: styles.getPropertyValue("--accent").trim() || "#65e8b5",
+        line: styles.getPropertyValue("--line").trim() || "#263334",
+        lineStrong: styles.getPropertyValue("--line-strong").trim() || "#344849",
+        muted: styles.getPropertyValue("--muted").trim() || "#778683",
+        soft: styles.getPropertyValue("--soft").trim() || "#aebbb8",
+        surface: styles.getPropertyValue("--surface").trim() || "#12191a",
+        yellow: styles.getPropertyValue("--yellow").trim() || "#ffd166",
+      }};
       const ns = "http://www.w3.org/2000/svg";
       const add = (name, attrs) => {{
         const node = document.createElementNS(ns, name);
@@ -3552,30 +3570,30 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
 
       for (let i = 0; i <= 4; i += 1) {{
         const y = pad.top + i * plotH / 4;
-        add("line", {{ x1: pad.left, y1: y, x2: width - pad.right, y2: y, stroke: "#e5e7eb", "stroke-width": "1" }});
+        add("line", {{ x1: pad.left, y1: y, x2: width - pad.right, y2: y, stroke: chartColors.line, "stroke-width": "1" }});
         const value = maxValue - i * span / 4;
-        add("text", {{ x: pad.left - 10, y: y + 4, fill: "#64748b", "font-size": "11", "text-anchor": "end" }}).textContent = axisGbText(value, span);
+        add("text", {{ x: pad.left - 10, y: y + 4, fill: chartColors.muted, "font-size": "11", "text-anchor": "end" }}).textContent = axisGbText(value, span);
       }}
-      add("line", {{ x1: pad.left, y1: pad.top, x2: pad.left, y2: barY, stroke: "#cbd5e1", "stroke-width": "1" }});
-      add("line", {{ x1: pad.left, y1: barY, x2: width - pad.right, y2: barY, stroke: "#cbd5e1", "stroke-width": "1" }});
-      add("text", {{ x: pad.left, y: 18, fill: "#475569", "font-size": "12", "font-weight": "700" }}).textContent = "纵轴：累计流量 GB";
-      add("text", {{ x: width - pad.right, y: height - 8, fill: "#475569", "font-size": "12", "font-weight": "700", "text-anchor": "end" }}).textContent = "横轴：时间点";
+      add("line", {{ x1: pad.left, y1: pad.top, x2: pad.left, y2: barY, stroke: chartColors.lineStrong, "stroke-width": "1" }});
+      add("line", {{ x1: pad.left, y1: barY, x2: width - pad.right, y2: barY, stroke: chartColors.lineStrong, "stroke-width": "1" }});
+      add("text", {{ x: pad.left, y: 18, fill: chartColors.soft, "font-size": "12", "font-weight": "700" }}).textContent = "纵轴：累计流量 GB";
+      add("text", {{ x: width - pad.right, y: height - 8, fill: chartColors.soft, "font-size": "12", "font-weight": "700", "text-anchor": "end" }}).textContent = "横轴：时间点";
 
       const tickCount = Math.min(5, points.length);
       for (let i = 0; i < tickCount; i += 1) {{
         const index = tickCount === 1 ? 0 : Math.round(i * (points.length - 1) / (tickCount - 1));
         const x = xAt(index);
-        add("line", {{ x1: x, y1: barY, x2: x, y2: barY + 5, stroke: "#94a3b8", "stroke-width": "1" }});
-        add("text", {{ x, y: barY + 20, fill: "#64748b", "font-size": "11", "text-anchor": i === 0 ? "start" : (i === tickCount - 1 ? "end" : "middle") }}).textContent = axisTimeText(points[index].at, data.days);
+        add("line", {{ x1: x, y1: barY, x2: x, y2: barY + 5, stroke: chartColors.lineStrong, "stroke-width": "1" }});
+        add("text", {{ x, y: barY + 20, fill: chartColors.muted, "font-size": "11", "text-anchor": i === 0 ? "start" : (i === tickCount - 1 ? "end" : "middle") }}).textContent = axisTimeText(points[index].at, data.days);
       }}
       points.forEach((point, index) => {{
         const delta = Number(point.delta_gb || 0);
         if (delta <= 0) return;
         const h = Math.max(2, delta / maxDelta * Math.min(72, plotH * 0.32));
-        add("rect", {{ x: xAt(index) - barW / 2, y: barY - h, width: barW, height: h, rx: "2", fill: "rgba(245, 159, 0, .38)" }});
+        add("rect", {{ x: xAt(index) - barW / 2, y: barY - h, width: barW, height: h, rx: "2", fill: chartColors.yellow, opacity: ".34" }});
       }});
       const line = values.map((value, index) => `${{xAt(index).toFixed(1)}},${{yAt(value).toFixed(1)}}`).join(" ");
-      add("polyline", {{ points: line, fill: "none", stroke: "#1763d1", "stroke-width": "3", "stroke-linecap": "round", "stroke-linejoin": "round" }});
+      add("polyline", {{ points: line, fill: "none", stroke: chartColors.accent, "stroke-width": "3", "stroke-linecap": "round", "stroke-linejoin": "round" }});
 
       const tooltip = document.querySelector("[data-chart-tooltip]");
       const markerStep = Math.max(1, Math.ceil(points.length / 180));
@@ -3583,12 +3601,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         if (index % markerStep !== 0 && index !== points.length - 1) return;
         const cx = xAt(index);
         const cy = yAt(Number(point.traffic_gb || 0));
-        const guide = add("line", {{ x1: cx, y1: pad.top, x2: cx, y2: barY, stroke: "rgba(23,99,209,.22)", "stroke-width": "1", "stroke-dasharray": "4 4", opacity: "0" }});
-        const dot = add("circle", {{ cx, cy, r: "4", fill: "#fff", stroke: "#1763d1", "stroke-width": "2", opacity: "0" }});
+        const guide = add("line", {{ x1: cx, y1: pad.top, x2: cx, y2: barY, stroke: chartColors.accent, "stroke-width": "1", "stroke-dasharray": "4 4", opacity: "0" }});
+        const dot = add("circle", {{ cx, cy, r: "4", fill: chartColors.surface, stroke: chartColors.accent, "stroke-width": "2", opacity: "0" }});
         const circle = add("circle", {{ cx, cy, r: "10", fill: "transparent", stroke: "transparent" }});
         circle.addEventListener("pointermove", () => {{
           if (!tooltip) return;
-          guide.setAttribute("opacity", "1");
+          guide.setAttribute("opacity", ".42");
           dot.setAttribute("opacity", "1");
           tooltip.innerHTML = `时间：${{timeText(point.at)}}<br>累计流量：${{gbText(point.traffic_gb)}}<br>本次新增：${{gbText(point.delta_gb)}}`;
           tooltip.style.display = "block";
