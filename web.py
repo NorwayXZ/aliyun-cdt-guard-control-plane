@@ -534,47 +534,6 @@ def status_dot_html(state_class: str, state_label: str) -> str:
     """
 
 
-def power_controls(server_id: str, status: str | None) -> str:
-    status = status or ""
-    if status == "Running":
-        return f"""
-          <div class="power-panel power-running">
-            <div>
-              <div class="power-title">当前正在运行</div>
-              <div class="power-copy">关机后会暂停自动启动，避免定时检查马上重新开机。</div>
-            </div>
-            <form method="post" action="/servers/power" onsubmit="return confirm('确认关机这台服务器？关机后会暂停自动启动，避免被定时任务重新开机。')">
-              <input type="hidden" name="id" value="{esc(server_id)}">
-              <input type="hidden" name="action" value="stop">
-              <button class="btn btn-danger power-main-btn" type="submit">关机并暂停自动启动</button>
-            </form>
-          </div>
-        """
-    if status == "Stopped":
-        return f"""
-          <div class="power-panel power-stopped">
-            <div>
-              <div class="power-title">当前已关机</div>
-              <div class="power-copy">开机后会恢复自动保护，后续仍按流量阈值巡检。</div>
-            </div>
-            <form method="post" action="/servers/power" onsubmit="return confirm('确认开机这台服务器？开机后会恢复自动保护。')">
-              <input type="hidden" name="id" value="{esc(server_id)}">
-              <input type="hidden" name="action" value="start">
-              <button class="btn btn-primary power-main-btn" type="submit">开机并恢复自动保护</button>
-            </form>
-          </div>
-        """
-    return f"""
-      <div class="power-panel power-muted">
-        <div>
-          <div class="power-title">当前状态：{esc(status or "未知")}</div>
-          <div class="power-copy">实例处于过渡或未知状态，暂不提供电源操作。</div>
-        </div>
-        <button class="btn power-main-btn" type="button" disabled>等待状态更新</button>
-      </div>
-    """
-
-
 def config_by_id(config: dict) -> dict[str, dict]:
     return {
         str(item.get("id") or item.get("instance_id")): item
@@ -3253,30 +3212,6 @@ def page_shell(
       width: 100%;
     }}
     .btn-list form {{ display: inline-block; margin: 0; }}
-    .power-panel {{
-      align-items: center;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      display: flex;
-      gap: 14px;
-      justify-content: space-between;
-      padding: 14px 15px;
-    }}
-    .power-running {{ background: #fffafa; border-color: #ffd5d5; }}
-    .power-stopped {{ background: #f6f9ff; border-color: #cfe0ff; }}
-    .power-muted {{ background: #f8fafc; }}
-    .power-title {{
-      color: #111827;
-      font-weight: 760;
-      margin-bottom: 3px;
-    }}
-    .power-copy {{
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-      max-width: 420px;
-    }}
-    .power-main-btn {{ min-width: 168px; }}
     .recovery-panel {{
       align-items: center;
       border: 1px solid var(--line);
@@ -4223,8 +4158,7 @@ def page_shell(
     .control-plane-theme .progress {{
       background: var(--surface-soft);
     }}
-    .control-plane-theme .reset-summary,
-    .control-plane-theme .power-panel {{
+    .control-plane-theme .reset-summary {{
       border-color: var(--line);
     }}
     .control-plane-theme .traffic-modal {{
@@ -4749,7 +4683,6 @@ def page_shell(
     .control-plane-theme .channel-status-value,
     .control-plane-theme .chart-stat-value,
     .control-plane-theme .saved-channel-title,
-    .control-plane-theme .power-title,
     .control-plane-theme .recovery-title,
     .control-plane-theme .reset-duration,
     .control-plane-theme .recovery-days,
@@ -4763,7 +4696,6 @@ def page_shell(
     .control-plane-theme .telegram-command span,
     .control-plane-theme .telegram-step-card span,
     .control-plane-theme .saved-channel-meta,
-    .control-plane-theme .power-copy,
     .control-plane-theme .recovery-copy,
     .control-plane-theme .reset-source,
     .control-plane-theme .channel-status-label,
@@ -5064,7 +4996,6 @@ def page_shell(
       .chat-candidate {{ grid-template-columns: 1fr; }}
       .telegram-step-grid {{ grid-template-columns: 1fr; }}
       .telegram-command-grid {{ grid-template-columns: 1fr; }}
-      .power-panel {{ align-items: flex-start; flex-direction: column; }}
       .table-responsive {{ min-height: 0; }}
     }}
     @media (max-width: 640px) {{
@@ -6210,12 +6141,6 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
           <div class="info-label">CDT 计费明细</div>
           {render_traffic_breakdown(item)}
         </div>
-        <details class="detail-section detail-disclosure">
-          <summary>操作与电源控制</summary>
-          <div class="mt-3">
-            {power_controls(identity['id'], item.get('instance_status'))}
-          </div>
-        </details>
         {render_diagnostics(item, identity, manual_note)}
         <details class="detail-section detail-disclosure">
           <summary>登录、账号与备注</summary>
