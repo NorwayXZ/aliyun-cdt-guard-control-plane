@@ -2094,9 +2094,11 @@ def page_shell(
       color: var(--ink);
       cursor: pointer;
       display: grid;
-      gap: 8px;
+      gap: 16px;
+      grid-template-columns: minmax(220px, 280px) minmax(260px, 1fr) minmax(150px, auto);
+      align-items: stretch;
       min-height: 0;
-      padding: 11px 16px;
+      padding: 14px 16px;
       text-align: left;
       transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
       width: 100%;
@@ -2124,6 +2126,33 @@ def page_shell(
       justify-content: space-between;
       min-height: 0;
       min-width: 0;
+    }}
+    .server-card-left,
+    .server-card-right {{
+      align-content: center;
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }}
+    .server-card-left .server-card-top,
+    .server-card-left .server-card-foot {{
+      justify-content: flex-start;
+    }}
+    .server-card-left .server-card-meta {{
+      grid-template-columns: minmax(0, 1fr);
+    }}
+    .server-card-right {{
+      justify-items: end;
+      text-align: right;
+    }}
+    .server-card-right .server-card-meta {{
+      gap: 10px;
+      grid-template-columns: minmax(0, auto) auto;
+      justify-content: end;
+      max-width: 190px;
+    }}
+    .server-card-right .server-card-actions {{
+      justify-content: flex-end;
     }}
     .server-card-metrics {{
       align-items: end;
@@ -2198,6 +2227,85 @@ def page_shell(
       flex-wrap: wrap;
       gap: 8px;
       justify-content: flex-end;
+    }}
+    .server-traffic-visual {{
+      --meter-color: #1763d1;
+      align-items: center;
+      align-self: center;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: auto minmax(120px, 1fr);
+      justify-self: stretch;
+      min-width: 0;
+      padding: 8px 18px;
+    }}
+    .server-traffic-visual.is-warning {{ --meter-color: #f59f00; }}
+    .server-traffic-visual.is-danger {{ --meter-color: #d63939; }}
+    .traffic-orb {{
+      background:
+        radial-gradient(circle at center, var(--surface) 0 58%, transparent 59%),
+        conic-gradient(var(--meter-color) calc(var(--traffic-pct) * 1%), rgba(17, 24, 39, .12) 0);
+      border-radius: 999px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .8) inset, 0 10px 20px rgba(23, 21, 17, .07);
+      display: grid;
+      height: 78px;
+      place-items: center;
+      position: relative;
+      width: 78px;
+    }}
+    .traffic-orb::after {{
+      background: var(--meter-color);
+      border-radius: 999px;
+      box-shadow: 0 0 14px color-mix(in srgb, var(--meter-color) 46%, transparent);
+      content: "";
+      height: 9px;
+      position: absolute;
+      right: 7px;
+      top: 12px;
+      width: 9px;
+    }}
+    .traffic-orb strong {{
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 780;
+      line-height: 1;
+    }}
+    .traffic-visual-copy {{
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }}
+    .traffic-visual-title {{
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 760;
+      line-height: 1.2;
+      white-space: nowrap;
+    }}
+    .traffic-visual-sub {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 620;
+      line-height: 1.35;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .traffic-mini-bars {{
+      align-items: end;
+      display: flex;
+      gap: 5px;
+      height: 28px;
+      overflow: hidden;
+    }}
+    .traffic-mini-bars span {{
+      background: linear-gradient(180deg, color-mix(in srgb, var(--meter-color) 72%, #fff), var(--meter-color));
+      border-radius: 2px 2px 0 0;
+      display: block;
+      flex: 0 0 8px;
+      height: calc(var(--bar) * 1%);
+      min-height: 5px;
+      opacity: .88;
     }}
     .row-status {{
       align-items: center;
@@ -4940,10 +5048,19 @@ def page_shell(
       }}
       .server-card-status,
       .server-card-actions,
+      .server-card-right,
       .server-metric-side {{
         justify-content: flex-start;
         justify-items: start;
         text-align: left;
+      }}
+      .server-traffic-visual {{
+        grid-template-columns: auto minmax(0, 1fr);
+        padding: 4px 0;
+      }}
+      .server-card-right .server-card-meta {{
+        justify-content: start;
+        max-width: 100%;
       }}
       .server-state {{ min-width: 0; }}
       .traffic-compact {{ display: block; }}
@@ -5853,37 +5970,64 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     if active:
         row_classes.append("active")
     name_color = server_name_color(identity["id"])
+    threshold_value = as_float(str(item.get("stop_threshold_gb") or ""), 0)
+    traffic_value = as_float(str(self_traffic or ""), 0)
+    today_value = as_float(str(today_traffic or ""), 0)
+    visual_pct = max(3, min(pct, 100)) if threshold_value > 0 or traffic_value > 0 else 0
+    visual_label = f"{pct:.0f}%" if threshold_value > 0 else "CDT"
+    meter_class = "danger" if health_class == "danger" or pct >= 90 else "warning" if health_class == "warning" or pct >= 75 else "normal"
+    daily_base = threshold_value if threshold_value > 0 else max(traffic_value, 1)
+    today_level = max(10, min(today_value / max(daily_base * 0.005, 0.05) * 100, 100))
+    bar_factors = [0.42, 0.74, 0.58, 1.0, 0.68, 0.86, 0.52, 0.76]
+    traffic_bars = "".join(
+        f'<span style="--bar:{max(8, min(today_level * factor, 100)):.1f};"></span>'
+        for factor in bar_factors
+    )
     return f"""
       <article class="{' '.join(row_classes)}" data-server-row data-server-id="{esc(identity['id'])}" role="button" tabindex="0"
         data-search="{esc(search_text)}" data-filter-state="{esc(health_class)}" data-priority="{priority}"
         data-used="{pct:.4f}" data-name="{esc(identity['product_name'].lower())}" aria-selected="{'true' if active else 'false'}"
         style="--server-name-color: {esc(name_color)};">
-        <div class="server-card-top">
-          <span class="server-name-stack" title="{esc(item.get('instance_name') or item.get('instance_id') or identity['asset_label'])}">
-            <span class="asset-name d-block text-truncate">{esc(identity['product_name'])}</span>
-          </span>
+        <div class="server-card-left">
+          <div class="server-card-top">
+            <span class="server-name-stack" title="{esc(item.get('instance_name') or item.get('instance_id') or identity['asset_label'])}">
+              <span class="asset-name d-block text-truncate">{esc(identity['product_name'])}</span>
+            </span>
+          </div>
+          <div class="server-card-metrics">
+            <span class="server-metric-main">
+              <strong>{esc(fmt_gb(self_traffic))}</strong>
+              <span>本期累计</span>
+            </span>
+          </div>
+          <div class="server-card-meta">
+            <span class="server-region-line">{esc(region_line)}</span>
+          </div>
+          <div class="server-card-foot">
+            <span class="server-pool-line">{esc(pool_label)}</span>
+          </div>
+        </div>
+        <div class="server-traffic-visual is-{meter_class}" style="--traffic-pct:{visual_pct:.2f};" aria-hidden="true">
+          <div class="traffic-orb"><strong>{esc(visual_label)}</strong></div>
+          <div class="traffic-visual-copy">
+            <span class="traffic-visual-title">流量消耗</span>
+            <span class="traffic-visual-sub">今日活跃 · {esc(fmt_gb(today_traffic))}</span>
+            <div class="traffic-mini-bars">{traffic_bars}</div>
+          </div>
+        </div>
+        <div class="server-card-right">
           <span class="server-card-status">
             {status_html}
             {health_tag}
-          </span>
-        </div>
-        <div class="server-card-metrics">
-          <span class="server-metric-main">
-            <strong>{esc(fmt_gb(self_traffic))}</strong>
-            <span>本期累计</span>
           </span>
           <span class="server-metric-side">
             <span>今日</span>
             <strong>{esc(fmt_gb(today_traffic))}</strong>
           </span>
-        </div>
-        <div class="server-card-meta">
-          <span class="server-region-line">{esc(region_line)}</span>
-          <span class="ip-main text-truncate">{esc(ip_value)}</span>
-          <button class="copy-ip-btn" type="button" data-copy-ip="{esc(ip_value)}">复制</button>
-        </div>
-        <div class="server-card-foot">
-          <span class="server-pool-line">{esc(pool_label)}</span>
+          <div class="server-card-meta">
+            <span class="ip-main text-truncate">{esc(ip_value)}</span>
+            <button class="copy-ip-btn" type="button" data-copy-ip="{esc(ip_value)}">复制</button>
+          </div>
           <span class="server-card-actions">
             <button class="chart-trigger row-chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}" title="查看流量趋势">
               <span>查看趋势</span>
