@@ -482,6 +482,17 @@ def status_view(status: str | None) -> tuple[str, str, str]:
     return mapping.get(status or "", ("muted", status or "未知", ""))
 
 
+def status_record_html(state_class: str, state_label: str, extra_class: str = "") -> str:
+    return f"""
+      <span class="{esc(extra_class)} status-record-pill {esc(state_class)}">
+        <span class="status-record" aria-hidden="true">
+          <span class="status-record-core"></span>
+        </span>
+        <span class="status-record-label">{esc(state_label)}</span>
+      </span>
+    """
+
+
 def power_controls(server_id: str, status: str | None) -> str:
     status = status or ""
     if status == "Running":
@@ -2108,46 +2119,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       padding: 8px 10px;
       white-space: nowrap;
     }}
-    .server-state-dot {{
-      border-radius: 999px;
-      display: block;
-      height: 9px;
-      width: 9px;
-    }}
-    .server-state.running {{ background: var(--success-soft); color: #148341; }}
-    .server-state.running .server-state-dot {{ background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, .12); }}
-    .server-state.stopped {{ background: var(--danger-soft); color: #c92a2a; }}
-    .server-state.stopped .server-state-dot {{ background: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, .12); }}
-    .server-state.pending {{ background: var(--warning-soft); color: #b7791f; }}
-    .server-state.pending .server-state-dot {{ background: #f59f00; box-shadow: 0 0 0 4px rgba(245, 159, 0, .14); }}
-    .server-state.muted {{ background: #eef2f6; color: #64748b; }}
-    .server-state.muted .server-state-dot {{ background: #94a3b8; }}
-    .server-state-main {{ font-weight: 760; line-height: 1; }}
-    .server-state-sub {{ color: currentColor; display: block; font-size: 11px; opacity: .75; }}
-    .server-state-detail {{
-      align-items: center;
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      justify-content: center;
-      min-height: 70px;
-      min-width: 92px;
-      padding: 12px 14px;
-      text-align: center;
-    }}
-    .server-state-detail .server-state-dot {{
-      display: none;
-    }}
-    .server-state-detail .server-state-main,
-    .server-state-detail .server-state-sub {{
-      display: block;
-      text-align: center;
-    }}
-    .server-state-detail.running {{ background: var(--success-soft); color: #148341; }}
-    .server-state-detail.stopped {{ background: var(--danger-soft); color: #c92a2a; }}
-    .server-state-detail.pending {{ background: var(--warning-soft); color: #b7791f; }}
-    .server-state-detail.muted {{ background: #eef2f6; color: #64748b; }}
     .server-detail-panel {{
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -2230,19 +2201,149 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       padding: 9px 11px;
       white-space: nowrap;
     }}
-    .detail-status-pill .server-state-dot {{
-      display: block;
-      height: 8px;
-      width: 8px;
+    .status-record-pill {{
+      align-items: center;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      display: inline-flex;
+      gap: 9px;
+      justify-content: center;
+      line-height: 1;
+      min-width: 118px;
+      padding: 8px 11px;
+      white-space: nowrap;
     }}
-    .detail-status-pill.running {{ background: var(--success-soft); color: #15884f; }}
-    .detail-status-pill.stopped {{ background: var(--danger-soft); color: #c92a2a; }}
-    .detail-status-pill.pending {{ background: var(--warning-soft); color: #9a6700; }}
-    .detail-status-pill.muted {{ background: var(--surface-soft); color: var(--muted); }}
-    .detail-status-pill.running .server-state-dot {{ background: #22c55e; }}
-    .detail-status-pill.stopped .server-state-dot {{ background: #ef4444; }}
-    .detail-status-pill.pending .server-state-dot {{ background: #f59f00; }}
-    .detail-status-pill.muted .server-state-dot {{ background: #94a3b8; }}
+    .status-record-pill.server-state {{
+      min-width: 126px;
+      padding: 9px 12px;
+    }}
+    .status-record-pill.detail-status-pill {{
+      min-width: 130px;
+      padding: 10px 13px;
+    }}
+    .status-record-label {{
+      color: currentColor;
+      font-size: 13px;
+      font-weight: 760;
+      letter-spacing: 0;
+    }}
+    .status-record {{
+      --record-base: #e3652f;
+      --record-ring: rgba(50, 29, 17, .30);
+      --record-groove: rgba(43, 27, 17, .34);
+      --record-center: #f7f2e8;
+      --record-dot: rgba(156, 46, 22, .82);
+      background:
+        radial-gradient(circle at center, transparent 0 31%, rgba(255,255,255,.18) 31.5% 32.5%, transparent 33%),
+        repeating-radial-gradient(circle at center, transparent 0 2px, var(--record-groove) 2.5px 3px),
+        conic-gradient(from 10deg, color-mix(in srgb, var(--record-base) 78%, #fff) 0 22%, var(--record-base) 22% 62%, color-mix(in srgb, var(--record-base) 74%, #000) 62% 100%);
+      border: 1px solid color-mix(in srgb, var(--record-base) 54%, #171511);
+      border-radius: 999px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), inset 0 0 12px rgba(23, 21, 17, .18);
+      display: inline-block;
+      flex: 0 0 auto;
+      height: 28px;
+      position: relative;
+      width: 28px;
+    }}
+    .status-record::before {{
+      background:
+        radial-gradient(circle at center, #171511 0 2px, transparent 2.6px),
+        radial-gradient(circle at center, var(--record-center) 0 100%);
+      border: 1px solid rgba(23, 21, 17, .26);
+      border-radius: 999px;
+      content: "";
+      height: 12px;
+      left: 50%;
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      z-index: 2;
+    }}
+    .status-record::after {{
+      background: var(--record-dot);
+      border-radius: 999px;
+      box-shadow:
+        14px 3px 0 rgba(246, 215, 84, .88),
+        4px 16px 0 rgba(247, 242, 232, .88),
+        17px 17px 0 rgba(172, 38, 20, .72);
+      content: "";
+      height: 4px;
+      left: 5px;
+      opacity: .9;
+      position: absolute;
+      top: 6px;
+      width: 4px;
+      z-index: 1;
+    }}
+    .status-record-core {{
+      border: 1px dashed rgba(247, 242, 232, .42);
+      border-radius: 999px;
+      inset: 5px;
+      position: absolute;
+      z-index: 1;
+    }}
+    .status-record-pill.running {{
+      background: #edf7ec;
+      border-color: #c9dcc7;
+      color: #12834b;
+    }}
+    .status-record-pill.running .status-record {{
+      animation: statusRecordSpin 1.35s linear infinite;
+    }}
+    .status-record-pill.stopped {{
+      background: #ece7de;
+      border-color: #171511;
+      color: #171511;
+    }}
+    .status-record-pill.stopped .status-record {{
+      --record-base: #171511;
+      --record-ring: rgba(255,255,255,.10);
+      --record-groove: rgba(247,242,232,.18);
+      --record-center: #26231d;
+      --record-dot: rgba(247,242,232,.16);
+      animation: none;
+      border-color: #171511;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    }}
+    .status-record-pill.stopped .status-record::before {{
+      background:
+        radial-gradient(circle at center, #f7f2e8 0 2px, transparent 2.6px),
+        radial-gradient(circle at center, #171511 0 100%);
+      border-color: rgba(247, 242, 232, .18);
+    }}
+    .status-record-pill.pending {{
+      background: #fff6dc;
+      border-color: #e6c56a;
+      color: #9a6700;
+    }}
+    .status-record-pill.pending .status-record {{
+      --record-base: #dca12b;
+      animation: statusRecordSpin 2.15s linear infinite;
+    }}
+    .status-record-pill.muted {{
+      background: var(--surface-soft);
+      border-color: var(--line);
+      color: var(--muted);
+    }}
+    .status-record-pill.muted .status-record {{
+      --record-base: #5c5850;
+      --record-groove: rgba(247,242,232,.16);
+      --record-center: #e5dcc9;
+      --record-dot: rgba(23,21,17,.22);
+      animation: none;
+      opacity: .76;
+    }}
+    @keyframes statusRecordSpin {{
+      to {{ transform: rotate(360deg); }}
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .status-record-pill .status-record {{
+        animation: none !important;
+      }}
+    }}
     .detail-disclosure > summary {{
       align-items: center;
       color: #111827;
@@ -3781,11 +3882,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .progress {{
       background: var(--surface-soft);
     }}
-    .control-plane-theme .server-state.running,
-    .control-plane-theme .server-state-detail.running {{
-      background: var(--success-soft);
-      color: #15884f;
-    }}
     .control-plane-theme .reset-summary,
     .control-plane-theme .power-panel {{
       border-color: var(--line);
@@ -4512,7 +4608,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .control-plane-theme .badge,
     .control-plane-theme .server-state,
-    .control-plane-theme .server-state-detail,
     .control-plane-theme .server-group-pill,
     .control-plane-theme .pool-chip,
     .control-plane-theme .product-code,
@@ -5516,7 +5611,7 @@ def render_diagnostics(item: dict, identity: dict[str, Any], manual_note: str) -
 
 def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict], active: bool = False) -> str:
     identity = server_identity(item, metadata)
-    state_class, state_label, state_sub = status_view(item.get("instance_status"))
+    state_class, state_label, _state_sub = status_view(item.get("instance_status"))
     health_class, _filter_label, priority = server_health(item)
     pct = used_percent(item)
     pool_traffic = protection_traffic_gb(item)
@@ -5547,19 +5642,12 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     row_classes = ["server-row", f"is-{health_class}"]
     if active:
         row_classes.append("active")
-    state_sub_html = f'<span class="server-state-sub">{esc(state_sub)}</span>' if state_sub else ""
     return f"""
       <article class="{' '.join(row_classes)}" data-server-row data-server-id="{esc(identity['id'])}" role="button" tabindex="0"
         data-search="{esc(search_text)}" data-filter-state="{esc(health_class)}" data-priority="{priority}"
         data-used="{pct:.4f}" data-name="{esc(identity['product_name'].lower())}" aria-selected="{'true' if active else 'false'}">
         <span class="server-cell status-cell">
-          <span class="server-state {state_class}">
-            <span class="server-state-dot"></span>
-            <span>
-              <span class="server-state-main">{esc(state_label)}</span>
-              {state_sub_html}
-            </span>
-          </span>
+          {status_record_html(state_class, state_label, "server-state")}
         </span>
         <span class="server-cell server-info-cell">
           <span class="server-name-stack">
@@ -5623,10 +5711,7 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
                 <span>服务 ID <b>{esc(service_id)}</b></span>
               </div>
             </div>
-            <span class="detail-status-pill {state_class}">
-              <span class="server-state-dot"></span>
-              <span>{esc(state_label)}</span>
-            </span>
+            {status_record_html(state_class, state_label, "detail-status-pill")}
           </div>
         </div>
         <div class="detail-section">
