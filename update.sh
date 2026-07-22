@@ -3,8 +3,9 @@ set -euo pipefail
 
 APP_NAME="aliyun-cdt-guard-control-plane"
 INSTALL_DIR="${INSTALL_DIR:-/opt/aliyun-cdt-guard-control-plane}"
-REPO_URL="${REPO_URL:-https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane.git}"
+REPO_SLUG="${REPO_SLUG:-NorwayXZ/aliyun-cdt-guard-control-plane}"
 BRANCH="${BRANCH:-main}"
+SOURCE_ARCHIVE_URL="${SOURCE_ARCHIVE_URL:-https://github.com/${REPO_SLUG}/archive/refs/heads/${BRANCH}.tar.gz}"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Please run as root: sudo bash update.sh"
@@ -15,8 +16,13 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
-if ! need_cmd git; then
-  echo "git is required. Please install git first, then rerun update."
+if ! need_cmd curl; then
+  echo "curl is required. Please install curl first, then rerun update."
+  exit 1
+fi
+
+if ! need_cmd tar; then
+  echo "tar is required. Please install tar first, then rerun update."
   exit 1
 fi
 
@@ -32,8 +38,10 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 TMP_DIR="$(mktemp -d)"
-echo "Downloading latest $APP_NAME from $REPO_URL ($BRANCH)..."
-git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TMP_DIR/source"
+echo "Downloading latest $APP_NAME from $REPO_SLUG ($BRANCH)..."
+curl -fsSL "$SOURCE_ARCHIVE_URL" -o "$TMP_DIR/source.tar.gz"
+mkdir -p "$TMP_DIR/source"
+tar -xzf "$TMP_DIR/source.tar.gz" -C "$TMP_DIR/source" --strip-components=1
 
 echo "Stopping services..."
 systemctl stop cdt-guard-control-plane.timer >/dev/null 2>&1 || true
@@ -48,15 +56,7 @@ install -m 644 "$TMP_DIR/source/requirements.txt" "$INSTALL_DIR/requirements.txt
 install -m 644 "$TMP_DIR/source/VERSION" "$INSTALL_DIR/VERSION"
 install -m 755 "$TMP_DIR/source/update.sh" "$INSTALL_DIR/update.sh"
 
-if [ -f "$TMP_DIR/source/index.html" ]; then
-  install -d -m 755 "$INSTALL_DIR/ui-prototype"
-  install -m 644 "$TMP_DIR/source/index.html" "$INSTALL_DIR/ui-prototype/index.html"
-  install -m 644 "$TMP_DIR/source/styles.css" "$INSTALL_DIR/ui-prototype/styles.css"
-  install -m 644 "$TMP_DIR/source/app.js" "$INSTALL_DIR/ui-prototype/app.js"
-  install -m 644 "$TMP_DIR/source/login.html" "$INSTALL_DIR/ui-prototype/login.html"
-  install -m 644 "$TMP_DIR/source/login.css" "$INSTALL_DIR/ui-prototype/login.css"
-  install -m 644 "$TMP_DIR/source/login.js" "$INSTALL_DIR/ui-prototype/login.js"
-fi
+rm -rf "$INSTALL_DIR/ui-prototype"
 
 install -m 644 "$TMP_DIR/source/cdt-guard-control-plane.service" /etc/systemd/system/cdt-guard-control-plane.service
 install -m 644 "$TMP_DIR/source/cdt-guard-control-plane.timer" /etc/systemd/system/cdt-guard-control-plane.timer
@@ -69,8 +69,8 @@ if [ ! -d "$INSTALL_DIR/venv" ]; then
 fi
 
 echo "Updating Python dependencies..."
-"$INSTALL_DIR/venv/bin/pip" install --upgrade pip
-"$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt"
+"$INSTALL_DIR/venv/bin/pip" install --no-cache-dir --upgrade pip
+"$INSTALL_DIR/venv/bin/pip" install --no-cache-dir -r "$INSTALL_DIR/requirements.txt"
 
 chmod 700 "$INSTALL_DIR"
 chmod 600 "$INSTALL_DIR/guard.env" "$INSTALL_DIR/instances.json" "$INSTALL_DIR/web.env" 2>/dev/null || true

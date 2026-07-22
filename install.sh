@@ -3,7 +3,9 @@ set -euo pipefail
 
 APP_NAME="aliyun-cdt-guard-control-plane"
 INSTALL_DIR="${INSTALL_DIR:-/opt/aliyun-cdt-guard-control-plane}"
-REPO_URL="${REPO_URL:-https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane.git}"
+REPO_SLUG="${REPO_SLUG:-NorwayXZ/aliyun-cdt-guard-control-plane}"
+BRANCH="${BRANCH:-main}"
+SOURCE_ARCHIVE_URL="${SOURCE_ARCHIVE_URL:-https://github.com/${REPO_SLUG}/archive/refs/heads/${BRANCH}.tar.gz}"
 WEB_PORT="${WEB_PORT:-8788}"
 WEB_USER="${WEB_USER:-admin}"
 
@@ -169,13 +171,13 @@ install_packages() {
     export DEBIAN_FRONTEND=noninteractive
     repair_dpkg_state
     apt_run update -y
-    apt_run install -y python3 python3-venv python3-pip git curl openssl cron ca-certificates
+    apt_run install -y python3 python3-venv curl openssl ca-certificates tar
   elif need_cmd dnf; then
-    dnf install -y python3 python3-pip git curl openssl
+    dnf install -y python3 python3-pip curl openssl tar
   elif need_cmd yum; then
-    yum install -y python3 python3-pip git curl openssl
+    yum install -y python3 python3-pip curl openssl tar
   else
-    echo "Unsupported Linux distribution. Please install python3, python3-venv, git, curl and openssl first."
+    echo "Unsupported Linux distribution. Please install python3, python3-venv, curl, tar and openssl first."
     exit 1
   fi
 }
@@ -190,8 +192,11 @@ prepare_source() {
 
   local tmp_dir
   tmp_dir="$(mktemp -d)"
-  git clone --depth 1 "$REPO_URL" "$tmp_dir"
-  echo "$tmp_dir"
+  echo "Downloading $APP_NAME source archive..." >&2
+  curl -fsSL "$SOURCE_ARCHIVE_URL" -o "$tmp_dir/source.tar.gz"
+  mkdir -p "$tmp_dir/source"
+  tar -xzf "$tmp_dir/source.tar.gz" -C "$tmp_dir/source" --strip-components=1
+  echo "$tmp_dir/source"
 }
 
 install_packages
@@ -209,19 +214,11 @@ install -m 644 "$SRC_DIR/cdt-guard-control-plane.timer" /etc/systemd/system/cdt-
 install -m 644 "$SRC_DIR/cdt-guard-control-plane-web.service" /etc/systemd/system/cdt-guard-control-plane-web.service
 sed -i "s#/opt/aliyun-cdt-guard-control-plane#$INSTALL_DIR#g" /etc/systemd/system/cdt-guard-control-plane.service /etc/systemd/system/cdt-guard-control-plane-web.service
 
-if [ -f "$SRC_DIR/index.html" ]; then
-  install -d -m 755 "$INSTALL_DIR/ui-prototype"
-  install -m 644 "$SRC_DIR/index.html" "$INSTALL_DIR/ui-prototype/index.html"
-  install -m 644 "$SRC_DIR/styles.css" "$INSTALL_DIR/ui-prototype/styles.css"
-  install -m 644 "$SRC_DIR/app.js" "$INSTALL_DIR/ui-prototype/app.js"
-  install -m 644 "$SRC_DIR/login.html" "$INSTALL_DIR/ui-prototype/login.html"
-  install -m 644 "$SRC_DIR/login.css" "$INSTALL_DIR/ui-prototype/login.css"
-  install -m 644 "$SRC_DIR/login.js" "$INSTALL_DIR/ui-prototype/login.js"
-fi
+rm -rf "$INSTALL_DIR/ui-prototype"
 
 python3 -m venv "$INSTALL_DIR/venv"
-"$INSTALL_DIR/venv/bin/pip" install --upgrade pip
-"$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt"
+"$INSTALL_DIR/venv/bin/pip" install --no-cache-dir --upgrade pip
+"$INSTALL_DIR/venv/bin/pip" install --no-cache-dir -r "$INSTALL_DIR/requirements.txt"
 
 if [ ! -f "$INSTALL_DIR/guard.env" ]; then
   umask 077
