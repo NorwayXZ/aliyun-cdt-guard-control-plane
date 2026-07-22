@@ -4706,8 +4706,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       letter-spacing: 0;
     }}
     .control-plane-theme .server-row .asset-name {{
-      font-size: clamp(32px, 3.1vw, 42px);
-      line-height: .9;
+      font-size: clamp(26px, 2.4vw, 34px);
+      line-height: .96;
     }}
     .control-plane-theme .server-detail .detail-hero .asset-name {{
       font-size: clamp(34px, 3vw, 42px);
