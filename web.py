@@ -3801,32 +3801,15 @@ def page_shell(
         0 2px 0 rgba(23, 21, 17, .035);
       display: flex;
       font-family: var(--font-topbar);
-      gap: 18px;
-      justify-content: space-between;
-      min-height: 86px;
-      padding: 10px 34px;
+      justify-content: flex-end;
+      min-height: 58px;
+      padding: 8px 34px;
       position: sticky;
       top: 0;
       z-index: 10;
     }}
-    .topbar > div:first-child {{
-      display: grid;
-      gap: 6px;
-      min-width: 0;
-    }}
     .topbar::before {{
       content: none;
-    }}
-    .topbar h1 {{
-      color: var(--ink);
-      font-family: var(--font-topbar);
-      font-size: clamp(30px, 2.4vw, 42px);
-      font-weight: 700;
-      letter-spacing: 0;
-      line-height: 1;
-      margin: 0;
-      max-width: 100%;
-      overflow-wrap: anywhere;
     }}
     .top-actions {{
       align-items: center;
@@ -4827,28 +4810,17 @@ def page_shell(
       }}
       .sidebar-account {{ display: none; }}
       .topbar {{
-        align-items: flex-start;
-        flex-direction: column;
+        align-items: center;
         min-height: 0;
-        padding: 18px;
-      }}
-      .topbar > div:first-child {{
-        min-width: 0;
-        width: 100%;
+        padding: 12px 16px;
       }}
       .topbar::before {{
         left: 18px;
         right: 18px;
         top: 10px;
       }}
-      .topbar h1 {{
-        font-size: clamp(24px, 7vw, 32px);
-        line-height: 1.08;
-        max-width: 100%;
-        overflow-wrap: anywhere;
-      }}
       .top-actions {{
-        justify-content: flex-start;
+        justify-content: flex-end;
         width: 100%;
       }}
       .top-actions form,
@@ -4994,9 +4966,6 @@ def page_shell(
 
     <main class="workspace">
       <header class="topbar">
-        <div>
-          <h1>{esc(title)}</h1>
-        </div>
         <div class="top-actions">
           <span class="engine-state"><i></i>Engine OK</span>
           {header_actions}
