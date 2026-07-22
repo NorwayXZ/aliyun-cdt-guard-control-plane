@@ -3302,8 +3302,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .control-plane-theme .server-state.running,
     .control-plane-theme .server-state-detail.running {{
-      background: var(--accent-soft);
-      color: var(--accent);
+      background: var(--success-soft);
+      color: #15884f;
+    }}
+    .control-plane-theme[data-theme="dark"] .server-state.running,
+    .control-plane-theme[data-theme="dark"] .server-state-detail.running {{
+      color: #5ee189;
     }}
     .control-plane-theme .reset-summary,
     .control-plane-theme .power-panel {{
