@@ -684,13 +684,14 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
   <title>登录 - Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,600;6..96,700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
       --font-sans: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-serif: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-display: "Bodoni Moda", "Bodoni 72", Didot, "Bodoni MT", "Times New Roman", serif;
       --bg: #f2eee3;
       --panel: rgba(246, 241, 230, .96);
       --panel-soft: #fbf8ef;
@@ -1586,13 +1587,14 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
   <title>Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,600;6..96,700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
       --font-sans: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-serif: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-display: "Bodoni Moda", "Bodoni 72", Didot, "Bodoni MT", "Times New Roman", serif;
       --page-bg: #f6f7f9;
       --surface: #ffffff;
       --surface-soft: #fafbfc;
@@ -4678,6 +4680,20 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .page-intro h2 {{
       font-size: clamp(34px, 5vw, 58px);
       line-height: .95;
+    }}
+    .control-plane-theme .server-row .asset-name,
+    .control-plane-theme .server-detail .detail-hero .asset-name {{
+      font-family: var(--font-display) !important;
+      font-weight: 600;
+      letter-spacing: 0;
+    }}
+    .control-plane-theme .server-row .asset-name {{
+      font-size: clamp(30px, 3vw, 40px);
+      line-height: .92;
+    }}
+    .control-plane-theme .server-detail .detail-hero .asset-name {{
+      font-size: clamp(34px, 3vw, 44px);
+      line-height: .94;
     }}
     .control-plane-theme .metric-card strong,
     .control-plane-theme .info-value,
