@@ -2899,36 +2899,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: var(--page-bg);
       color: var(--ink);
     }}
-    body.control-plane-theme[data-theme="dark"] {{
-      color-scheme: dark;
-      --page-bg: #10110f;
-      --sidebar-bg: #080908;
-      --topbar-bg: rgba(16, 17, 15, 0.88);
-      --surface: #171815;
-      --surface-soft: #1f211d;
-      --surface-strong: #292b26;
-      --line: #33342e;
-      --line-strong: #e2ddcf;
-      --ink: #f2eee3;
-      --soft: #c9c2b2;
-      --muted: #918b7e;
-      --accent: #9aa8dc;
-      --accent-soft: #22283f;
-      --blue: #9aa8dc;
-      --success-soft: #1d2a24;
-      --warning-soft: #332a18;
-      --danger-soft: #33211d;
-      --yellow: #d3a954;
-      --red: #cf7558;
-      --green: #77b7a8;
-      --button-bg: #171815;
-      --input-bg: #10110f;
-      --hover-bg: #23251f;
-      --panel-bg: rgba(23, 24, 21, 0.96);
-      --shadow: none;
-      background: var(--page-bg);
-      color: var(--ink);
-    }}
     .app-shell {{
       display: grid;
       grid-template-columns: 256px minmax(0, 1fr);
@@ -3296,7 +3266,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .control-plane-theme .btn,
     .control-plane-theme .logout-link,
-    .control-plane-theme .theme-switch,
     .control-plane-theme .ghost-btn {{
       align-items: center;
       background: var(--button-bg);
@@ -3315,7 +3284,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .control-plane-theme .btn:hover,
     .control-plane-theme .logout-link:hover,
-    .control-plane-theme .theme-switch:hover,
     .control-plane-theme .ghost-btn:hover {{
       border-color: var(--accent);
       color: var(--accent);
@@ -3353,10 +3321,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .server-state-detail.running {{
       background: var(--success-soft);
       color: #15884f;
-    }}
-    .control-plane-theme[data-theme="dark"] .server-state.running,
-    .control-plane-theme[data-theme="dark"] .server-state-detail.running {{
-      color: #5ee189;
     }}
     .control-plane-theme .reset-summary,
     .control-plane-theme .power-panel {{
@@ -3960,13 +3924,11 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       }}
       .top-actions form,
       .top-actions .btn,
-      .top-actions .ghost-btn,
-      .top-actions .theme-switch {{
+      .top-actions .ghost-btn {{
         flex: 1 1 150px;
       }}
       .top-actions .btn,
-      .top-actions .ghost-btn,
-      .top-actions .theme-switch {{
+      .top-actions .ghost-btn {{
         width: 100%;
       }}
       .control-plane-theme .page {{
@@ -4076,7 +4038,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         </div>
         <div class="top-actions">
           <span class="engine-state"><i></i>保护引擎正常</span>
-          <button class="ghost-btn theme-switch" type="button" data-theme-toggle>深色模式</button>
           {header_actions}
         </div>
       </header>
@@ -4129,23 +4090,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
   <script>
-    (function () {{
-      const body = document.body;
-      const button = document.querySelector("[data-theme-toggle]");
-      const stored = localStorage.getItem("cdtGuardTheme") || "light";
-      function applyTheme(theme) {{
-        body.dataset.theme = theme;
-        if (button) button.textContent = theme === "light" ? "深色模式" : "暖色模式";
-      }}
-      applyTheme(stored);
-      if (button) {{
-        button.addEventListener("click", function () {{
-          const next = body.dataset.theme === "light" ? "dark" : "light";
-          localStorage.setItem("cdtGuardTheme", next);
-          applyTheme(next);
-        }});
-      }}
-    }})();
     function toggleSecret(button) {{
       const shown = button.dataset.shown === "1";
       if (shown) {{
