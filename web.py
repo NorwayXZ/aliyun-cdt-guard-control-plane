@@ -383,6 +383,23 @@ def region_display_text(region_id: str | None) -> str:
     return region_id
 
 
+SERVER_NAME_COLORS = [
+    "#ff674d",
+    "#ffae1a",
+    "#12b8b2",
+    "#7357ff",
+    "#e84d8a",
+    "#2f80ed",
+    "#16a34a",
+    "#f97316",
+]
+
+
+def server_name_color(value: str | None) -> str:
+    digest = hashlib.sha1(str(value or "server").encode("utf-8")).hexdigest()
+    return SERVER_NAME_COLORS[int(digest[:8], 16) % len(SERVER_NAME_COLORS)]
+
+
 def recovery_status_badge(item: dict) -> str:
     plan = item.get("recovery_plan") or {}
     if plan.get("auto_start_paused"):
@@ -684,14 +701,14 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
   <title>登录 - Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,600;6..96,700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
       --font-sans: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-serif: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      --font-display: "Bodoni Moda", "Bodoni 72", Didot, "Bodoni MT", "Times New Roman", serif;
+      --font-display: "Fredoka", "Arial Rounded MT Bold", "Trebuchet MS", "Noto Sans SC", sans-serif;
       --bg: #f2eee3;
       --panel: rgba(246, 241, 230, .96);
       --panel-soft: #fbf8ef;
@@ -1587,14 +1604,14 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
   <title>Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,600;6..96,700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
       --font-sans: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-serif: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      --font-display: "Bodoni Moda", "Bodoni 72", Didot, "Bodoni MT", "Times New Roman", serif;
+      --font-display: "Fredoka", "Arial Rounded MT Bold", "Trebuchet MS", "Noto Sans SC", sans-serif;
       --page-bg: #f6f7f9;
       --surface: #ffffff;
       --surface-soft: #fafbfc;
@@ -4684,16 +4701,17 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .server-row .asset-name,
     .control-plane-theme .server-detail .detail-hero .asset-name {{
       font-family: var(--font-display) !important;
-      font-weight: 600;
+      color: var(--server-name-color, #ff674d) !important;
+      font-weight: 700;
       letter-spacing: 0;
     }}
     .control-plane-theme .server-row .asset-name {{
-      font-size: clamp(30px, 3vw, 40px);
-      line-height: .92;
+      font-size: clamp(32px, 3.1vw, 42px);
+      line-height: .9;
     }}
     .control-plane-theme .server-detail .detail-hero .asset-name {{
-      font-size: clamp(34px, 3vw, 44px);
-      line-height: .94;
+      font-size: clamp(34px, 3vw, 42px);
+      line-height: .92;
     }}
     .control-plane-theme .metric-card strong,
     .control-plane-theme .info-value,
@@ -5830,10 +5848,12 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     row_classes = ["server-row", f"is-{health_class}"]
     if active:
         row_classes.append("active")
+    name_color = server_name_color(identity["id"])
     return f"""
       <article class="{' '.join(row_classes)}" data-server-row data-server-id="{esc(identity['id'])}" role="button" tabindex="0"
         data-search="{esc(search_text)}" data-filter-state="{esc(health_class)}" data-priority="{priority}"
-        data-used="{pct:.4f}" data-name="{esc(identity['product_name'].lower())}" aria-selected="{'true' if active else 'false'}">
+        data-used="{pct:.4f}" data-name="{esc(identity['product_name'].lower())}" aria-selected="{'true' if active else 'false'}"
+        style="--server-name-color: {esc(name_color)};">
         <div class="server-card-top">
           <span class="server-name-stack" title="{esc(item.get('instance_name') or item.get('instance_id') or identity['asset_label'])}">
             <span class="asset-name d-block text-truncate">{esc(identity['product_name'])}</span>
@@ -5897,8 +5917,9 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
         ssh_text = f"{meta.get('ssh_user', 'root')}@{identity['primary_ip']}:{meta.get('ssh_port', 22)}"
     note_text = first_value(meta.get("notes"), meta.get("remark"), meta.get("account_note"))
     manual_note = "手动关机保持中，自动启动已暂停。" if item.get("manual_stop") else ""
+    name_color = server_name_color(identity["id"])
     return f"""
-      <section class="server-detail {'active' if active else ''}" data-server-detail data-server-id="{esc(identity['id'])}">
+      <section class="server-detail {'active' if active else ''}" data-server-detail data-server-id="{esc(identity['id'])}" style="--server-name-color: {esc(name_color)};">
         <div class="detail-section">
           <div class="detail-hero">
             <div class="detail-title-stack">
