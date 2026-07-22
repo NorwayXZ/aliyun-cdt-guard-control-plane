@@ -374,7 +374,7 @@ def normalize_traffic_scope(value: str | None) -> str:
 def traffic_scope_label(scope: str) -> str:
     labels = {
         TRAFFIC_SCOPE_REGION: "按当前 CDT 区域统计",
-        TRAFFIC_SCOPE_ACCOUNT_NON_CHINA: "账号非中国内地共享池",
+        TRAFFIC_SCOPE_ACCOUNT_NON_CHINA: "非中国内地区域 CDT 共享池",
         TRAFFIC_SCOPE_ACCOUNT_ALL: "账号全部 CDT 流量",
     }
     return labels.get(scope, labels[TRAFFIC_SCOPE_REGION])
@@ -439,7 +439,13 @@ def traffic_cache_key(item: dict[str, Any]) -> tuple[str, str, str | None]:
 
 
 def traffic_pool_label(item: dict[str, Any]) -> str:
-    return f"{traffic_scope_label(normalize_traffic_scope(item.get('traffic_scope')))} / {traffic_pool_id(item)}"
+    scope = normalize_traffic_scope(item.get("traffic_scope"))
+    pool_id = traffic_pool_id(item)
+    if has_custom_traffic_pool_id(item):
+        return f"{traffic_scope_label(scope)} / 手动分组 {pool_id}"
+    if scope == TRAFFIC_SCOPE_REGION:
+        return f"{traffic_scope_label(scope)} / {item.get('traffic_region_id') or '区域未知'}"
+    return f"{traffic_scope_label(scope)} / 按 AccessKey 所属阿里云账号自动归组"
 
 
 def include_traffic_detail(detail: dict[str, Any], scope: str, traffic_region_id: str | None) -> bool:

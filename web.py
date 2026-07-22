@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.4"
+APP_VERSION = "0.2.5"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -45,7 +45,7 @@ TRAFFIC_SCOPE_ACCOUNT_NON_CHINA = "account_non_china"
 TRAFFIC_SCOPE_ACCOUNT_ALL = "account_all"
 TRAFFIC_SCOPE_LABELS = {
     TRAFFIC_SCOPE_REGION: "按当前 CDT 区域统计",
-    TRAFFIC_SCOPE_ACCOUNT_NON_CHINA: "账号非中国内地共享池",
+    TRAFFIC_SCOPE_ACCOUNT_NON_CHINA: "非中国内地区域 CDT 共享池",
     TRAFFIC_SCOPE_ACCOUNT_ALL: "账号全部 CDT 流量",
 }
 ALIYUN_REGION_DOC_URL = "https://help.aliyun.com/zh/ecs/user-guide/regions-and-zones"
@@ -365,8 +365,14 @@ def default_traffic_scope_for_region(region_id: str | None) -> str:
 
 
 def traffic_pool_text(item: dict) -> str:
-    pool_id = item.get("traffic_pool_id") or item.get("traffic_region_id") or "默认池"
-    return f"{traffic_scope_label(item.get('traffic_scope'))} / {pool_id}"
+    scope = normalize_traffic_scope(item.get("traffic_scope"))
+    pool_id = str(item.get("traffic_pool_id") or "").strip()
+    is_custom = bool(item.get("traffic_pool_custom")) and bool(pool_id)
+    if is_custom:
+        return f"{traffic_scope_label(scope)} / 手动分组 {pool_id}"
+    if scope == TRAFFIC_SCOPE_REGION:
+        return f"{traffic_scope_label(scope)} / {item.get('traffic_region_id') or item.get('region_id') or '区域未知'}"
+    return f"{traffic_scope_label(scope)} / 按 AccessKey 所属阿里云账号自动归组"
 
 
 def traffic_pool_badge(item: dict) -> str:
@@ -5676,7 +5682,7 @@ def group_balance_summary(items: list[dict]) -> tuple[str, str]:
 def group_scope_summary(items: list[dict]) -> str:
     labels = []
     for item in items:
-        label = str(item.get("traffic_scope_label") or traffic_scope_label(item.get("traffic_scope")))
+        label = traffic_scope_label(item.get("traffic_scope"))
         if label not in labels:
             labels.append(label)
     if not labels:
@@ -5948,7 +5954,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
             str(item.get("region_id") or ""),
             str(item.get("traffic_region_id") or ""),
             str(item.get("traffic_pool_id") or ""),
-            str(item.get("traffic_scope_label") or traffic_scope_label(item.get("traffic_scope"))),
+            traffic_scope_label(item.get("traffic_scope")),
             str(item.get("instance_name") or ""),
             str(item.get("account_fingerprint") or ""),
             str(account_balance.get("available_amount") or ""),
@@ -7630,7 +7636,7 @@ def traffic_pool_field(name: str, value: str, pool_options: list[tuple[str, str]
     advice = """
       <div class="pool-auto-advice">
         <strong>推荐：同一个阿里云账号的机器，这里直接留空</strong>
-        新增日本、香港、新加坡等非中国内地机器时，决定归属的是你填写的 AccessKey：填哪个阿里云账号的 AccessKey，就归到哪个账号池；上方选择“账号非中国内地共享池”，这里留空即可。
+        新增日本、香港、新加坡等非中国内地区域机器时，决定归属的是你填写的 AccessKey：填哪个阿里云账号的 AccessKey，就归到哪个账号池；上方选择“非中国内地区域 CDT 共享池”，这里留空即可。
       </div>
     """
     hint = "只有多个 RAM AccessKey 需要强制合并统计时，才手动选择已有分组或填写同一个新分组名。不同阿里云账号不要共用同一个手动分组。"
@@ -7688,7 +7694,7 @@ def render_form_guide() -> str:
         </div>
         <div class="guide-step">
           <strong>6. CDT 额度按账号共享</strong>
-          <span>非中国内地公网 CDT 免费额度是同一阿里云账号共享 200GB/月；同一个账号下多台服务器请复用同一组 AccessKey，面板会自动归到同一共享池。</span>
+          <span>这里的“非中国内地区域”指服务器地域，例如中国香港、日本、新加坡，不是指你的阿里云账号注册地；同一个账号下多台服务器请复用同一组 AccessKey，面板会自动归到同一共享池。</span>
         </div>
         <div class="guide-step">
           <strong>7. 不用填写流量池 ID</strong>
