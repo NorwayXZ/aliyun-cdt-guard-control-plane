@@ -14,6 +14,7 @@ rm -f /etc/systemd/system/cdt-guard-control-plane.service
 rm -f /etc/systemd/system/cdt-guard-control-plane.timer
 rm -f /etc/systemd/system/cdt-guard-control-plane-web.service
 rm -f /usr/local/bin/cdt-guard-control-plane
+rm -f /usr/local/bin/cdt-guard-control-plane-update
 systemctl daemon-reload
 
 echo "Services removed."

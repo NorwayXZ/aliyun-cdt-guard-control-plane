@@ -8,6 +8,7 @@ import ipaddress
 import json
 import os
 import secrets
+import shlex
 import shutil
 import socket
 import subprocess
@@ -29,6 +30,11 @@ STATUS_FILE = BASE_DIR / "status.json"
 HISTORY_FILE = BASE_DIR / "history.jsonl"
 DOMAIN_PROXY_FILE = BASE_DIR / "domain_proxy.json"
 DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
+VERSION_FILE = BASE_DIR / "VERSION"
+UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
+UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
+APP_VERSION = "0.2.0"
+REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
   <path d="M14 45V27h7v18h-7Zm12 0V18h7v27h-7Zm12 0V31h7v14h-7Zm12 0V23h7v22h-7Z" fill="#f7bf2f"/>
@@ -610,6 +616,8 @@ def flash_message(code: str) -> str:
         "domain_apply_write_failed": "写入 Caddy 配置失败，请确认面板以 root 权限运行",
         "domain_apply_restart_failed": "Caddy 配置已写入，但重启失败，请检查域名 DNS 和 80/443 端口",
         "domain_apply_failed": "应用 Caddy 反代失败，请检查域名 DNS 是否指向本机、公网 80/443 是否放行",
+        "update_started": "已开始后台更新，稍等 30-90 秒后刷新页面查看结果",
+        "update_failed": "启动更新失败，请复制页面里的一键更新命令在服务器终端执行",
         "security_password_mismatch": "两次输入的新密码不一致",
         "security_password_short": "新密码至少需要 8 位",
         "security_username_empty": "用户名不能为空",
@@ -1583,6 +1591,7 @@ def page_shell(
         ("/notifications", "notifications", "通知设置", "◉"),
         ("/domain", "domain", "域名反代", "⇄"),
         ("/security", "security", "账号安全", "◇"),
+        ("/update", "update", "版本更新", "↥"),
     ]
 
     def render_nav(items: list[tuple[str, str, str, str]]) -> str:
@@ -3543,6 +3552,26 @@ def page_shell(
       overflow-x: auto;
       padding: 14px;
       white-space: pre;
+    }}
+    .update-command-block {{
+      margin: 16px 0;
+    }}
+    .update-command-block pre,
+    .update-log {{
+      background: #171511;
+      border: 1px solid var(--line-strong);
+      color: #f2eee3;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.65;
+      margin: 8px 0 0;
+      overflow: auto;
+      padding: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }}
+    .update-log {{
+      max-height: 420px;
     }}
     .status-note {{
       background: #eef6ff;
@@ -6892,6 +6921,75 @@ def compact_output(text: str, limit: int = 1800) -> str:
     return "...\n" + text[-limit:]
 
 
+def current_app_version() -> str:
+    if VERSION_FILE.exists():
+        return VERSION_FILE.read_text(encoding="utf-8").strip() or APP_VERSION
+    return APP_VERSION
+
+
+def fetch_latest_version() -> tuple[str, str]:
+    try:
+        with urlopen(f"{REPO_RAW_BASE_URL}/VERSION", timeout=5) as response:
+            latest = response.read().decode("utf-8", errors="ignore").strip()
+        return latest or "未知", ""
+    except Exception as exc:
+        return "获取失败", str(exc)
+
+
+def update_command() -> str:
+    return f"curl -fsSL {REPO_RAW_BASE_URL}/update.sh | sudo bash"
+
+
+def update_log_tail(limit: int = 2600) -> str:
+    if not UPDATE_LOG_FILE.exists():
+        return "暂无更新日志。"
+    return compact_output(UPDATE_LOG_FILE.read_text(encoding="utf-8", errors="ignore"), limit)
+
+
+def start_update_job() -> bool:
+    if not UPDATE_SCRIPT_FILE.exists():
+        return False
+    try:
+        with UPDATE_LOG_FILE.open("ab") as log_file:
+            log_file.write(f"\n===== update started {datetime.now(timezone.utc).isoformat()} =====\n".encode("utf-8"))
+        runner = (
+            f"cd {shlex.quote(str(BASE_DIR))} && "
+            f"exec {shlex.quote(str(UPDATE_SCRIPT_FILE))} >> {shlex.quote(str(UPDATE_LOG_FILE))} 2>&1"
+        )
+        if shutil.which("systemd-run"):
+            subprocess.Popen(
+                [
+                    "systemd-run",
+                    "--unit=cdt-guard-control-plane-update",
+                    "--collect",
+                    "/usr/bin/env",
+                    "bash",
+                    "-lc",
+                    runner,
+                ],
+                cwd=str(BASE_DIR),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        else:
+            log_file = UPDATE_LOG_FILE.open("ab")
+            subprocess.Popen(
+                ["/usr/bin/env", "bash", "-lc", runner],
+                cwd=str(BASE_DIR),
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        return True
+    except Exception as exc:
+        try:
+            UPDATE_LOG_FILE.write_text(f"Failed to start update: {exc}\n", encoding="utf-8")
+        except Exception:
+            pass
+        return False
+
+
 def write_domain_proxy_state(ok: bool, reason: str, detail: str = "") -> None:
     write_json(
         DOMAIN_PROXY_STATE_FILE,
@@ -7338,6 +7436,70 @@ def remove_telegram_chat(chat_id: str) -> None:
     remaining = [item for item in notifications.split_chat_ids(telegram.get("chat_id", "")) if item != chat_id]
     telegram["chat_id"] = notifications.join_chat_ids(remaining)
     notifications.save_config(config)
+
+
+def render_update_page(query: dict[str, list[str]] | None = None) -> bytes:
+    query = query or {}
+    current = current_app_version()
+    latest, latest_error = fetch_latest_version()
+    command = update_command()
+    update_script_ready = UPDATE_SCRIPT_FILE.exists()
+    log_text = update_log_tail()
+    status_note = (
+        "可以直接在面板内启动后台更新。更新过程中服务会短暂重启。"
+        if update_script_ready
+        else "当前安装目录还没有 update.sh，请先在服务器终端执行下面的一键更新命令。"
+    )
+    latest_hint = f'<div class="form-hint text-danger">获取最新版本失败：{esc(latest_error)}</div>' if latest_error else ""
+    body = f"""
+    <div class="form-layout">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">版本更新</h3></div>
+        <div class="card-body">
+          <div class="setup-box mb-3">{esc(status_note)}</div>
+          <div class="credential-grid">
+            <div class="detail-item">
+              <div class="info-label">当前版本</div>
+              <div class="info-value">{esc(current)}</div>
+            </div>
+            <div class="detail-item">
+              <div class="info-label">GitHub 最新版本</div>
+              <div class="info-value">{esc(latest)}</div>
+              {latest_hint}
+            </div>
+          </div>
+          <div class="update-command-block">
+            <div class="info-label">一键更新命令</div>
+            <pre>{esc(command)}</pre>
+          </div>
+          <div class="setup-box">
+            更新只覆盖程序文件和 systemd 服务文件，不会删除服务器配置、AccessKey、登录备注、通知配置、状态和历史记录。
+          </div>
+        </div>
+        <div class="card-footer d-flex align-items-center gap-2">
+          <a href="/update" class="btn">检查更新</a>
+          <form method="post" action="/update/run" onsubmit="return confirm('确认开始更新？更新过程中面板服务会短暂重启，配置和历史数据会保留。')">
+            <button class="btn btn-primary" type="submit" {"disabled" if not update_script_ready else ""}>立即更新</button>
+          </form>
+        </div>
+      </div>
+      <aside class="card">
+        <div class="card-header"><h3 class="card-title">最近更新日志</h3></div>
+        <div class="card-body">
+          <pre class="update-log">{esc(log_text)}</pre>
+        </div>
+      </aside>
+    </div>
+    """
+    return page_shell(
+        "update",
+        "版本更新",
+        "检查 GitHub 最新版本并更新面板程序",
+        body,
+        actions='<a href="/" class="btn">返回主页</a>',
+        flash=query.get("flash", [""])[0],
+        auto_refresh=False,
+    )
 
 
 def input_field(name: str, label: str, value="", field_type: str = "text", placeholder: str = "", hint: str = "", required: bool = False) -> str:
@@ -7867,6 +8029,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/security":
             self.send_bytes(render_security_page(query), "text/html; charset=utf-8")
             return
+        if parsed.path == "/update":
+            self.send_bytes(render_update_page(query), "text/html; charset=utf-8")
+            return
         if parsed.path == "/api/status":
             self.send_json(read_json(STATUS_FILE, {"error": "status not found"}))
             return
@@ -7952,6 +8117,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
             else:
                 self.redirect(f"/security?flash=security_{reason}")
+            return
+        if parsed.path == "/update/run":
+            ok = start_update_job()
+            self.redirect("/update?flash=update_started" if ok else "/update?flash=update_failed")
             return
         if parsed.path == "/notifications/test":
             result = notifications.send_test_message()

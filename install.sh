@@ -201,7 +201,9 @@ install -d -m 700 "$INSTALL_DIR"
 install -m 755 "$SRC_DIR/guard.py" "$INSTALL_DIR/guard.py"
 install -m 755 "$SRC_DIR/web.py" "$INSTALL_DIR/web.py"
 install -m 755 "$SRC_DIR/notifications.py" "$INSTALL_DIR/notifications.py"
+install -m 755 "$SRC_DIR/update.sh" "$INSTALL_DIR/update.sh"
 install -m 644 "$SRC_DIR/requirements.txt" "$INSTALL_DIR/requirements.txt"
+install -m 644 "$SRC_DIR/VERSION" "$INSTALL_DIR/VERSION"
 install -m 644 "$SRC_DIR/cdt-guard-control-plane.service" /etc/systemd/system/cdt-guard-control-plane.service
 install -m 644 "$SRC_DIR/cdt-guard-control-plane.timer" /etc/systemd/system/cdt-guard-control-plane.timer
 install -m 644 "$SRC_DIR/cdt-guard-control-plane-web.service" /etc/systemd/system/cdt-guard-control-plane-web.service
@@ -281,6 +283,14 @@ exec "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/guard.py" "\$@"
 EOF
 chmod 755 /usr/local/bin/cdt-guard-control-plane
 
+rm -f /usr/local/bin/cdt-guard-control-plane-update
+cat > /usr/local/bin/cdt-guard-control-plane-update <<EOF
+#!/bin/sh
+export INSTALL_DIR="$INSTALL_DIR"
+exec /usr/bin/env bash "$INSTALL_DIR/update.sh" "\$@"
+EOF
+chmod 755 /usr/local/bin/cdt-guard-control-plane-update
+
 systemctl daemon-reload
 systemctl enable --now cdt-guard-control-plane.timer
 systemctl enable --now cdt-guard-control-plane-web.service
@@ -299,8 +309,12 @@ Web panel:
 Commands:
   cdt-guard-control-plane status
   cdt-guard-control-plane run
+  cdt-guard-control-plane-update
   systemctl status cdt-guard-control-plane.timer
   systemctl status cdt-guard-control-plane-web.service
+
+Update:
+  curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main/update.sh | sudo bash
 
 Uninstall:
   curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main/uninstall.sh | sudo bash

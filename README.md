@@ -78,11 +78,32 @@ curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-p
 
 确认不再需要后可以手动删除。
 
+## 一键更新
+
+已经安装过旧版本的服务器，可以直接执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main/update.sh | sudo bash
+```
+
+更新会覆盖面板程序、巡检程序、通知程序、依赖和 systemd 服务文件，并自动重启服务。
+
+更新会保留这些数据：
+
+- 服务器配置和阿里云 AccessKey
+- 登录备注、SSH 备注和账号密码备注
+- 通知配置
+- 流量状态和历史记录
+- 面板登录账号密码
+
+安装新版后，也可以在面板侧边栏进入“版本更新”，查看当前版本、GitHub 最新版本、更新命令和最近更新日志。
+
 ## 命令行
 
 ```bash
 cdt-guard-control-plane status
 cdt-guard-control-plane run
+cdt-guard-control-plane-update
 systemctl status cdt-guard-control-plane.timer
 systemctl status cdt-guard-control-plane-web.service
 ```
