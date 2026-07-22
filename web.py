@@ -298,6 +298,18 @@ def fmt_time(value) -> str:
     return text.replace("T", " ").replace("+00:00", " UTC")
 
 
+def fmt_header_time(value) -> str:
+    if not value:
+        return "暂无"
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone(timedelta(hours=8)))
+        return parsed.strftime("%m 月 %d 日 %H:%M")
+    except ValueError:
+        return fmt_time(value)
+
+
 def fmt_date(value) -> str:
     if not value:
         return "暂无"
@@ -1566,7 +1578,17 @@ def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict],
     """
 
 
-def page_shell(active: str, title: str, subtitle: str, body: str, actions: str = "", flash: str = "", auto_refresh: bool = True) -> bytes:
+def page_shell(
+    active: str,
+    title: str,
+    subtitle: str,
+    body: str,
+    actions: str = "",
+    flash: str = "",
+    auto_refresh: bool = True,
+    crumb_label: str | None = None,
+    meta_line: str = "",
+) -> bytes:
     run_nav = [
         ("/", "overview", "主页", "▦"),
         ("/servers/new", "servers", "新增服务器", "＋"),
@@ -1590,6 +1612,13 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         (label for href, key, label, icon in run_nav + config_nav if key == active),
         title,
     )
+    crumb_label = crumb_label or active_label
+    crumb_value = (
+        f'<span class="module-tag">{esc(crumb_label)}</span>'
+        if crumb_label.upper() == "CDT"
+        else f"<b>{esc(crumb_label)}</b>"
+    )
+    meta_html = f'<span class="topbar-meta">{esc(meta_line)}</span>' if meta_line else ""
     flash_html = f'<div class="alert {flash_class(flash)}">{esc(flash_message(flash))}</div>' if flash else ""
     refresh_meta = '<meta http-equiv="refresh" content="60">' if auto_refresh else ""
     header_actions = f"""
@@ -3784,58 +3813,73 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       min-width: 0;
     }}
     .topbar {{
-      align-items: flex-start;
+      align-items: center;
       background: var(--topbar-bg);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--line);
       display: flex;
       gap: 18px;
       justify-content: space-between;
-      min-height: 126px;
-      padding: 34px 34px 18px;
+      min-height: 96px;
+      padding: 12px 34px 10px;
       position: sticky;
       top: 0;
       z-index: 10;
     }}
     .topbar > div:first-child {{
       display: grid;
-      gap: 7px;
+      gap: 6px;
       min-width: 0;
-      padding-top: 2px;
     }}
     .topbar::before {{
-      background: var(--ink);
-      content: "";
-      height: 3px;
-      left: 34px;
-      position: absolute;
-      right: 34px;
-      top: 16px;
+      content: none;
     }}
     .crumb {{
       color: var(--muted);
-      display: block;
-      font: 700 10px var(--font-mono);
-      letter-spacing: .14em;
+      align-items: center;
+      display: inline-flex;
+      font: 600 12px var(--font-mono);
+      gap: 7px;
+      letter-spacing: 0;
       line-height: 1.25;
-      text-transform: uppercase;
+    }}
+    .module-tag {{
+      background: #f7f4ec;
+      border: 1px solid var(--line);
+      color: #a43a3a;
+      display: inline-flex;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      padding: 3px 7px;
     }}
     .topbar h1 {{
       color: var(--ink);
       font-family: var(--font-serif);
-      font-size: clamp(30px, 2.35vw, 42px);
-      font-weight: 760;
+      font-size: clamp(26px, 2vw, 32px);
+      font-weight: 700;
       letter-spacing: 0;
-      line-height: 1.12;
+      line-height: 1.08;
       margin: 0;
       max-width: 100%;
       overflow-wrap: anywhere;
     }}
     .topbar p {{
       color: var(--muted);
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.45;
       margin: 0;
+    }}
+    .topbar-support {{
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+    }}
+    .topbar-meta {{
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.45;
     }}
     .top-actions {{
       align-items: center;
@@ -4828,7 +4872,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         align-items: flex-start;
         flex-direction: column;
         min-height: 0;
-        padding: 26px 18px 16px;
+        padding: 18px;
       }}
       .topbar > div:first-child {{
         min-width: 0;
@@ -4840,8 +4884,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         top: 10px;
       }}
       .topbar h1 {{
-        font-size: clamp(28px, 9vw, 40px);
-        line-height: 1;
+        font-size: clamp(24px, 7vw, 32px);
+        line-height: 1.08;
         max-width: 100%;
         overflow-wrap: anywhere;
       }}
@@ -4993,9 +5037,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     <main class="workspace">
       <header class="topbar">
         <div>
-          <span class="crumb">控制台 / <b>{esc(active_label)}</b></span>
+          <span class="crumb">控制台 / {crumb_value}</span>
           <h1>{esc(title)}</h1>
-          <p>{esc(subtitle)}</p>
+          <div class="topbar-support">
+            <p>{esc(subtitle)}</p>
+            {meta_html}
+          </div>
         </div>
         <div class="top-actions">
           <span class="engine-state"><i></i>保护引擎正常</span>
@@ -6149,13 +6196,18 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     history = read_history(1000)
     flash = query.get("flash", [""])[0]
     body = render_assets_card(instances, metadata, history, summary, status.get("generated_at"))
+    account_count = len({account_group_key(item) for item in instances}) if instances else 0
+    server_count = len(instances)
+    header_meta = f"服务器资产  {account_count} 个账号 · {server_count} 台服务器 · 最近更新于 {fmt_header_time(status.get('generated_at'))}"
     return page_shell(
         "overview",
-        "CDT 流量保护与服务器资产面板",
-        f"状态更新时间：{status.get('generated_at')}",
+        "流量保护与服务器资产",
+        "查看各账号的流量使用、额度保护状态与服务器运行概况",
         body,
         actions=render_check_action(),
         flash=flash,
+        crumb_label="CDT",
+        meta_line=header_meta,
     )
 
 
