@@ -2547,12 +2547,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .quota-side {{
       align-content: center;
-      border-left: 1px solid var(--line);
       display: grid;
       gap: 5px;
       justify-items: end;
       min-width: 106px;
-      padding-left: 14px;
       text-align: right;
     }}
     .quota-side span,
