@@ -2321,9 +2321,31 @@ def page_shell(
       display: flex;
       gap: 10px;
       justify-content: center;
+      padding-bottom: 18px;
+      position: relative;
     }}
     .row-power-actions form {{
       margin: 0;
+    }}
+    .row-power-label {{
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 760;
+      left: 50%;
+      letter-spacing: 0;
+      line-height: 1;
+      position: absolute;
+      top: calc(100% + 8px);
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }}
+    .power-state-running .row-power-label,
+    .power-state-starting .row-power-label {{
+      color: #15884f;
+    }}
+    .power-state-stopped .row-power-label,
+    .power-state-stopping .row-power-label {{
+      color: #171511;
     }}
     .power-round-btn {{
       align-items: center;
@@ -2336,8 +2358,17 @@ def page_shell(
       height: 46px;
       justify-content: center;
       padding: 0;
-      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, color .16s ease, background .16s ease;
+      position: relative;
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, color .16s ease, background .16s ease, opacity .16s ease;
       width: 46px;
+    }}
+    .power-round-btn::after {{
+      border: 2px solid currentColor;
+      border-radius: 999px;
+      content: "";
+      inset: -7px;
+      opacity: 0;
+      position: absolute;
     }}
     .power-round-btn:hover {{
       box-shadow: 0 12px 24px rgba(23, 21, 17, .12);
@@ -2356,10 +2387,64 @@ def page_shell(
       border-color: #ffc9c9;
       color: #c92a2a;
     }}
+    .power-state-running .power-round-btn.start,
+    .power-state-starting .power-round-btn.start {{
+      background: #e7fbf0;
+      border-color: #8ee0b0;
+      box-shadow: 0 0 0 8px rgba(21, 136, 79, .08), 0 12px 24px rgba(21, 136, 79, .14);
+      color: #0f8b4c;
+    }}
+    .power-state-running .power-round-btn.start::after,
+    .power-state-starting .power-round-btn.start::after {{
+      animation: powerPulse 1.45s ease-out infinite;
+      opacity: .38;
+    }}
+    .power-state-stopped .power-round-btn.stop,
+    .power-state-stopping .power-round-btn.stop {{
+      background: #2b2b2b;
+      border-color: #111;
+      box-shadow: 0 0 0 8px rgba(23, 21, 17, .08), 0 12px 24px rgba(23, 21, 17, .14);
+      color: #fff;
+    }}
+    .power-state-stopped .power-round-btn.stop::after,
+    .power-state-stopping .power-round-btn.stop::after {{
+      opacity: .28;
+    }}
+    .power-state-running .power-round-btn.stop,
+    .power-state-starting .power-round-btn.stop,
+    .power-state-stopped .power-round-btn.start,
+    .power-state-stopping .power-round-btn.start {{
+      opacity: .62;
+    }}
     .power-round-btn svg {{
       display: block;
       height: 18px;
       width: 18px;
+    }}
+    .power-round-btn .power-spin-dot {{
+      animation: powerDotOrbit 1.45s linear infinite;
+      background: currentColor;
+      border-radius: 999px;
+      height: 7px;
+      left: 50%;
+      margin-left: -3.5px;
+      opacity: 0;
+      position: absolute;
+      top: -4px;
+      transform-origin: 3.5px 27px;
+      width: 7px;
+    }}
+    .power-state-running .power-round-btn.start .power-spin-dot,
+    .power-state-starting .power-round-btn.start .power-spin-dot {{
+      opacity: 1;
+    }}
+    @keyframes powerDotOrbit {{
+      from {{ transform: rotate(0deg); }}
+      to {{ transform: rotate(360deg); }}
+    }}
+    @keyframes powerPulse {{
+      0% {{ transform: scale(.86); opacity: .42; }}
+      100% {{ transform: scale(1.2); opacity: 0; }}
     }}
     .row-status {{
       align-items: center;
@@ -6052,12 +6137,20 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
         f'<span style="--bar:{max(8, min(today_level * factor, 100)):.1f};"></span>'
         for factor in bar_factors
     )
+    power_state = state_class if state_class in {"running", "stopped", "pending"} else "unknown"
+    raw_status = str(item.get("instance_status") or "")
+    if raw_status == "Starting":
+        power_state = "starting"
+    elif raw_status == "Stopping":
+        power_state = "stopping"
+    power_hint = "当前运行中" if power_state in {"running", "starting"} else "当前已关机" if power_state in {"stopped", "stopping"} else "状态未知"
     row_power_controls = f"""
-      <div class="row-power-actions" data-row-power-actions>
+      <div class="row-power-actions power-state-{esc(power_state)}" data-row-power-actions title="{esc(power_hint)}">
         <form method="post" action="/servers/power" onsubmit="return confirm('确认开机这台服务器？开机后会恢复自动保护。')">
           <input type="hidden" name="id" value="{esc(identity['id'])}">
           <input type="hidden" name="action" value="start">
           <button class="power-round-btn start" type="submit" title="开机" aria-label="开机">
+            <span class="power-spin-dot" aria-hidden="true"></span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
           </button>
         </form>
@@ -6068,6 +6161,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>
           </button>
         </form>
+        <span class="row-power-label">{esc(power_hint)}</span>
       </div>
     """
     return f"""
