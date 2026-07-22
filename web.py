@@ -36,6 +36,8 @@ TRAFFIC_SCOPE_LABELS = {
     TRAFFIC_SCOPE_ACCOUNT_ALL: "账号全部 CDT 流量",
 }
 ALIYUN_REGION_DOC_URL = "https://help.aliyun.com/zh/ecs/user-guide/regions-and-zones"
+ALIYUN_RAM_USERS_CN_URL = "https://ram.console.aliyun.com/users"
+ALIYUN_RAM_USERS_INTL_URL = "https://ram.console.alibabacloud.com/users"
 ALIYUN_REGION_OPTIONS = [
     ("cn-hongkong", "中国香港"),
     ("ap-northeast-1", "日本（东京）"),
@@ -1425,6 +1427,13 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       white-space: nowrap;
     }}
     .form-doc-link:hover {{ text-decoration: underline; }}
+    .form-link-group {{
+      align-items: center;
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }}
     .pool-option-list {{
       display: flex;
       flex-wrap: wrap;
@@ -5556,6 +5565,24 @@ def input_field(name: str, label: str, value="", field_type: str = "text", place
     )
 
 
+def access_key_field(name: str, label: str, value="", field_type: str = "text", placeholder: str = "", hint: str = "", required: bool = False) -> str:
+    required_attr = " required" if required else ""
+    hint_html = f'<div class="form-hint">{esc(hint)}</div>' if hint else ""
+    return f"""
+      <div class="mb-3">
+        <div class="form-label-row">
+          <label class="form-label mb-0">{esc(label)}</label>
+          <span class="form-link-group">
+            <a class="form-doc-link" href="{esc(ALIYUN_RAM_USERS_CN_URL)}" target="_blank" rel="noopener">国内获取</a>
+            <a class="form-doc-link" href="{esc(ALIYUN_RAM_USERS_INTL_URL)}" target="_blank" rel="noopener">国际获取</a>
+          </span>
+        </div>
+        <input class="form-control mt-2" type="{esc(field_type)}" name="{esc(name)}" value="{esc(value)}" placeholder="{esc(placeholder)}"{required_attr}>
+        {hint_html}
+      </div>
+    """
+
+
 def region_field(name: str, label: str, value="", placeholder: str = "", hint: str = "", required: bool = False) -> str:
     required_attr = " required" if required else ""
     list_id = f"{name}-options"
@@ -5809,9 +5836,9 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None, a
           {access_key_reuse_field(access_key_options, access_key_id)}
           <div class="credential-grid">
             {region_field("region_id", "区域 ID", region_value, placeholder="输入或选择，例如：cn-hongkong", hint="必须和 ECS 实例所在地域一致；填错会导致实例查询和开关机失败。", required=True)}
-            {input_field("access_key_id", "阿里云 AccessKey ID", access_key_id, placeholder="粘贴 AccessKey ID", hint=access_key_hint, required=not is_edit)}
+            {access_key_field("access_key_id", "阿里云 AccessKey ID", access_key_id, placeholder="粘贴 AccessKey ID", hint=access_key_hint, required=not is_edit)}
           </div>
-          {input_field("access_key_secret", "阿里云 AccessKey Secret", "", "password", placeholder="粘贴 AccessKey Secret", hint=secret_hint or "只在保存时写入配置文件，页面不会回显。", required=require_secret)}
+          {access_key_field("access_key_secret", "阿里云 AccessKey Secret", "", "password", placeholder="粘贴 AccessKey Secret", hint=secret_hint or "只在保存时写入配置文件，页面不会回显。", required=require_secret)}
         </section>
         <section class="form-section">
           <h3 class="form-section-title">推荐保护设置</h3>
