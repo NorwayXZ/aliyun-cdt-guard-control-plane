@@ -4531,7 +4531,6 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
         <span class="server-cell server-info-cell">
           <span class="server-name-stack">
             <span class="asset-name d-block text-truncate">{esc(identity['product_name'])}</span>
-            <span class="asset-sub d-block text-truncate">{esc(identity['asset_label'])} · {esc(identity['provider'])}</span>
           </span>
         </span>
         <span class="server-cell ip-cell"><span class="ip-main text-truncate">{esc(identity['primary_ip'])}</span></span>
