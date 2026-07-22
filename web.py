@@ -305,7 +305,7 @@ def fmt_header_time(value) -> str:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         if parsed.tzinfo is not None:
             parsed = parsed.astimezone(timezone(timedelta(hours=8)))
-        return parsed.strftime("%m 月 %d 日 %H:%M")
+        return parsed.strftime("%b %d, %H:%M")
     except ValueError:
         return fmt_time(value)
 
@@ -713,7 +713,7 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
   <title>登录 - Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Fredoka:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
@@ -721,6 +721,7 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
       --font-serif: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-display: "Fredoka", "Arial Rounded MT Bold", "Trebuchet MS", "Noto Sans SC", sans-serif;
+      --font-topbar: "Fraunces", "Georgia", "Times New Roman", serif;
       --bg: #f2eee3;
       --panel: rgba(246, 241, 230, .96);
       --panel-soft: #fbf8ef;
@@ -1633,7 +1634,7 @@ def page_shell(
   <title>Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Fredoka:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
@@ -1641,6 +1642,7 @@ def page_shell(
       --font-serif: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --font-display: "Fredoka", "Arial Rounded MT Bold", "Trebuchet MS", "Noto Sans SC", sans-serif;
+      --font-topbar: "Fraunces", "Georgia", "Times New Roman", serif;
       --page-bg: #f6f7f9;
       --surface: #ffffff;
       --surface-soft: #fafbfc;
@@ -3822,6 +3824,7 @@ def page_shell(
         0 10px 22px rgba(23, 21, 17, .075),
         0 2px 0 rgba(23, 21, 17, .035);
       display: flex;
+      font-family: var(--font-topbar);
       gap: 18px;
       justify-content: space-between;
       min-height: 96px;
@@ -3842,7 +3845,9 @@ def page_shell(
       color: var(--muted);
       align-items: center;
       display: inline-flex;
-      font: 600 12px var(--font-mono);
+      font-family: var(--font-topbar);
+      font-size: 13px;
+      font-weight: 600;
       gap: 7px;
       letter-spacing: 0;
       line-height: 1.25;
@@ -3852,6 +3857,7 @@ def page_shell(
       border: 1px solid var(--line);
       color: #a43a3a;
       display: inline-flex;
+      font-family: var(--font-topbar);
       font-size: 12px;
       font-weight: 700;
       line-height: 1;
@@ -3859,18 +3865,20 @@ def page_shell(
     }}
     .topbar h1 {{
       color: var(--ink);
-      font-family: var(--font-serif);
-      font-size: clamp(26px, 2vw, 32px);
+      font-family: var(--font-topbar);
+      font-size: clamp(30px, 2.4vw, 42px);
       font-weight: 700;
       letter-spacing: 0;
-      line-height: 1.08;
+      line-height: 1;
       margin: 0;
       max-width: 100%;
       overflow-wrap: anywhere;
     }}
     .topbar p {{
       color: var(--muted);
-      font-size: 14px;
+      font-family: var(--font-topbar);
+      font-size: 15px;
+      font-weight: 500;
       line-height: 1.45;
       margin: 0;
     }}
@@ -3882,7 +3890,9 @@ def page_shell(
     }}
     .topbar-meta {{
       color: var(--soft);
-      font-size: 13px;
+      font-family: var(--font-topbar);
+      font-size: 14px;
+      font-weight: 500;
       line-height: 1.45;
     }}
     .top-actions {{
@@ -3897,9 +3907,20 @@ def page_shell(
       align-items: center;
       color: var(--accent);
       display: inline-flex;
-      font-size: 12px;
+      font-family: var(--font-topbar);
+      font-size: 13px;
+      font-weight: 600;
       gap: 8px;
       white-space: nowrap;
+    }}
+    .topbar .btn {{
+      font-family: var(--font-topbar);
+      font-size: 14px;
+      font-weight: 700;
+    }}
+    .control-plane-theme .topbar,
+    .control-plane-theme .topbar * {{
+      font-family: var(--font-topbar) !important;
     }}
     .engine-state i {{
       background: var(--accent);
@@ -5041,7 +5062,7 @@ def page_shell(
     <main class="workspace">
       <header class="topbar">
         <div>
-          <span class="crumb">控制台 / {crumb_value}</span>
+          <span class="crumb">Console / {crumb_value}</span>
           <h1>{esc(title)}</h1>
           <div class="topbar-support">
             <p>{esc(subtitle)}</p>
@@ -5049,7 +5070,7 @@ def page_shell(
           </div>
         </div>
         <div class="top-actions">
-          <span class="engine-state"><i></i>保护引擎正常</span>
+          <span class="engine-state"><i></i>Engine OK</span>
           {header_actions}
         </div>
       </header>
@@ -5560,10 +5581,10 @@ def render_check_action() -> str:
     return """
     <div class="btn-list">
       <form class="run-check-form" method="post" action="/balance/run" data-run-check-form>
-        <button class="btn" type="submit" title="马上通过 BSS 账单 API 查询阿里云账户余额" data-run-check-button data-loading-text="正在查询...">查询账户余额</button>
+        <button class="btn" type="submit" title="Check Alibaba Cloud account balance via BSS billing API" data-run-check-button data-loading-text="Checking...">Check Balance</button>
       </form>
       <form class="run-check-form" method="post" action="/guard/run" data-run-check-form>
-        <button class="btn btn-primary" type="submit" title="马上查询 CDT 流量和 ECS 状态，并按阈值执行一次保护判断" data-run-check-button data-loading-text="正在检查...">手动检查流量</button>
+        <button class="btn btn-primary" type="submit" title="Check CDT traffic and ECS status, then apply protection rules once" data-run-check-button data-loading-text="Checking...">Run Traffic Check</button>
       </form>
     </div>
     """
@@ -6202,11 +6223,13 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     body = render_assets_card(instances, metadata, history, summary, status.get("generated_at"))
     account_count = len({account_group_key(item) for item in instances}) if instances else 0
     server_count = len(instances)
-    header_meta = f"服务器资产  {account_count} 个账号 · {server_count} 台服务器 · 最近更新于 {fmt_header_time(status.get('generated_at'))}"
+    account_word = "account" if account_count == 1 else "accounts"
+    server_word = "server" if server_count == 1 else "servers"
+    header_meta = f"Server Assets · {account_count} {account_word} · {server_count} {server_word} · Updated {fmt_header_time(status.get('generated_at'))}"
     return page_shell(
         "overview",
-        "流量保护与服务器资产",
-        "查看各账号的流量使用、额度保护状态与服务器运行概况",
+        "Traffic Protection & Server Assets",
+        "Monitor account traffic, quota guard status, and server runtime at a glance",
         body,
         actions=render_check_action(),
         flash=flash,
