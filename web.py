@@ -5821,7 +5821,7 @@ def access_key_reuse_field(options: list[dict[str, str]], selected_key_id: str =
         <select class="form-select" name="saved_access_key_id" data-saved-access-key-select>
           {''.join(option_html)}
         </select>
-        <div class="form-hint">选择后会自动填入已保存的 AccessKey ID 和 Secret；新增其他账号时保持不复用并手动填写即可。</div>
+        <div class="form-hint">选择后会自动填入已保存的 AccessKey ID 和 Secret，并直接显示出来；新增其他账号时保持不复用并手动填写即可。</div>
       </div>
     """
 
@@ -6076,10 +6076,12 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None, a
               const selectedOption = select.selectedOptions[0];
               keyInput.value = select.value;
               secretInput.value = selectedOption?.dataset.secret || "";
+              secretInput.type = "text";
               secretInput.required = false;
               if (secretMark) secretMark.hidden = true;
               secretInput.placeholder = "已填入保存账号的 Secret";
             }} else {{
+              secretInput.type = "password";
               if (!isEdit) secretInput.required = true;
               if (secretMark && !isEdit) secretMark.hidden = false;
               if (!isEdit) secretInput.value = "";
