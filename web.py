@@ -150,7 +150,7 @@ def read_config() -> dict:
                 "stop_threshold_gb": 180,
                 "start_threshold_gb": 175,
                 "traffic_region_id": "cn-hongkong",
-                "traffic_scope": TRAFFIC_SCOPE_REGION,
+                "traffic_scope": TRAFFIC_SCOPE_ACCOUNT_NON_CHINA,
             },
             "instances": [],
         },
@@ -319,6 +319,17 @@ def traffic_scope_label(scope: str | None) -> str:
 
 def normalize_traffic_scope(scope: str | None) -> str:
     return scope if scope in TRAFFIC_SCOPE_LABELS else TRAFFIC_SCOPE_REGION
+
+
+def is_china_mainland_region(region_id: str | None) -> bool:
+    region_id = str(region_id or "").strip().lower()
+    return region_id.startswith("cn-") and region_id != "cn-hongkong"
+
+
+def default_traffic_scope_for_region(region_id: str | None) -> str:
+    if is_china_mainland_region(region_id):
+        return TRAFFIC_SCOPE_REGION
+    return TRAFFIC_SCOPE_ACCOUNT_NON_CHINA
 
 
 def traffic_pool_text(item: dict) -> str:
@@ -4757,14 +4768,12 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
 def render_server_form_page(query: dict[str, list[str]] | None = None) -> bytes:
     query = query or {}
     config = read_config()
-    status = read_json(STATUS_FILE, {"instances": []})
     edit_id = query.get("id", [""])[0]
     editing = selected_instance(config, edit_id)
-    pool_options = collect_traffic_pool_options(config, status)
     access_key_options = collect_access_key_options(config, edit_id)
     body = f"""
     <div class="form-layout">
-      <div>{render_form(editing, pool_options, access_key_options)}</div>
+      <div>{render_form(editing, access_key_options)}</div>
       {render_form_guide()}
     </div>
     """
@@ -5990,15 +5999,19 @@ def render_form_guide() -> str:
           <span>默认预警 160GB、停机 180GB、恢复 175GB；以后可以按自己的账号额度再微调。</span>
         </div>
         <div class="guide-step">
-          <strong>6. 共享池不用去阿里云找 ID</strong>
-          <span>新增日本等非中国内地机器时，统计方式选“账号非中国内地共享池”，流量池分组通常留空；面板会按 AccessKey 自动归到同一账号池。</span>
+          <strong>6. CDT 额度按账号共享</strong>
+          <span>非中国内地公网 CDT 免费额度是同一阿里云账号共享 200GB/月；同一个账号下多台服务器请复用同一组 AccessKey，面板会自动归到同一共享池。</span>
         </div>
         <div class="guide-step">
-          <strong>7. 账期优先走 BSS</strong>
-          <span>已授权 BSS 后，面板会用账单 API 判断真实账期；每月重置日只是备用推算。</span>
+          <strong>7. 不用填写流量池 ID</strong>
+          <span>阿里云控制台不用找共享池 ID；决定归属的是 AccessKey 所属账号。新增另一个阿里云账号时，重新填写那一组 AccessKey 即可。</span>
         </div>
         <div class="guide-step">
-          <strong>8. 保存后的反应</strong>
+          <strong>8. 账期自动判断</strong>
+          <span>已授权 BSS 后，面板会优先用账单 API 判断真实账期；取不到时才按每月 1 日作为备用显示。</span>
+        </div>
+        <div class="guide-step">
+          <strong>9. 保存后的反应</strong>
           <span>点击保存后会立即写入配置并做一次检查，按钮会进入等待状态，完成后回到主页。</span>
         </div>
       </div>
@@ -6006,8 +6019,7 @@ def render_form_guide() -> str:
     """
 
 
-def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None, access_key_options: list[dict[str, str]] | None = None) -> str:
-    pool_options = pool_options or []
+def render_form(item: dict, access_key_options: list[dict[str, str]] | None = None) -> str:
     access_key_options = access_key_options or []
     is_edit = bool(item)
     title = "编辑服务器" if is_edit else "新增服务器"
@@ -6016,8 +6028,7 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None, a
     access_key_hint = "编辑时留空则保留原 AccessKey ID；也可以选择上方已保存账号复用。" if is_edit else "可手动填写，也可先选择上方已保存账号复用。"
     secret_hint = "编辑时留空则保留原 Secret；选择已保存账号时也可以留空。" if is_edit else "手动新增账号时需要填写；选择已保存账号时留空即可复用。"
     panel_password_hint = "编辑时留空则保留原密码" if is_edit else ""
-    current_scope = item.get("traffic_scope", TRAFFIC_SCOPE_REGION)
-    advanced_open = " open" if is_edit else ""
+    notes_open = " open" if is_edit else ""
     region_value = item.get("region_id", "") if is_edit else ""
     require_secret = not is_edit
     return f"""
@@ -6059,26 +6070,7 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None, a
             </div>
           </div>
         </section>
-        <details class="form-section detail-disclosure"{advanced_open}>
-          <summary>高级设置</summary>
-          <div class="credential-grid mt-3">
-            {input_field("label", "服务器别名", item.get("label", ""), placeholder="例如：HK-01", hint="可选；留空会使用产品自定义名字。")}
-            {input_field("provider", "服务商", item.get("provider", "阿里云"))}
-          </div>
-          <div class="credential-grid">
-            {region_field("traffic_region_id", "CDT 流量区域", item.get("traffic_region_id", "") if is_edit else "", placeholder="留空默认跟随区域 ID，例如 cn-hongkong", hint="留空会自动跟随区域 ID；共享池模式下只用于备注和兼容旧配置。")}
-            {input_field("traffic_reset_day", "CDT 每月重置日", item.get("traffic_reset_day", 1), "number", hint="BSS 账单 API 不可用时才作为备用推算。通常填 1。")}
-          </div>
-          <div class="credential-grid">
-            {select_field("traffic_scope", "CDT 统计方式", current_scope, [
-                (TRAFFIC_SCOPE_REGION, "按当前 CDT 区域统计"),
-                (TRAFFIC_SCOPE_ACCOUNT_NON_CHINA, "账号非中国内地共享池"),
-                (TRAFFIC_SCOPE_ACCOUNT_ALL, "账号全部 CDT 流量"),
-            ], "香港、日本、新加坡等机器共享同一账号额度时，建议选“账号非中国内地共享池”。")}
-            {traffic_pool_field("traffic_pool_id", item.get("traffic_pool_id", ""), pool_options)}
-          </div>
-        </details>
-        <details class="form-section detail-disclosure"{advanced_open}>
+        <details class="form-section detail-disclosure"{notes_open}>
           <summary>登录备注</summary>
           <div class="setup-box mt-3">
             这些只是给你自己看的资产备注，不影响阿里云巡检和自动启停，可以保存服务器后再补。
@@ -6152,18 +6144,21 @@ def save_server(fields: dict[str, list[str]]) -> str:
     access_secret = form_value(fields, "access_key_secret")
     saved_secret = saved_access_key_secret(config, saved_key_id or access_key_id)
     region_id = form_value(fields, "region_id") or existing.get("region_id", "")
+    traffic_region_id = form_value(fields, "traffic_region_id") or region_id
+    traffic_scope = form_value(fields, "traffic_scope") or default_traffic_scope_for_region(region_id)
+    traffic_pool_id = form_value(fields, "traffic_pool_id")
     panel_password = form_value(fields, "panel_password")
     ssh_password = form_value(fields, "ssh_password")
     item = {
         "id": server_id,
         "product_name": product_name,
         "label": form_value(fields, "label") or product_name,
-        "provider": form_value(fields, "provider", "阿里云"),
+        "provider": form_value(fields, "provider") or existing.get("provider", "阿里云"),
         "server_ip": existing.get("server_ip", ""),
         "region_id": region_id,
-        "traffic_region_id": form_value(fields, "traffic_region_id") or region_id,
-        "traffic_scope": form_value(fields, "traffic_scope", existing.get("traffic_scope", TRAFFIC_SCOPE_REGION)) or TRAFFIC_SCOPE_REGION,
-        "traffic_pool_id": form_value(fields, "traffic_pool_id") or existing.get("traffic_pool_id", ""),
+        "traffic_region_id": traffic_region_id,
+        "traffic_scope": normalize_traffic_scope(traffic_scope),
+        "traffic_pool_id": traffic_pool_id,
         "instance_id": instance_id,
         "access_key_id": access_key_id,
         "access_key_secret": access_secret or saved_secret or existing.get("access_key_secret", ""),
