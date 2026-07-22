@@ -4637,9 +4637,10 @@ def render_server_form_page(query: dict[str, list[str]] | None = None) -> bytes:
     edit_id = query.get("id", [""])[0]
     editing = selected_instance(config, edit_id)
     pool_options = collect_traffic_pool_options(config, status)
+    access_key_options = collect_access_key_options(config, edit_id)
     body = f"""
     <div class="form-layout">
-      <div>{render_form(editing, pool_options)}</div>
+      <div>{render_form(editing, pool_options, access_key_options)}</div>
       {render_form_guide()}
     </div>
     """
@@ -5591,6 +5592,55 @@ def select_field(name: str, label: str, value: str, options: list[tuple[str, str
     )
 
 
+def collect_access_key_options(config: dict, current_id: str = "") -> list[dict[str, str]]:
+    seen = set()
+    options = []
+    for item in config.get("instances", []):
+        key_id = str(item.get("access_key_id") or "").strip()
+        secret = str(item.get("access_key_secret") or "").strip()
+        if not key_id or not secret or key_id in seen:
+            continue
+        seen.add(key_id)
+        name = first_value(item.get("product_name"), item.get("label"), item.get("instance_id"), default="已保存账号")
+        options.append(
+            {
+                "key_id": key_id,
+                "label": f"{name} · {mask_middle(key_id)}",
+                "current": "1" if str(item.get("id") or "") == str(current_id or "") else "",
+            }
+        )
+    return options
+
+
+def saved_access_key_secret(config: dict, key_id: str) -> str:
+    key_id = str(key_id or "").strip()
+    if not key_id:
+        return ""
+    for item in config.get("instances", []):
+        if str(item.get("access_key_id") or "").strip() == key_id:
+            return str(item.get("access_key_secret") or "")
+    return ""
+
+
+def access_key_reuse_field(options: list[dict[str, str]], selected_key_id: str = "") -> str:
+    if not options:
+        return ""
+    option_html = ['<option value="">不复用，手动填写新的 AccessKey</option>']
+    for option in options:
+        key_id = option["key_id"]
+        selected = " selected" if key_id == selected_key_id else ""
+        option_html.append(f'<option value="{esc(key_id)}"{selected}>{esc(option["label"])}</option>')
+    return f"""
+      <div class="mb-3">
+        <label class="form-label">复用已保存阿里云账号</label>
+        <select class="form-select" name="saved_access_key_id" data-saved-access-key-select>
+          {''.join(option_html)}
+        </select>
+        <div class="form-hint">选择后会自动使用已保存的 Secret；Secret 不会在页面明文显示。新增其他账号时保持不复用并手动填写即可。</div>
+      </div>
+    """
+
+
 def collect_traffic_pool_options(config: dict, status: dict) -> list[tuple[str, str]]:
     status_by_id = {str(item.get("id") or ""): item for item in status.get("instances", [])}
     pools: dict[str, dict[str, Any]] = {}
@@ -5701,7 +5751,7 @@ def render_form_guide() -> str:
         </div>
         <div class="guide-step">
           <strong>3. 填 AccessKey</strong>
-          <span>这里不会自动带入任何密钥。请填写这台服务器所属阿里云账号或 RAM 用户的 AccessKey ID 和 Secret。</span>
+          <span>如果以前保存过同一个阿里云账号，可以直接选择复用；新增其他账号时再手动填写 AccessKey ID 和 Secret。</span>
         </div>
         <div class="guide-step">
           <strong>4. 区域 ID 要填准</strong>
@@ -5728,17 +5778,20 @@ def render_form_guide() -> str:
     """
 
 
-def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None) -> str:
+def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None, access_key_options: list[dict[str, str]] | None = None) -> str:
     pool_options = pool_options or []
+    access_key_options = access_key_options or []
     is_edit = bool(item)
     title = "编辑服务器" if is_edit else "新增服务器"
     id_value = item.get("id", "")
     access_key_id = item.get("access_key_id", "")
-    access_key_hint = "编辑时留空则保留原 AccessKey ID 或继续使用全局配置。" if is_edit else "新增时不会自动填入已有密钥。"
-    secret_hint = "编辑时留空则保留原 Secret 或继续使用全局配置。" if is_edit else ""
+    access_key_hint = "编辑时留空则保留原 AccessKey ID；也可以选择上方已保存账号复用。" if is_edit else "可手动填写，也可先选择上方已保存账号复用。"
+    secret_hint = "编辑时留空则保留原 Secret；选择已保存账号时也可以留空。" if is_edit else "手动新增账号时需要填写；选择已保存账号时留空即可复用。"
     panel_password_hint = "编辑时留空则保留原密码" if is_edit else ""
     current_scope = item.get("traffic_scope", TRAFFIC_SCOPE_REGION)
     advanced_open = " open" if is_edit else ""
+    region_value = item.get("region_id", "") if is_edit else ""
+    require_secret = not is_edit and not access_key_options
     return f"""
     <form class="card save-form" method="post" action="/servers/save" data-save-form>
       <div class="card-header"><h3 class="card-title">{title}</h3></div>
@@ -5753,11 +5806,12 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None) -
             {input_field("product_name", "产品自定义名字", item.get("product_name", ""), placeholder="例如：阿里云香港 1号机", required=True)}
             {input_field("instance_id", "ECS Instance ID", item.get("instance_id", ""), placeholder="例如：i-j6ceg1880o7i5vxdpeq4", required=True)}
           </div>
+          {access_key_reuse_field(access_key_options, access_key_id)}
           <div class="credential-grid">
-            {region_field("region_id", "区域 ID", item.get("region_id", "cn-hongkong"), placeholder="输入或选择，例如：cn-hongkong", hint="必须和 ECS 实例所在地域一致；填错会导致实例查询和开关机失败。", required=True)}
+            {region_field("region_id", "区域 ID", region_value, placeholder="输入或选择，例如：cn-hongkong", hint="必须和 ECS 实例所在地域一致；填错会导致实例查询和开关机失败。", required=True)}
             {input_field("access_key_id", "阿里云 AccessKey ID", access_key_id, placeholder="粘贴 AccessKey ID", hint=access_key_hint, required=not is_edit)}
           </div>
-          {input_field("access_key_secret", "阿里云 AccessKey Secret", "", "password", placeholder="粘贴 AccessKey Secret", hint=secret_hint or "只在保存时写入配置文件，页面不会回显。", required=not is_edit)}
+          {input_field("access_key_secret", "阿里云 AccessKey Secret", "", "password", placeholder="粘贴 AccessKey Secret", hint=secret_hint or "只在保存时写入配置文件，页面不会回显。", required=require_secret)}
         </section>
         <section class="form-section">
           <h3 class="form-section-title">推荐保护设置</h3>
@@ -5824,6 +5878,27 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None) -
         {f'<a href="/" class="btn me-2">取消编辑</a>' if is_edit else ""}
         <button class="btn btn-primary btn-submit ms-auto" type="submit" data-submit-button data-loading-text="正在保存...">保存服务器</button>
       </div>
+      <script>
+        (() => {{
+          const select = document.querySelector("[data-saved-access-key-select]");
+          const keyInput = document.querySelector('input[name="access_key_id"]');
+          const secretInput = document.querySelector('input[name="access_key_secret"]');
+          if (!select || !keyInput || !secretInput) return;
+          const isEdit = {"true" if is_edit else "false"};
+          const syncSavedKey = () => {{
+            if (select.value) {{
+              keyInput.value = select.value;
+              secretInput.required = false;
+              secretInput.placeholder = "已选择保存账号，Secret 会自动复用";
+            }} else {{
+              if (!isEdit) secretInput.required = true;
+              secretInput.placeholder = "粘贴 AccessKey Secret";
+            }}
+          }};
+          select.addEventListener("change", syncSavedKey);
+          syncSavedKey();
+        }})();
+      </script>
     </form>
     """
 
@@ -5836,8 +5911,11 @@ def save_server(fields: dict[str, list[str]]) -> str:
     server_id = original_id or slug(first_value(product_name, instance_id))
     existing = selected_instance(config, original_id) if original_id else {}
 
-    access_key_id = form_value(fields, "access_key_id") or existing.get("access_key_id", "")
+    saved_key_id = form_value(fields, "saved_access_key_id")
+    access_key_id = form_value(fields, "access_key_id") or saved_key_id or existing.get("access_key_id", "")
     access_secret = form_value(fields, "access_key_secret")
+    saved_secret = saved_access_key_secret(config, saved_key_id or access_key_id)
+    region_id = form_value(fields, "region_id") or existing.get("region_id", "")
     panel_password = form_value(fields, "panel_password")
     ssh_password = form_value(fields, "ssh_password")
     item = {
@@ -5845,14 +5923,14 @@ def save_server(fields: dict[str, list[str]]) -> str:
         "product_name": product_name,
         "label": form_value(fields, "label") or product_name,
         "provider": form_value(fields, "provider", "阿里云"),
-        "server_ip": form_value(fields, "server_ip"),
-        "region_id": form_value(fields, "region_id", "cn-hongkong"),
-        "traffic_region_id": form_value(fields, "traffic_region_id") or form_value(fields, "region_id", "cn-hongkong"),
+        "server_ip": existing.get("server_ip", ""),
+        "region_id": region_id,
+        "traffic_region_id": form_value(fields, "traffic_region_id") or region_id,
         "traffic_scope": form_value(fields, "traffic_scope", existing.get("traffic_scope", TRAFFIC_SCOPE_REGION)) or TRAFFIC_SCOPE_REGION,
         "traffic_pool_id": form_value(fields, "traffic_pool_id") or existing.get("traffic_pool_id", ""),
         "instance_id": instance_id,
         "access_key_id": access_key_id,
-        "access_key_secret": access_secret or existing.get("access_key_secret", ""),
+        "access_key_secret": access_secret or saved_secret or existing.get("access_key_secret", ""),
         "warning_threshold_gb": as_float(form_value(fields, "warning_threshold_gb"), 160),
         "stop_threshold_gb": as_float(form_value(fields, "stop_threshold_gb"), 180),
         "start_threshold_gb": as_float(form_value(fields, "start_threshold_gb"), 175),
