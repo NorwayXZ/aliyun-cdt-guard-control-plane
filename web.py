@@ -497,15 +497,6 @@ def link_or_text(value) -> str:
     return f'<a href="{esc(href)}" target="_blank" rel="noopener noreferrer">{esc(value)}</a>'
 
 
-def secret_button(value, label: str = "显示密码") -> str:
-    if not value:
-        return '<div class="text-secondary small">密码未填写</div>'
-    return (
-        '<button class="btn btn-sm btn-outline-secondary mt-1" type="button" '
-        f'data-secret="{esc(value)}" onclick="toggleSecret(this)">{esc(label)}</button>'
-    )
-
-
 def status_view(status: str | None) -> tuple[str, str, str]:
     mapping = {
         "Running": ("running", "运行中", ""),
@@ -5334,17 +5325,6 @@ def page_shell(
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
   <script>
-    function toggleSecret(button) {{
-      const shown = button.dataset.shown === "1";
-      if (shown) {{
-        button.textContent = button.dataset.label || "显示密码";
-        button.dataset.shown = "0";
-      }} else {{
-        button.dataset.label = button.textContent;
-        button.textContent = button.dataset.secret;
-        button.dataset.shown = "1";
-      }}
-    }}
     function initAssetBoard() {{
       const board = document.querySelector("[data-asset-board]");
       if (!board) return;
@@ -6320,12 +6300,12 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
               <div class="info-label">登录网站</div>
               <div>{link_or_text(meta.get('panel_url') or meta.get('login_url') or meta.get('website'))}</div>
               {small_line("账号 ", panel_username)}
-              {secret_button(panel_password, "显示面板密码")}
+              {small_line("密码 ", panel_password)}
             </div>
             <div class="detail-item">
               <div class="info-label">SSH 备注</div>
               {small_line("SSH ", ssh_text)}
-              {secret_button(ssh_password, "显示 SSH 密码") if ssh_password else '<div class="text-secondary small">SSH 密码未填写</div>'}
+              {small_line("密码 ", ssh_password) if ssh_password else '<div class="text-secondary small">SSH 密码未填写</div>'}
             </div>
             <div class="detail-item">
               <div class="info-label">备注</div>
@@ -7753,7 +7733,11 @@ def render_form(item: dict, access_key_options: list[dict[str, str]] | None = No
     access_key_id = item.get("access_key_id", "")
     access_key_hint = "编辑时留空则保留原 AccessKey ID；也可以选择上方已保存账号复用。" if is_edit else "可手动填写，也可先选择上方已保存账号复用。"
     secret_hint = "编辑时留空则保留原 Secret；选择已保存账号时也可以留空。" if is_edit else "手动新增账号时需要填写；选择已保存账号时留空即可复用。"
-    panel_password_hint = "编辑时留空则保留原密码" if is_edit else ""
+    panel_username_value = first_value(item.get("panel_username"), item.get("login_username"), item.get("username"))
+    panel_password_value = first_value(item.get("panel_password"), item.get("login_password"), item.get("password"))
+    ssh_password_value = first_value(item.get("ssh_password"))
+    panel_url_value = first_value(item.get("panel_url"), item.get("login_url"), item.get("website"))
+    notes_value = first_value(item.get("notes"), item.get("remark"), item.get("account_note"))
     notes_open = " open" if is_edit else ""
     region_value = item.get("region_id", "") if is_edit else ""
     require_secret = not is_edit
@@ -7802,20 +7786,20 @@ def render_form(item: dict, access_key_options: list[dict[str, str]] | None = No
             这些只是给你自己看的资产备注，不影响阿里云巡检和自动启停，可以保存服务器后再补。
           </div>
           <div class="credential-grid">
-            {input_field("panel_url", "服务器登录网站", item.get("panel_url", ""), placeholder="https://example.com/clientarea")}
-            {input_field("panel_username", "登录网站账号", item.get("panel_username", ""))}
+            {input_field("panel_url", "服务器登录网站", panel_url_value, placeholder="https://example.com/clientarea")}
+            {input_field("panel_username", "登录网站账号", panel_username_value)}
           </div>
           <div class="credential-grid">
-            {input_field("panel_password", "登录网站密码", "", "password", hint=panel_password_hint)}
+            {input_field("panel_password", "登录网站密码", panel_password_value)}
             {input_field("ssh_user", "SSH 用户", item.get("ssh_user", "root"))}
           </div>
           <div class="credential-grid">
             {input_field("ssh_port", "SSH 端口", item.get("ssh_port", 22), "number")}
-            {input_field("ssh_password", "SSH 密码备注", "", "password", hint=panel_password_hint)}
+            {input_field("ssh_password", "SSH 密码备注", ssh_password_value)}
           </div>
           <div class="mb-3">
             <label class="form-label">备注</label>
-            <textarea class="form-control" name="notes" rows="4" placeholder="用途、购买平台、套餐、到期时间、注意事项">{esc(item.get("notes", ""))}</textarea>
+            <textarea class="form-control" name="notes" rows="4" placeholder="用途、购买平台、套餐、到期时间、注意事项">{esc(notes_value)}</textarea>
           </div>
         </details>
       </div>
@@ -7894,10 +7878,10 @@ def save_server(fields: dict[str, list[str]]) -> str:
         "traffic_reset_day": int(max(1, min(as_float(form_value(fields, "traffic_reset_day"), 1), 28))),
         "panel_url": form_value(fields, "panel_url"),
         "panel_username": form_value(fields, "panel_username"),
-        "panel_password": panel_password or existing.get("panel_password", ""),
+        "panel_password": panel_password,
         "ssh_user": form_value(fields, "ssh_user", "root"),
         "ssh_port": int(as_float(form_value(fields, "ssh_port"), 22)),
-        "ssh_password": ssh_password or existing.get("ssh_password", ""),
+        "ssh_password": ssh_password,
         "notes": form_value(fields, "notes"),
         "enabled": form_value(fields, "enabled") == "1",
         "manual_stop": bool(existing.get("manual_stop", False)),
