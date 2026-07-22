@@ -2831,7 +2831,6 @@ def page_shell(
       white-space: nowrap;
     }}
     .copy-ip-btn:hover,
-    .row-detail-link:hover,
     .chart-trigger:hover {{
       text-decoration: underline;
     }}
@@ -2854,15 +2853,6 @@ def page_shell(
       min-width: 0;
       padding: 0;
       text-decoration: none;
-      white-space: nowrap;
-    }}
-    .row-detail-link {{
-      background: transparent;
-      border: 0;
-      color: var(--ink);
-      font-size: 13px;
-      font-weight: 720;
-      padding: 0;
       white-space: nowrap;
     }}
     .traffic-modal {{
@@ -5172,16 +5162,6 @@ def page_shell(
           }}
         }});
       }});
-      board.querySelectorAll("[data-detail-jump]").forEach((button) => {{
-        button.addEventListener("click", (event) => {{
-          event.preventDefault();
-          event.stopPropagation();
-          selectServer(button.dataset.serverId);
-          if (window.innerWidth <= 1180) {{
-            board.querySelector("[data-server-detail].active")?.scrollIntoView({{ behavior: "smooth", block: "start" }});
-          }}
-        }});
-      }});
       board.querySelectorAll("[data-copy-ip]").forEach((button) => {{
         button.addEventListener("click", async (event) => {{
           event.preventDefault();
@@ -5908,7 +5888,6 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
             <button class="chart-trigger row-chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}" title="查看流量趋势">
               <span>查看趋势</span>
             </button>
-            <button class="row-detail-link" type="button" data-detail-jump data-server-id="{esc(identity['id'])}">查看详情 →</button>
           </span>
         </div>
       </article>
@@ -6101,7 +6080,7 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
           {'' if group_html else '<div class="empty-state">暂无服务器，请到“新增服务器”添加第一台。</div>'}
         </div>
         <aside class="server-detail-panel">
-          {''.join(details) if details else '<div class="empty-state">选择一台服务器查看详情。</div>'}
+          {''.join(details) if details else '<div class="empty-state">选择一台服务器查看信息。</div>'}
         </aside>
       </div>
     </div>
