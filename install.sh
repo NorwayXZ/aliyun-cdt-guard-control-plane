@@ -6,6 +6,7 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/aliyun-cdt-guard-control-plane}"
 REPO_SLUG="${REPO_SLUG:-NorwayXZ/aliyun-cdt-guard-control-plane}"
 BRANCH="${BRANCH:-main}"
 SOURCE_ARCHIVE_URL="${SOURCE_ARCHIVE_URL:-https://github.com/${REPO_SLUG}/archive/refs/heads/${BRANCH}.tar.gz}"
+GET_PIP_URL="${GET_PIP_URL:-https://bootstrap.pypa.io/get-pip.py}"
 WEB_PORT="${WEB_PORT:-8788}"
 WEB_USER="${WEB_USER:-admin}"
 
@@ -197,14 +198,41 @@ ensure_runtime_available() {
   fi
 
   if ! python3 - <<'PY' >/dev/null 2>&1
-import ensurepip
 import venv
 PY
   then
-    echo "Python venv/ensurepip is not available."
+    echo "Python venv module is not available."
     echo "Install python3-venv first, or fix dpkg/apt and rerun install.sh without SKIP_SYSTEM_PACKAGES=1."
     exit 1
   fi
+}
+
+python_has_ensurepip() {
+  python3 - <<'PY' >/dev/null 2>&1
+import ensurepip
+PY
+}
+
+create_python_venv() {
+  local venv_dir="$1"
+  local tmp_dir=""
+
+  if [ -x "$venv_dir/bin/python" ] && [ -x "$venv_dir/bin/pip" ]; then
+    return 0
+  fi
+
+  rm -rf "$venv_dir"
+  if python_has_ensurepip; then
+    python3 -m venv "$venv_dir"
+    return 0
+  fi
+
+  echo "Python ensurepip is not available. Creating venv without pip, then bootstrapping pip..."
+  python3 -m venv --without-pip "$venv_dir"
+  tmp_dir="$(mktemp -d)"
+  curl -fsSL "$GET_PIP_URL" -o "$tmp_dir/get-pip.py"
+  "$venv_dir/bin/python" "$tmp_dir/get-pip.py" --no-cache-dir
+  rm -rf "$tmp_dir"
 }
 
 prepare_source() {
@@ -247,7 +275,7 @@ sed -i "s#/opt/aliyun-cdt-guard-control-plane#$INSTALL_DIR#g" /etc/systemd/syste
 
 rm -rf "$INSTALL_DIR/ui-prototype"
 
-python3 -m venv "$INSTALL_DIR/venv"
+create_python_venv "$INSTALL_DIR/venv"
 "$INSTALL_DIR/venv/bin/pip" install --no-cache-dir --upgrade pip
 "$INSTALL_DIR/venv/bin/pip" install --no-cache-dir -r "$INSTALL_DIR/requirements.txt"
 

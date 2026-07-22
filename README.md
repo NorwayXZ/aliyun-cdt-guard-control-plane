@@ -66,13 +66,15 @@ sudo apt-get -f install
 
 确认修复后再重新运行安装命令。新版安装脚本也会尝试自动把 dpkg 错误中点名的坏文件移动到 `/root/dpkg-updates-backup-*`。
 
-如果 `dpkg --configure -a` 失败在系统内核包、GRUB 或云厂商镜像脚本上，例如 `linux-image-*`、`grub-probe`、`flash-kernel`，这属于系统包状态异常，不是面板安装失败。若服务器已经具备 `python3`、`python3-venv`、`curl`、`tar`、`openssl`，可以先跳过 apt 阶段安装面板：
+如果 `dpkg --configure -a` 失败在系统内核包、GRUB 或云厂商镜像脚本上，例如 `linux-image-*`、`grub-probe`、`flash-kernel`，这属于系统包状态异常，不是面板安装失败。若服务器已经具备 `python3`、`curl`、`tar`、`openssl`，可以先跳过 apt 阶段安装面板：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main/install.sh | sudo env SKIP_SYSTEM_PACKAGES=1 bash
 ```
 
 这个命令只绕过系统依赖安装，不会修复系统内核包。建议后续仍然修复系统的 `dpkg/apt` 状态，避免以后安装其他软件继续报错。
+
+如果系统没有 `ensurepip`，安装脚本会尝试创建不带 pip 的虚拟环境，并通过 `get-pip.py` 只给面板自己的 venv 补上 pip，不会把依赖装进系统 Python。
 
 ## 一键卸载
 
