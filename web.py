@@ -270,6 +270,27 @@ def fmt_gb(value) -> str:
         return "未知"
 
 
+def fmt_gb_compact(value) -> str:
+    if value is None:
+        return "未知"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "未知"
+    text = f"{number:.2f}".rstrip("0").rstrip(".")
+    return f"{text} GB"
+
+
+def fmt_gb_rich(value) -> str:
+    if value is None:
+        return '<span class="unknown-value">未知</span>'
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return '<span class="unknown-value">未知</span>'
+    return f'{number:.2f} <small>GB</small>'
+
+
 def fmt_time(value) -> str:
     if not value:
         return "暂无"
@@ -452,13 +473,13 @@ def secret_button(value, label: str = "显示密码") -> str:
 
 def status_view(status: str | None) -> tuple[str, str, str]:
     mapping = {
-        "Running": ("running", "运行中", "Running"),
-        "Stopped": ("stopped", "已关机", "Stopped"),
-        "Starting": ("pending", "开机中", "Starting"),
-        "Stopping": ("pending", "关机中", "Stopping"),
-        "Disabled": ("muted", "已禁用", "Disabled"),
+        "Running": ("running", "运行中", ""),
+        "Stopped": ("stopped", "已关机", ""),
+        "Starting": ("pending", "开机中", ""),
+        "Stopping": ("pending", "关机中", ""),
+        "Disabled": ("muted", "已禁用", ""),
     }
-    return mapping.get(status or "", ("muted", status or "未知", status or "Unknown"))
+    return mapping.get(status or "", ("muted", status or "未知", ""))
 
 
 def power_controls(server_id: str, status: str | None) -> str:
@@ -2167,6 +2188,61 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       gap: 14px;
       grid-template-columns: minmax(0, 1fr) auto;
     }}
+    .detail-title-stack {{
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }}
+    .server-detail .asset-name {{
+      color: var(--ink);
+      font-size: 28px;
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1.08;
+    }}
+    .detail-meta-pair {{
+      color: var(--muted);
+      display: grid;
+      gap: 5px;
+      font-size: 12px;
+      line-height: 1.45;
+    }}
+    .detail-meta-pair span {{
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .detail-meta-pair b {{
+      color: var(--soft);
+      font-weight: 600;
+      margin-left: 6px;
+    }}
+    .detail-status-pill {{
+      align-items: center;
+      border: 1px solid var(--line);
+      display: inline-flex;
+      font-size: 13px;
+      font-weight: 760;
+      gap: 8px;
+      justify-content: center;
+      min-width: 86px;
+      padding: 9px 11px;
+      white-space: nowrap;
+    }}
+    .detail-status-pill .server-state-dot {{
+      display: block;
+      height: 8px;
+      width: 8px;
+    }}
+    .detail-status-pill.running {{ background: var(--success-soft); color: #15884f; }}
+    .detail-status-pill.stopped {{ background: var(--danger-soft); color: #c92a2a; }}
+    .detail-status-pill.pending {{ background: var(--warning-soft); color: #9a6700; }}
+    .detail-status-pill.muted {{ background: var(--surface-soft); color: var(--muted); }}
+    .detail-status-pill.running .server-state-dot {{ background: #22c55e; }}
+    .detail-status-pill.stopped .server-state-dot {{ background: #ef4444; }}
+    .detail-status-pill.pending .server-state-dot {{ background: #f59f00; }}
+    .detail-status-pill.muted .server-state-dot {{ background: #94a3b8; }}
     .detail-disclosure > summary {{
       align-items: center;
       color: #111827;
@@ -2175,16 +2251,18 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       font-size: 13px;
       font-weight: 760;
       justify-content: space-between;
+      min-height: 42px;
       list-style: none;
     }}
     .detail-disclosure > summary::-webkit-details-marker {{ display: none; }}
     .detail-disclosure > summary::after {{
       color: var(--muted);
-      content: "展开";
-      font-size: 12px;
+      content: "⌄";
+      font-size: 18px;
       font-weight: 720;
+      line-height: 1;
     }}
-    .detail-disclosure[open] > summary::after {{ content: "收起"; }}
+    .detail-disclosure[open] > summary::after {{ content: "⌃"; }}
     .info-label {{
       color: var(--muted);
       font-size: 12px;
@@ -2216,6 +2294,147 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       display: grid;
       gap: 12px;
       padding: 12px;
+    }}
+    .traffic-detail-box .info-label {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0;
+      margin-bottom: 7px;
+    }}
+    .quota-overview {{
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 12px 14px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 16px;
+    }}
+    .quota-main {{
+      min-width: 0;
+    }}
+    .quota-value {{
+      color: var(--ink);
+      font-size: 29px;
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1.05;
+      white-space: nowrap;
+    }}
+    .quota-value small {{
+      color: var(--ink);
+      font-size: .58em;
+      font-weight: 650;
+    }}
+    .quota-value > span {{
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 650;
+      margin-left: 4px;
+      vertical-align: baseline;
+    }}
+    .quota-sub {{
+      color: var(--soft);
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1.45;
+      margin-top: 9px;
+    }}
+    .quota-side {{
+      align-content: center;
+      border-left: 1px solid var(--line);
+      display: grid;
+      gap: 5px;
+      justify-items: end;
+      min-width: 106px;
+      padding-left: 14px;
+      text-align: right;
+    }}
+    .quota-side span,
+    .quota-check span {{
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+    }}
+    .quota-side strong {{
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 720;
+      white-space: nowrap;
+    }}
+    .quota-progress {{
+      grid-column: 1 / -1;
+      height: 8px;
+      margin: 0;
+    }}
+    .quota-pool-card {{
+      align-items: center;
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 13px 14px;
+    }}
+    .quota-pool-title {{
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 760;
+      line-height: 1.35;
+    }}
+    .quota-pool-sub {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 4px;
+    }}
+    .quota-check {{
+      align-items: end;
+      display: grid;
+      gap: 7px;
+      justify-items: end;
+      text-align: right;
+      white-space: nowrap;
+    }}
+    .trend-entry {{
+      align-items: center;
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+      grid-template-columns: auto minmax(0, 1fr);
+      padding: 12px 14px;
+    }}
+    .trend-title {{
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 760;
+      white-space: nowrap;
+    }}
+    .trend-segments {{
+      border: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-left: auto;
+      min-width: 0;
+      width: min(100%, 220px);
+    }}
+    .trend-segment {{
+      background: transparent;
+      border: 0;
+      border-left: 1px solid var(--line);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 760;
+      min-height: 32px;
+      padding: 0 6px;
+      white-space: nowrap;
+    }}
+    .trend-segment:first-child {{
+      border-left: 0;
+    }}
+    .trend-segment.active,
+    .trend-segment:hover {{
+      background: var(--accent);
+      color: #fff;
     }}
     .traffic-primary-grid {{
       display: grid;
@@ -4196,6 +4415,11 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .daily-traffic-card,
     .control-plane-theme .daily-chart-wrap,
     .control-plane-theme .daily-chart-tooltip,
+    .control-plane-theme .detail-status-pill,
+    .control-plane-theme .quota-overview,
+    .control-plane-theme .quota-pool-card,
+    .control-plane-theme .trend-entry,
+    .control-plane-theme .trend-segments,
     .control-plane-theme .saved-channel-card,
     .control-plane-theme .setup-box,
     .control-plane-theme .guide-step,
@@ -4238,6 +4462,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .info-value,
     .control-plane-theme .traffic-value,
     .control-plane-theme .traffic-amount,
+    .control-plane-theme .quota-value,
+    .control-plane-theme .quota-side strong,
+    .control-plane-theme .quota-pool-title,
     .control-plane-theme .reset-duration,
     .control-plane-theme .recovery-days,
     .control-plane-theme .chart-stat-value {{
@@ -4440,7 +4667,25 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .server-cell + .server-cell {{ border-left: 0; }}
       .server-state {{ min-width: 0; }}
       .traffic-compact {{ display: block; }}
-      .detail-hero {{ grid-template-columns: 1fr; }}
+      .detail-hero,
+      .quota-overview,
+      .quota-pool-card,
+      .trend-entry {{ grid-template-columns: 1fr; }}
+      .detail-status-pill {{ justify-self: start; }}
+      .quota-side,
+      .quota-check {{
+        align-items: start;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        justify-items: start;
+        padding-left: 0;
+        padding-top: 12px;
+        text-align: left;
+      }}
+      .trend-segments {{
+        margin-left: 0;
+        width: 100%;
+      }}
       .server-detail.active {{ padding: 14px; }}
       .traffic-modal {{ padding: 10px; }}
       .traffic-modal-head {{ flex-direction: column; }}
@@ -4895,9 +5140,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
           trafficChart.serverId = button.dataset.serverId || "";
           trafficChart.poolKey = button.dataset.chartPool || "";
           trafficChart.serverName = button.dataset.serverName || trafficChart.serverId;
-          trafficChart.days = 1;
+          trafficChart.days = Number(button.dataset.chartDays || 1);
           document.querySelector("[data-chart-server]").textContent = trafficChart.poolKey ? (trafficChart.serverName + " · 按流量池统计") : trafficChart.serverName;
-          document.querySelectorAll("[data-days]").forEach((tab) => tab.classList.toggle("active", tab.dataset.days === "1"));
+          document.querySelectorAll("[data-days]").forEach((tab) => tab.classList.toggle("active", Number(tab.dataset.days || 1) === trafficChart.days));
           setModalOpen(true);
           loadTrafficChart().catch(() => renderTrafficChart({{ points: [], point_count: 0, days: trafficChart.days, total_delta_gb: 0 }}));
         }});
@@ -5302,6 +5547,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     row_classes = ["server-row", f"is-{health_class}"]
     if active:
         row_classes.append("active")
+    state_sub_html = f'<span class="server-state-sub">{esc(state_sub)}</span>' if state_sub else ""
     return f"""
       <article class="{' '.join(row_classes)}" data-server-row data-server-id="{esc(identity['id'])}" role="button" tabindex="0"
         data-search="{esc(search_text)}" data-filter-state="{esc(health_class)}" data-priority="{priority}"
@@ -5311,7 +5557,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
             <span class="server-state-dot"></span>
             <span>
               <span class="server-state-main">{esc(state_label)}</span>
-              <span class="server-state-sub">{esc(state_sub)}</span>
+              {state_sub_html}
             </span>
           </span>
         </span>
@@ -5347,7 +5593,17 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
     pool_traffic = protection_traffic_gb(item)
     today_traffic = today_server_traffic_gb(item, history)
     self_traffic = item.get("traffic_gb")
-    state_class, state_label, state_sub = status_view(item.get("instance_status"))
+    threshold_gb = item.get("stop_threshold_gb")
+    threshold_value = as_float(str(threshold_gb), 0)
+    pool_value = as_float(str(pool_traffic), 0)
+    remaining_value = item.get("remaining_gb")
+    if remaining_value is None and threshold_value > 0:
+        remaining_value = max(threshold_value - pool_value, 0)
+    remaining_pct = max(0, 100 - pct) if threshold_value > 0 else 0
+    member_count = int(item.get("display_pool_member_count") or item.get("traffic_pool_member_count") or 0)
+    pool_label = traffic_pool_badge(item)
+    service_id = first_value(item.get("instance_name"), item.get("instance_id"), default="未识别")
+    state_class, state_label, _state_sub = status_view(item.get("instance_status"))
     panel_username = first_value(meta.get("panel_username"), meta.get("login_username"), meta.get("username"))
     panel_password = first_value(meta.get("panel_password"), meta.get("login_password"), meta.get("password"))
     ssh_password = first_value(meta.get("ssh_password"))
@@ -5360,54 +5616,53 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
       <section class="server-detail {'active' if active else ''}" data-server-detail data-server-id="{esc(identity['id'])}">
         <div class="detail-section">
           <div class="detail-hero">
-            <div class="text-truncate">
+            <div class="detail-title-stack">
               <div class="asset-name text-truncate">{esc(identity['product_name'])}</div>
-              <div class="asset-sub text-truncate">{esc(identity['asset_label'])} · {esc(item.get('instance_name') or '未识别 ECS 名')}</div>
+              <div class="detail-meta-pair">
+                <span>实例/节点名 <b>{esc(identity['asset_label'])}</b></span>
+                <span>服务 ID <b>{esc(service_id)}</b></span>
+              </div>
             </div>
-            <span class="server-state-detail {state_class}">
+            <span class="detail-status-pill {state_class}">
               <span class="server-state-dot"></span>
-              <span>
-                <span class="server-state-main">{esc(state_label)}</span>
-                <span class="server-state-sub">{esc(state_sub)}</span>
-              </span>
+              <span>{esc(state_label)}</span>
             </span>
           </div>
         </div>
         <div class="detail-section">
           <div class="traffic-detail-box">
-            <div class="traffic-primary-grid">
-              <div class="traffic-primary-card">
-                <div class="info-label">本机累计</div>
-                <div class="traffic-value">{fmt_gb(self_traffic)}</div>
+            <div class="quota-overview">
+              <div class="quota-main">
+                <div class="info-label">本期用量</div>
+                <div class="quota-value">{fmt_gb_rich(pool_traffic)} <span>/ {esc(fmt_gb_compact(threshold_gb))}</span></div>
+                <div class="quota-sub">剩余 {esc(fmt_gb(remaining_value))} · 还可用 {remaining_pct:.1f}%</div>
               </div>
-              <div class="traffic-primary-card">
-                <div class="info-label">今日本机</div>
-                <div class="traffic-value">{fmt_gb(today_traffic)}</div>
+              <div class="quota-side">
+                <span>今日本机</span>
+                <strong>{esc(fmt_gb(today_traffic))}</strong>
+              </div>
+              <div class="progress quota-progress">
+                <div class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></div>
               </div>
             </div>
-            <div class="traffic-threshold-line">
-              <span>账号保护池 {fmt_gb(pool_traffic)}</span>
-              <span>停机阈值 {fmt_gb(item.get('stop_threshold_gb'))}</span>
+            <div class="quota-pool-card">
+              <div>
+                <div class="info-label">额度池</div>
+                <div class="quota-pool-title">{esc(pool_label)}</div>
+                <div class="quota-pool-sub">本期已用 {esc(fmt_gb(pool_traffic))} · 剩余 {esc(fmt_gb(remaining_value))}{f' · {member_count} 台机器共享' if member_count > 1 else ''}</div>
+              </div>
+              <div class="quota-check">
+                <span>本次检查</span>
+                {traffic_delta_badge(item.get('traffic_delta_gb'))}
+              </div>
             </div>
-            <div class="progress">
-              <div class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></div>
-            </div>
-            <div class="traffic-secondary-grid">
-              <div class="detail-item">
-                <div class="info-label">保护池剩余</div>
-                <div class="info-value">{fmt_gb(item.get('remaining_gb'))}</div>
-              </div>
-              <div class="detail-item">
-                <div class="info-label">共享关系</div>
-                <div class="info-value">{esc(traffic_pool_badge(item))}</div>
-              </div>
-              <div class="detail-item">
-                <div class="info-label">本次检查</div>
-                <div>{traffic_delta_badge(item.get('traffic_delta_gb'))}</div>
-              </div>
-              <div class="detail-item">
-                <div class="info-label">曲线</div>
-                <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看 1天/3天/7天/1个月曲线</button>
+            <div class="trend-entry">
+              <div class="trend-title">流量趋势</div>
+              <div class="trend-segments" aria-label="选择流量趋势时间范围">
+                <button class="trend-segment" type="button" data-chart-trigger data-chart-days="1" data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">1 天</button>
+                <button class="trend-segment" type="button" data-chart-trigger data-chart-days="3" data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">3 天</button>
+                <button class="trend-segment active" type="button" data-chart-trigger data-chart-days="7" data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">7 天</button>
+                <button class="trend-segment" type="button" data-chart-trigger data-chart-days="30" data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">30 天</button>
               </div>
             </div>
           </div>
