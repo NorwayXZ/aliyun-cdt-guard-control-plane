@@ -5386,27 +5386,6 @@ def render_domain_page(query: dict[str, list[str]] | None = None) -> bytes:
           {f'<br>{esc(detail)}' if detail else ''}
         </div>
         """
-    dns_name = domain.split(".", 1)[0] if "." in domain else domain
-    caddy_config = f"""
-{domain} {{
-  reverse_proxy 127.0.0.1:{origin_port}
-}}
-"""
-    nginx_config = f"""
-server {{
-  listen 80;
-  server_name {domain};
-
-  location / {{
-    proxy_pass http://127.0.0.1:{origin_port};
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }}
-}}
-"""
-    env_config = "WEB_COOKIE_SECURE=true"
     body = f"""
     <div class="card mb-3">
       <div class="card-header"><h3 class="card-title">当前反代状态</h3></div>
@@ -5444,7 +5423,7 @@ server {{
         </div>
         <div class="card-body">
           <div class="setup-box">
-            先填域名和源站 IP。只点“保存配置”会生成教程和配置片段；点“保存并应用 Caddy”会直接在这台服务器安装/写入 Caddy 反代。Cloudflare DNS 仍需你自己添加，避免误动你的 DNS。
+            先填域名和源站 IP。点“保存并应用 Caddy”会直接在这台服务器安装/写入 Caddy 反代。Cloudflare DNS 仍需你自己添加，避免误动你的 DNS。
           </div>
           <div class="credential-grid">
             {input_field("domain", "面板域名", config.get("domain", ""), placeholder="例如：cdt.example.com", hint="在 Cloudflare DNS 里添加这个子域名。")}
@@ -5484,39 +5463,6 @@ server {{
           </div>
         </div>
       </aside>
-    </div>
-
-    <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">生成配置</h3></div>
-      <div class="card-body">
-        <div class="proxy-step-grid">
-          <div class="proxy-step-card">
-            <strong>Cloudflare DNS</strong>
-            <span>类型：A<br>名称：{esc(dns_name)}<br>IPv4：{esc(origin_ip)}<br>代理：{"开启（橙色云）" if config.get("cloudflare_proxy", True) else "关闭（灰色云）"}</span>
-          </div>
-          <div class="proxy-step-card">
-            <strong>Cloudflare SSL/TLS</strong>
-            <span>建议选择 Full 或 Full strict。不要使用 Flexible，否则容易出现跳转或 Cookie 问题。</span>
-          </div>
-          <div class="proxy-step-card">
-            <strong>面板访问地址</strong>
-            <span>配置完成后访问：https://{esc(domain)}</span>
-          </div>
-        </div>
-
-        <h3 class="form-section-title mt-4">Caddyfile（推荐）</h3>
-        {render_code_block(caddy_config)}
-
-        <h3 class="form-section-title mt-4">Nginx 反代示例</h3>
-        {render_code_block(nginx_config)}
-
-        <h3 class="form-section-title mt-4">web.env 建议</h3>
-        {render_code_block(env_config)}
-
-        <div class="status-note mt-3">
-          Cloudflare DNS 需要你手动添加。以后如果你愿意提供 Cloudflare API Token，可以再加“一键创建 DNS 记录”。
-        </div>
-      </div>
     </div>
     """
     return page_shell(
