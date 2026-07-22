@@ -29,6 +29,11 @@ STATUS_FILE = BASE_DIR / "status.json"
 HISTORY_FILE = BASE_DIR / "history.jsonl"
 DOMAIN_PROXY_FILE = BASE_DIR / "domain_proxy.json"
 DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
+FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="16" fill="#171511"/>
+  <path d="M14 45V27h7v18h-7Zm12 0V18h7v27h-7Zm12 0V31h7v14h-7Zm12 0V23h7v22h-7Z" fill="#f7bf2f"/>
+  <text x="32" y="17" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-size="13" font-weight="800" fill="#62d7ff">CDT</text>
+</svg>"""
 TRAFFIC_SCOPE_REGION = "region"
 TRAFFIC_SCOPE_ACCOUNT_NON_CHINA = "account_non_china"
 TRAFFIC_SCOPE_ACCOUNT_ALL = "account_all"
@@ -699,6 +704,8 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>登录 - Aliyun CDT Guard</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Fredoka:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
@@ -1617,6 +1624,8 @@ def page_shell(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   {refresh_meta}
   <title>Aliyun CDT Guard</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Fredoka:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
@@ -7766,6 +7775,9 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
         if parsed.path == "/healthz":
             self.send_json({"ok": True})
+            return
+        if parsed.path in {"/favicon.svg", "/favicon.ico"}:
+            self.send_bytes(FAVICON_SVG, "image/svg+xml")
             return
         if parsed.path == "/logout":
             self.handle_logout()
