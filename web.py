@@ -1572,7 +1572,7 @@ def page_shell(
     body: str,
     actions: str = "",
     flash: str = "",
-    auto_refresh: bool = True,
+    auto_refresh: bool = False,
     crumb_label: str | None = None,
 ) -> bytes:
     run_nav = [
