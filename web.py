@@ -930,6 +930,22 @@ def current_total_traffic(instances: list[dict]) -> tuple[float, int]:
     return sum(totals.values()), display_pool_count(instances)
 
 
+def total_protection_capacity(instances: list[dict]) -> tuple[float, int]:
+    capacities: dict[str, float] = {}
+    for item in instances:
+        if not item.get("enabled", True):
+            continue
+        key = traffic_display_pool_key(item)
+        if not key:
+            continue
+        try:
+            threshold = float(item.get("stop_threshold_gb") or 180)
+        except (TypeError, ValueError):
+            threshold = 180.0
+        capacities[key] = max(capacities.get(key, 0), threshold)
+    return sum(capacities.values()), len(capacities)
+
+
 def protection_traffic_gb(item: dict):
     for key in ("display_protection_traffic_gb", "protection_traffic_gb", "traffic_gb"):
         value = item.get(key)
@@ -1046,6 +1062,7 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
         points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
 
     current_total, current_sources = current_total_traffic(instances)
+    total_capacity, capacity_pools = total_protection_capacity(instances)
     if current_total > 0:
         current_time = parse_event_time(generated_at) or datetime.now(timezone.utc)
         if not points or abs(float(points[-1].get("total_gb") or 0) - current_total) > 0.0001:
@@ -1066,14 +1083,25 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
             sampled.append(compacted[-1])
         compacted = sampled
 
+    running_peak = 0.0
+    for point in compacted:
+        value = float(point.get("total_gb") or 0)
+        running_peak = max(running_peak, value)
+        point["total_gb"] = running_peak
+
     first = float(compacted[0]["total_gb"]) if compacted else None
     last = float(compacted[-1]["total_gb"]) if compacted else current_total
     delta = max(last - first, 0) if first is not None else 0
+    used_percent = (current_total / total_capacity * 100) if total_capacity > 0 else 0
     return {
         "days": days,
         "points": compacted,
         "current_total_gb": current_total,
         "source_count": current_sources,
+        "capacity_pool_count": capacity_pools,
+        "total_capacity_gb": total_capacity,
+        "remaining_capacity_gb": max(total_capacity - current_total, 0),
+        "used_percent": used_percent,
         "delta_gb": delta,
     }
 
@@ -1088,11 +1116,11 @@ def chart_time_label(value: str | None) -> str:
 def render_total_traffic_chart(series: dict) -> str:
     points = series.get("points") or []
     width = 900
-    height = 280
-    pad_left = 58
-    pad_right = 26
-    pad_top = 30
-    pad_bottom = 42
+    height = 320
+    pad_left = 70
+    pad_right = 34
+    pad_top = 40
+    pad_bottom = 52
     values = [float(point.get("total_gb") or 0) for point in points]
     if not values:
         return """
@@ -1100,13 +1128,16 @@ def render_total_traffic_chart(series: dict) -> str:
             暂无历史曲线。点击“手动检查流量”或等待定时巡检后，这里会开始展示所有服务器的总流量消耗。
           </div>
         """
-    low = min(values)
-    high = max(values)
+    current_total = float(series.get("current_total_gb") or values[-1] or 0)
+    capacity = float(series.get("total_capacity_gb") or 0)
+    used_percent = (current_total / capacity * 100) if capacity > 0 else 0
+    high = max(capacity, max(values), current_total)
     if high <= 0:
         high = 1
-    if abs(high - low) < 0.01:
-        low = 0
-    span = high - low or 1
+    if max(values) > capacity > 0:
+        high = max(values) * 1.08
+    low = 0.0
+    span = high or 1
 
     def x_at(index: int) -> float:
         if len(values) == 1:
@@ -1119,8 +1150,8 @@ def render_total_traffic_chart(series: dict) -> str:
     line_points = " ".join(f"{x_at(index):.1f},{y_at(value):.1f}" for index, value in enumerate(values))
     area_points = f"{pad_left},{height - pad_bottom} {line_points} {width - pad_right},{height - pad_bottom}"
     grid_rows = []
-    for index in range(4):
-        value = low + (high - low) * index / 3
+    for index in range(5):
+        value = high - high * index / 4
         y = y_at(value)
         grid_rows.append(
             f'<line x1="{pad_left}" y1="{y:.1f}" x2="{width - pad_right}" y2="{y:.1f}" class="total-grid-line"/>'
@@ -1140,15 +1171,31 @@ def render_total_traffic_chart(series: dict) -> str:
         f'<title>{esc(chart_time_label(points[index].get("at")))} · {value:.2f} GB</title></circle>'
         for index, value in enumerate(values[-18:], start=max(0, len(values) - 18))
     )
+    current_y = y_at(current_total)
+    current_label_x = min(width - pad_right - 6, max(pad_left + 8, x_at(len(values) - 1) + 10))
+    capacity_label = fmt_gb(capacity) if capacity > 0 else "未设置"
+    current_line = f"""
+        <line x1="{pad_left}" y1="{current_y:.1f}" x2="{width - pad_right}" y2="{current_y:.1f}" class="total-current-line"/>
+        <text x="{current_label_x:.1f}" y="{max(pad_top + 12, current_y - 8):.1f}" class="total-current-label" text-anchor="end">
+          已用 {used_percent:.1f}% · {fmt_gb(current_total)}
+        </text>
+    """
+    capacity_y = y_at(capacity) if capacity > 0 else pad_top
+    capacity_line = f"""
+        <line x1="{pad_left}" y1="{capacity_y:.1f}" x2="{width - pad_right}" y2="{capacity_y:.1f}" class="total-capacity-line"/>
+        <text x="{width - pad_right}" y="{max(14, capacity_y - 9):.1f}" class="total-capacity-label" text-anchor="end">总保护额度 {esc(capacity_label)}</text>
+    """ if capacity > 0 else ""
     return f"""
       <svg class="total-chart-svg" viewBox="0 0 {width} {height}" role="img" aria-label="总流量消耗曲线">
         {"".join(grid_rows)}
         <line x1="{pad_left}" y1="{pad_top}" x2="{pad_left}" y2="{height - pad_bottom}" class="total-axis-line"/>
         <line x1="{pad_left}" y1="{height - pad_bottom}" x2="{width - pad_right}" y2="{height - pad_bottom}" class="total-axis-line"/>
-        <text x="{pad_left}" y="17" class="total-axis-title">纵轴：累计消耗 GB</text>
+        <text x="{pad_left}" y="24" class="total-axis-title">纵轴：所有账号池累计消耗 GB</text>
         {"".join(ticks)}
         <polygon class="total-chart-area" points="{area_points}"/>
         <polyline class="total-chart-line" points="{line_points}"/>
+        {capacity_line}
+        {current_line}
         {dots}
       </svg>
     """
@@ -3357,7 +3404,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: var(--input-bg);
       border: 1px solid var(--line);
       display: block;
-      height: 280px;
+      height: 320px;
       width: 100%;
     }}
     .total-grid-line {{
@@ -3388,6 +3435,31 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       stroke-linecap: round;
       stroke-linejoin: round;
       stroke-width: 3;
+    }}
+    .total-capacity-line {{
+      stroke: var(--line-strong);
+      stroke-dasharray: 7 7;
+      stroke-width: 1.3;
+    }}
+    .total-current-line {{
+      stroke: var(--yellow);
+      stroke-dasharray: 5 6;
+      stroke-width: 1.6;
+    }}
+    .total-capacity-label,
+    .total-current-label {{
+      font-size: 12px;
+      font-weight: 760;
+      paint-order: stroke;
+      stroke: var(--input-bg);
+      stroke-linejoin: round;
+      stroke-width: 5px;
+    }}
+    .total-capacity-label {{
+      fill: var(--soft);
+    }}
+    .total-current-label {{
+      fill: var(--yellow);
     }}
     .total-chart-dot {{
       fill: var(--input-bg);
@@ -4705,6 +4777,10 @@ def render_overview_intro(summary: dict, instances: list[dict], history: list[di
     pools = int(summary.get("pools", 0) or 0)
     series = aggregate_total_traffic_series(instances, history, generated_at, days=30)
     chart_html = render_total_traffic_chart(series)
+    total_capacity = float(series.get("total_capacity_gb") or 0)
+    current_total = float(series.get("current_total_gb") or 0)
+    used_percent = float(series.get("used_percent") or 0)
+    remaining_capacity = float(series.get("remaining_capacity_gb") or 0)
     tone = "danger" if errors else ("warning" if warnings or stopped else "neutral")
     return f"""
       <section class="overview-traffic-hero {tone}">
@@ -4720,7 +4796,11 @@ def render_overview_intro(summary: dict, instances: list[dict], history: list[di
         <aside class="total-chart-facts">
           <article>
             <span>当前累计使用流量</span>
-            <strong>{fmt_gb(series.get("current_total_gb"))}</strong>
+            <strong>{fmt_gb(current_total)} · {used_percent:.1f}%</strong>
+          </article>
+          <article>
+            <span>总保护额度</span>
+            <strong>{fmt_gb(total_capacity)} · {series.get("capacity_pool_count", pools)} 个账号池</strong>
           </article>
           <article>
             <span>统计范围</span>
@@ -4731,8 +4811,8 @@ def render_overview_intro(summary: dict, instances: list[dict], history: list[di
             <strong>{fmt_gb(series.get("delta_gb"))}</strong>
           </article>
           <article>
-            <span>流量池</span>
-            <strong>{pools} 个</strong>
+            <span>剩余保护额度</span>
+            <strong>{fmt_gb(remaining_capacity)}</strong>
           </article>
           <article>
             <span>当前关注</span>
