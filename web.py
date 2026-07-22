@@ -3423,9 +3423,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: color-mix(in srgb, var(--accent) 18%, var(--line));
       border: 1px solid var(--line-strong);
       box-shadow: var(--shadow);
-      display: grid;
+      display: block;
       gap: 0;
-      grid-template-columns: minmax(0, 1fr) minmax(280px, 28%);
       margin-bottom: 18px;
       overflow: hidden;
       border-radius: 8px;
@@ -3564,11 +3563,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .total-chart-facts {{
       align-content: start;
-      border-left: 1px solid var(--line);
-      display: flex;
-      flex-direction: column;
+      display: grid;
       gap: 12px;
-      padding: 18px;
+      grid-template-columns: minmax(240px, .9fr) minmax(340px, 1.15fr) minmax(240px, .9fr) minmax(210px, .75fr);
+      padding: 14px;
     }}
     .total-chart-facts article {{
       border: 1px solid var(--line);
@@ -3582,7 +3580,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .facts-bottom-grid {{
       display: grid;
       gap: 10px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 1fr;
     }}
     .fact-primary strong {{
       color: var(--accent) !important;
@@ -3740,6 +3738,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .navbar-vertical {{ width: 100%; }}
       .container-xl {{ padding-left: 16px; padding-right: 16px; }}
       .credential-grid, .log-layout, .log-meta, .asset-filter-bar, .detail-grid, .traffic-primary-grid, .traffic-secondary-grid {{ grid-template-columns: 1fr; }}
+      .total-chart-facts {{ grid-template-columns: 1fr; }}
+      .facts-top-grid, .facts-bottom-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .proxy-grid {{ grid-template-columns: 1fr; }}
       .channel-status {{ grid-template-columns: 1fr; }}
       .chat-candidate {{ grid-template-columns: 1fr; }}
@@ -3756,8 +3756,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       }}
       .navbar-nav.flex-row.order-md-last.ms-auto {{ margin-left: 0 !important; }}
       .page-intro {{ grid-template-columns: 1fr; }}
-      .overview-traffic-hero {{ grid-template-columns: 1fr; }}
       .total-chart-head {{ flex-direction: column; }}
+      .facts-top-grid, .facts-bottom-grid, .traffic-window-grid {{ grid-template-columns: 1fr; }}
       .metric-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .page-title {{ font-size: 22px; }}
       .metric-grid {{ grid-template-columns: 1fr; }}
@@ -4861,7 +4861,6 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
     stopped = int(summary.get("stopped", 0) or 0)
     pools = int(summary.get("pools", 0) or 0)
     series = aggregate_total_traffic_series(instances, history, generated_at, days=30)
-    chart_html = render_total_traffic_chart(series)
     total_capacity = float(series.get("total_capacity_gb") or 0)
     current_total = float(series.get("current_total_gb") or 0)
     used_percent = float(series.get("used_percent") or 0)
@@ -4870,15 +4869,6 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
     tone = "danger" if errors else ("warning" if warnings or stopped else "neutral")
     return f"""
       <section class="overview-traffic-hero {tone}">
-        <div class="total-chart-panel">
-          <div class="total-chart-head">
-            <div>
-              <div class="page-kicker">服务器资产 · 总流量</div>
-              <h2>总流量消耗曲线</h2>
-            </div>
-          </div>
-          {chart_html}
-        </div>
         <aside class="total-chart-facts">
           <div class="facts-top-grid">
             <article class="fact-primary">
