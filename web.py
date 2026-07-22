@@ -530,7 +530,6 @@ def flash_message(code: str) -> str:
         "domain_apply_write_failed": "写入 Caddy 配置失败，请确认面板以 root 权限运行",
         "domain_apply_restart_failed": "Caddy 配置已写入，但重启失败，请检查域名 DNS 和 80/443 端口",
         "domain_apply_failed": "应用 Caddy 反代失败，请检查域名 DNS 是否指向本机、公网 80/443 是否放行",
-        "security_current_failed": "当前密码不正确，未修改账号设置",
         "security_password_mismatch": "两次输入的新密码不一致",
         "security_password_short": "新密码至少需要 8 位",
         "security_username_empty": "用户名不能为空",
@@ -5400,19 +5399,19 @@ def render_security_page(query: dict[str, list[str]] | None = None) -> bytes:
         </div>
         <div class="card-body">
           <div class="setup-box">
-            这里修改的是面板登录账号，不会影响阿里云 AccessKey、服务器 SSH 密码备注或通知配置。保存成功后会自动退出登录，需要用新账号重新进入。
+            这里修改的是面板登录用户名和密码，不会影响阿里云 AccessKey、服务器 SSH 密码备注或通知配置。保存成功后会自动退出登录，需要用新账号重新进入。
           </div>
           <section class="form-section">
-            <h3 class="form-section-title">账号信息</h3>
+            <h3 class="form-section-title">修改用户名</h3>
             <div class="credential-grid">
-              {input_field("username", "登录用户名", username, placeholder="admin", required=True)}
-              {input_field("current_password", "当前密码", "", "password", placeholder="输入当前登录密码", required=True)}
+              {input_field("username", "登录用户名", username, placeholder="admin", hint="直接修改这里即可更换面板登录用户名。", required=True)}
+              {readonly_password_field("当前密码（已保存）", "当前登录密码已保存在面板配置里，这里只用点点表示，不需要再次输入旧密码。")}
             </div>
           </section>
           <section class="form-section">
             <h3 class="form-section-title">修改密码</h3>
             <div class="credential-grid">
-              {input_field("new_password", "新密码", "", "password", placeholder="至少 8 位", hint="留空则只修改用户名，不修改密码。")}
+              {input_field("new_password", "新密码", "", "password", placeholder="至少 8 位", hint="需要修改密码时填写；留空则只修改用户名，不修改密码。")}
               {input_field("confirm_password", "确认新密码", "", "password", placeholder="再次输入新密码")}
             </div>
           </section>
@@ -5458,14 +5457,10 @@ def render_security_page(query: dict[str, list[str]] | None = None) -> bytes:
 
 
 def save_security_settings(fields: dict[str, list[str]]) -> tuple[bool, str]:
-    _, password, _ = web_credentials()
-    current_password = form_value(fields, "current_password")
     new_username = form_value(fields, "username").strip()
     new_password = form_value(fields, "new_password")
     confirm_password = form_value(fields, "confirm_password")
 
-    if not hmac.compare_digest(current_password, password):
-        return False, "current_failed"
     if not new_username:
         return False, "username_empty"
     if new_password or confirm_password:
@@ -5729,6 +5724,17 @@ def access_key_field(name: str, label: str, value="", field_type: str = "text", 
         {hint_html}
       </div>
     """
+
+
+def readonly_password_field(label: str, hint: str = "") -> str:
+    hint_html = f'<div class="form-hint">{esc(hint)}</div>' if hint else ""
+    return (
+        '<div class="mb-3">'
+        f'<label class="form-label">{esc(label)}</label>'
+        '<input class="form-control" type="password" value="********" readonly>'
+        f'{hint_html}'
+        '</div>'
+    )
 
 
 def region_field(name: str, label: str, value="", placeholder: str = "", hint: str = "", required: bool = False) -> str:
