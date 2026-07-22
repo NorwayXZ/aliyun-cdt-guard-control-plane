@@ -182,6 +182,31 @@ install_packages() {
   fi
 }
 
+ensure_runtime_available() {
+  local missing=""
+  for cmd in python3 curl tar openssl; do
+    if ! need_cmd "$cmd"; then
+      missing="$missing $cmd"
+    fi
+  done
+
+  if [ -n "$missing" ]; then
+    echo "Missing required command(s):$missing"
+    echo "Fix the system package manager first, or install these commands manually, then rerun install.sh."
+    exit 1
+  fi
+
+  if ! python3 - <<'PY' >/dev/null 2>&1
+import ensurepip
+import venv
+PY
+  then
+    echo "Python venv/ensurepip is not available."
+    echo "Install python3-venv first, or fix dpkg/apt and rerun install.sh without SKIP_SYSTEM_PACKAGES=1."
+    exit 1
+  fi
+}
+
 prepare_source() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -199,7 +224,13 @@ prepare_source() {
   echo "$tmp_dir/source"
 }
 
-install_packages
+if [ "${SKIP_SYSTEM_PACKAGES:-0}" = "1" ]; then
+  echo "Skipping system package installation because SKIP_SYSTEM_PACKAGES=1."
+  ensure_runtime_available
+else
+  install_packages
+  ensure_runtime_available
+fi
 SRC_DIR="$(prepare_source)"
 
 install -d -m 700 "$INSTALL_DIR"
