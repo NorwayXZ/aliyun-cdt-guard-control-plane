@@ -2243,7 +2243,7 @@ def page_shell(
       align-self: center;
       display: grid;
       gap: 16px;
-      grid-template-columns: auto minmax(120px, 1fr);
+      grid-template-columns: auto minmax(120px, 1fr) auto;
       justify-self: stretch;
       min-width: 0;
       padding: 8px 18px;
@@ -2315,6 +2315,51 @@ def page_shell(
       height: calc(var(--bar) * 1%);
       min-height: 5px;
       opacity: .88;
+    }}
+    .row-power-actions {{
+      align-items: center;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }}
+    .row-power-actions form {{
+      margin: 0;
+    }}
+    .power-round-btn {{
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      box-shadow: 0 8px 18px rgba(23, 21, 17, .08);
+      color: var(--muted);
+      display: inline-flex;
+      height: 46px;
+      justify-content: center;
+      padding: 0;
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, color .16s ease, background .16s ease;
+      width: 46px;
+    }}
+    .power-round-btn:hover {{
+      box-shadow: 0 12px 24px rgba(23, 21, 17, .12);
+      transform: translateY(-1px);
+    }}
+    .power-round-btn:active {{
+      transform: translateY(0);
+    }}
+    .power-round-btn.start {{
+      background: #f0fbf5;
+      border-color: #bde8ca;
+      color: #15884f;
+    }}
+    .power-round-btn.stop {{
+      background: #fff1f1;
+      border-color: #ffc9c9;
+      color: #c92a2a;
+    }}
+    .power-round-btn svg {{
+      display: block;
+      height: 18px;
+      width: 18px;
     }}
     .row-status {{
       align-items: center;
@@ -5064,8 +5109,19 @@ def page_shell(
         text-align: left;
       }}
       .server-traffic-visual {{
-        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-columns: auto minmax(0, 1fr) auto;
         padding: 4px 0;
+      }}
+      .row-power-actions {{
+        justify-content: flex-start;
+      }}
+      @media (max-width: 560px) {{
+        .server-traffic-visual {{
+          grid-template-columns: auto 1fr;
+        }}
+        .row-power-actions {{
+          grid-column: 1 / -1;
+        }}
       }}
       .server-card-right .server-card-meta {{
         justify-content: start;
@@ -5315,6 +5371,10 @@ def page_shell(
             window.setTimeout(() => button.textContent = original || "复制", 1200);
           }}
         }});
+      }});
+      board.querySelectorAll("[data-row-power-actions] form").forEach((form) => {{
+        form.addEventListener("click", (event) => event.stopPropagation());
+        form.addEventListener("submit", (event) => event.stopPropagation());
       }});
       [search, filter, sort].forEach((input) => input && input.addEventListener("input", applyFilters));
       applyFilters();
@@ -5992,6 +6052,24 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
         f'<span style="--bar:{max(8, min(today_level * factor, 100)):.1f};"></span>'
         for factor in bar_factors
     )
+    row_power_controls = f"""
+      <div class="row-power-actions" data-row-power-actions>
+        <form method="post" action="/servers/power" onsubmit="return confirm('确认开机这台服务器？开机后会恢复自动保护。')">
+          <input type="hidden" name="id" value="{esc(identity['id'])}">
+          <input type="hidden" name="action" value="start">
+          <button class="power-round-btn start" type="submit" title="开机" aria-label="开机">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+          </button>
+        </form>
+        <form method="post" action="/servers/power" onsubmit="return confirm('确认关机这台服务器？关机后会暂停自动启动，避免被定时任务重新开机。')">
+          <input type="hidden" name="id" value="{esc(identity['id'])}">
+          <input type="hidden" name="action" value="stop">
+          <button class="power-round-btn stop" type="submit" title="关机" aria-label="关机">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>
+          </button>
+        </form>
+      </div>
+    """
     return f"""
       <article class="{' '.join(row_classes)}" data-server-row data-server-id="{esc(identity['id'])}" role="button" tabindex="0"
         data-search="{esc(search_text)}" data-filter-state="{esc(health_class)}" data-priority="{priority}"
@@ -6023,6 +6101,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
             <span class="traffic-visual-sub">今日活跃 · {esc(fmt_gb(today_traffic))}</span>
             <div class="traffic-mini-bars">{traffic_bars}</div>
           </div>
+          {row_power_controls}
         </div>
         <div class="server-card-right">
           <span class="server-card-status">
