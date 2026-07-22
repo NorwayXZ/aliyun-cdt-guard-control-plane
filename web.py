@@ -3094,18 +3094,24 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       min-width: 0;
     }}
     .topbar {{
-      align-items: center;
+      align-items: flex-start;
       background: var(--topbar-bg);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--line);
       display: flex;
       gap: 18px;
       justify-content: space-between;
-      min-height: 82px;
-      padding: 0 34px;
+      min-height: 126px;
+      padding: 34px 34px 18px;
       position: sticky;
       top: 0;
       z-index: 10;
+    }}
+    .topbar > div:first-child {{
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+      padding-top: 2px;
     }}
     .topbar::before {{
       background: var(--ink);
@@ -3114,27 +3120,32 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       left: 34px;
       position: absolute;
       right: 34px;
-      top: 12px;
+      top: 16px;
     }}
     .crumb {{
       color: var(--muted);
+      display: block;
       font: 700 10px var(--font-mono);
       letter-spacing: .14em;
+      line-height: 1.25;
       text-transform: uppercase;
     }}
     .topbar h1 {{
       color: var(--ink);
       font-family: var(--font-serif);
-      font-size: 34px;
+      font-size: clamp(30px, 2.35vw, 42px);
       font-weight: 760;
       letter-spacing: 0;
-      line-height: 1;
-      margin: 4px 0 0;
+      line-height: 1.12;
+      margin: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }}
     .topbar p {{
       color: var(--muted);
-      font-size: 12px;
-      margin: 3px 0 0;
+      font-size: 13px;
+      line-height: 1.45;
+      margin: 0;
     }}
     .top-actions {{
       align-items: center;
@@ -3142,6 +3153,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       flex-wrap: wrap;
       gap: 10px;
       justify-content: flex-end;
+      padding-top: 8px;
     }}
     .engine-state {{
       align-items: center;
