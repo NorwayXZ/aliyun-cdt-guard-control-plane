@@ -1596,16 +1596,6 @@ def page_shell(
 
     run_nav_html = render_nav(run_nav)
     config_nav_html = render_nav(config_nav)
-    active_label = next(
-        (label for href, key, label, icon in run_nav + config_nav if key == active),
-        title,
-    )
-    crumb_label = crumb_label or active_label
-    crumb_value = (
-        f'<span class="module-tag">{esc(crumb_label)}</span>'
-        if crumb_label.upper() == "CDT"
-        else f"<b>{esc(crumb_label)}</b>"
-    )
     flash_html = f'<div class="alert {flash_class(flash)}">{esc(flash_message(flash))}</div>' if flash else ""
     refresh_meta = '<meta http-equiv="refresh" content="60">' if auto_refresh else ""
     header_actions = f"""
@@ -3827,28 +3817,6 @@ def page_shell(
     .topbar::before {{
       content: none;
     }}
-    .crumb {{
-      color: var(--muted);
-      align-items: center;
-      display: inline-flex;
-      font-family: var(--font-topbar);
-      font-size: 13px;
-      font-weight: 600;
-      gap: 7px;
-      letter-spacing: 0;
-      line-height: 1.25;
-    }}
-    .module-tag {{
-      background: #f7f4ec;
-      border: 1px solid var(--line);
-      color: #a43a3a;
-      display: inline-flex;
-      font-family: var(--font-topbar);
-      font-size: 12px;
-      font-weight: 700;
-      line-height: 1;
-      padding: 3px 7px;
-    }}
     .topbar h1 {{
       color: var(--ink);
       font-family: var(--font-topbar);
@@ -5027,7 +4995,6 @@ def page_shell(
     <main class="workspace">
       <header class="topbar">
         <div>
-          <span class="crumb">Console / {crumb_value}</span>
           <h1>{esc(title)}</h1>
         </div>
         <div class="top-actions">
