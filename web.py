@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.6"
+APP_VERSION = "0.2.7"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -568,8 +568,9 @@ def flash_message(code: str) -> str:
         "notify_saved": "通知设置已保存",
         "notify_test_sent": "已发送测试通知，请检查接收端",
         "notify_test_failed": "测试通知发送失败，请检查配置",
-        "telegram_discovered": "已获取 Telegram 会话，请选择或复制 Chat ID",
+        "telegram_discovered": "已获取 Telegram 候选会话，请确认名称后手动追加 Chat ID",
         "telegram_discover_failed": "获取 Telegram Chat ID 失败，请确认 Bot Token 正确且你已经给机器人发过消息",
+        "telegram_chat_invalid": "Chat ID 格式不正确，已拒绝保存。请使用候选 Chat ID，或填写纯数字 Chat ID",
         "telegram_chat_saved": "Telegram Chat ID 已追加到已保存渠道",
         "telegram_chat_removed": "Telegram Chat ID 已移除",
         "domain_saved": "域名反代配置已保存，下面的配置片段已按新域名生成",
@@ -600,7 +601,7 @@ def flash_class(code: str) -> str:
         return "alert-danger"
     if code.startswith("security_") and code != "security_saved":
         return "alert-danger"
-    if code.endswith("_failed") or code in {"login_failed", "telegram_discover_failed"}:
+    if code.endswith("_failed") or code in {"login_failed", "telegram_discover_failed", "telegram_chat_invalid"}:
         return "alert-danger"
     return "alert-success"
 
@@ -6530,6 +6531,28 @@ def mask_middle(value: str, keep: int = 4) -> str:
     return f"{value[:keep]}...{value[-keep:]}"
 
 
+def valid_telegram_chat_id(chat_id: str) -> bool:
+    value = str(chat_id or "").strip()
+    if not value:
+        return False
+    if value.startswith("@"):
+        username = value[1:]
+        return len(username) >= 5 and all(char.isalnum() or char == "_" for char in username)
+    return value.lstrip("-").isdigit()
+
+
+def humanize_telegram_error(error: str) -> str:
+    text = str(error or "").strip()
+    lowered = text.lower()
+    if "not found" in lowered or "404" in lowered:
+        return "Bot Token 无效或复制错了。请回 BotFather 重新复制完整 Token，例如 123456:ABC-DEF...，粘贴后再点“保存 Token 并获取 Chat ID”。"
+    if "unauthorized" in lowered or "401" in lowered:
+        return "Bot Token 未授权或已失效。请在 BotFather 确认机器人 Token 是否正确。"
+    if "timeout" in lowered or "timed out" in lowered:
+        return "连接 Telegram 超时。请稍后重试，或检查服务器能否访问 api.telegram.org。"
+    return text or "Telegram 请求失败"
+
+
 def render_saved_notification_channels(config: dict, state: dict) -> str:
     cards = []
     telegram = config.get("telegram", {})
@@ -6595,10 +6618,14 @@ def telegram_status_messages(config: dict, state: dict) -> str:
     command_error = state.get("telegram_command_error", "")
     chat_ids = [str(item) for item in status.get("chat_ids") or []]
     chat_warning = ""
-    if any(chat_id.startswith("@") for chat_id in chat_ids):
-        chat_warning = "有 Chat ID 看起来像用户名。私聊通知通常需要纯数字 Chat ID，请给机器人发消息后点击“获取 Chat ID”。"
+    invalid_chat_ids = [chat_id for chat_id in chat_ids if not valid_telegram_chat_id(chat_id)]
+    username_chat_ids = [chat_id for chat_id in chat_ids if chat_id.startswith("@")]
+    if invalid_chat_ids:
+        chat_warning = f"已保存的 Chat ID 有明显错误：{', '.join(invalid_chat_ids)}。请移除后重新获取候选 Chat ID。"
+    elif username_chat_ids:
+        chat_warning = "有 Chat ID 是 @用户名格式。频道通知可以这样用，但主动查询命令通常需要纯数字 Chat ID。"
     return f"""
-      {f'<div class="alert alert-danger mb-3">{esc(last_error)}</div>' if last_error else ''}
+      {f'<div class="alert alert-danger mb-3">{esc(humanize_telegram_error(last_error))}</div>' if last_error else ''}
       {f'<div class="alert alert-danger mb-3">{esc(command_error)}</div>' if command_error else ''}
       {f'<div class="alert alert-warning mb-3">{esc(chat_warning)}</div>' if chat_warning else ''}
     """
@@ -6606,11 +6633,11 @@ def telegram_status_messages(config: dict, state: dict) -> str:
 
 def render_telegram_setup_steps() -> str:
     steps = [
-        ("1", "填写 Bot Token", "先从 BotFather 创建机器人，把 Bot Token 粘贴到下面输入框。"),
-        ("2", "保存 Telegram 设置", "点击保存，让面板先记住 Bot Token。"),
-        ("3", "给机器人发消息", "在 Telegram 私聊机器人，或把机器人拉进群后在群里发一条消息。"),
-        ("4", "获取并追加 Chat ID", "回到面板点击“获取 Chat ID”，选择候选 Chat ID 追加到收件人。"),
-        ("5", "启用并测试", "勾选启用 Telegram Bot 通知，保存后发送测试通知确认能收到。"),
+        ("1", "粘贴 Bot Token", "从 BotFather 复制完整 Token，粘贴到下面输入框。"),
+        ("2", "给机器人发消息", "在 Telegram 私聊机器人发送 /start；群组则先拉机器人进群，并在群里发一条消息。"),
+        ("3", "获取候选 Chat ID", "点击“保存 Token 并获取 Chat ID”，面板只列出候选，不会自动添加。"),
+        ("4", "手动追加收件人", "确认候选名称后点“追加这个 Chat ID”；不要填写 admin、用户名或面板账号。"),
+        ("5", "启用并测试", "最后勾选启用 Telegram Bot 通知，保存后发送测试通知。"),
     ]
     items = "".join(
         f"""
@@ -6665,7 +6692,7 @@ def render_telegram_command_guide(config: dict, state: dict) -> str:
 def render_chat_candidates(state: dict) -> str:
     candidates = state.get("telegram_chat_candidates") or []
     if not candidates:
-        return '<div class="text-secondary small mt-2">暂无候选 Chat ID。保存 Bot Token 后，先给机器人发一条消息，再点击“获取 Chat ID”。</div>'
+        return '<div class="setup-box mt-2">暂无候选 Chat ID。正确流程：粘贴 Bot Token -> 在 Telegram 给机器人发送 /start -> 回到这里点“保存 Token 并获取 Chat ID”。面板不会自动添加 Chat ID，需要你确认候选后手动追加。</div>'
     rows = []
     for item in candidates:
         chat_id = str(item.get("chat_id") or "")
@@ -6680,7 +6707,7 @@ def render_chat_candidates(state: dict) -> str:
                 <div class="text-secondary small">类型：{esc(chat_type)} {f'@{esc(username)}' if username else ''}</div>
                 <div class="chat-id-code">{esc(chat_id)}</div>
               </div>
-              <button class="btn btn-sm btn-primary" type="submit" name="chat_id" value="{esc(chat_id)}" form="telegram-use-chat-form">追加这个 Chat ID</button>
+              <button class="btn btn-sm btn-primary" type="submit" name="chat_id" value="{esc(chat_id)}" form="telegram-use-chat-form">确认并追加</button>
             </div>
             """
         )
@@ -6695,7 +6722,7 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
     telegram = config.get("telegram", {})
     flash = query.get("flash", [""])[0]
     body = f"""
-    <form class="notification-form save-form" method="post" action="/notifications/save" data-save-form>
+    <form class="notification-form save-form" method="post" action="/notifications/save" autocomplete="off" data-save-form>
       <div class="notification-block-stack">
         {render_saved_notification_channels(config, state)}
 
@@ -6730,13 +6757,13 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
             {render_telegram_setup_steps()}
             {checkbox_field("telegram_enabled", "启用 Telegram Bot 通知", bool(telegram.get("enabled")), "完成 Bot Token 和 Chat ID 后再开启。")}
             <div class="credential-grid">
-              {input_field("telegram_bot_token", "Bot Token", "", "password", placeholder="123456:ABC-DEF...", hint="第 1 步：从 BotFather 获取；留空则保留原 Token，重新粘贴会覆盖原 Token。")}
-              {input_field("telegram_chat_id", "新增 Chat ID", "", placeholder="例如：123456789 或 -100xxxxxxxxxx", hint="第 4 步：点击候选 Chat ID 会自动追加；手动填写后保存也会追加一个新收件人。")}
+              {telegram_secret_field("telegram_bot_token", "Bot Token", "", placeholder="123456:ABC-DEF...", hint="从 BotFather 获取；留空则保留原 Token，重新粘贴会覆盖原 Token。")}
+              {telegram_chat_id_field("telegram_new_chat_id", "手动新增 Chat ID", "", placeholder="建议留空，优先点击下面候选项", hint="只有你已经知道准确数字 Chat ID 时才手动填。不要填 admin、面板用户名或 Telegram 昵称。")}
             </div>
             {checkbox_field("telegram_disable_preview", "禁用链接预览", bool(telegram.get("disable_web_page_preview", True)))}
             <div class="telegram-action-row">
               <button class="btn btn-primary btn-submit" type="submit" data-submit-button data-loading-text="正在保存...">保存 Telegram 设置</button>
-              <button class="btn btn-outline-primary" type="submit" form="telegram-discover-form">获取 Chat ID</button>
+              <button class="btn btn-outline-primary btn-submit" type="submit" formaction="/notifications/telegram/discover" formmethod="post" data-submit-button data-loading-text="正在获取...">保存 Token 并获取 Chat ID</button>
             </div>
             {render_chat_candidates(state)}
           </div>
@@ -6745,7 +6772,6 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
         {render_telegram_command_guide(config, state)}
       </div>
     </form>
-    <form id="telegram-discover-form" method="post" action="/notifications/telegram/discover"></form>
     <form id="telegram-use-chat-form" method="post" action="/notifications/telegram/use-chat"></form>
     <form id="telegram-remove-chat-form" method="post" action="/notifications/telegram/remove-chat"></form>
     <div class="card mt-3">
@@ -7361,15 +7387,20 @@ def render_domain_page(query: dict[str, list[str]] | None = None, request_host: 
     )
 
 
-def save_notifications(fields: dict[str, list[str]]) -> None:
+def save_notifications(fields: dict[str, list[str]]) -> tuple[bool, str]:
     existing = notifications.load_config()
     telegram_token = form_value(fields, "telegram_bot_token")
-    telegram_chat_id = form_value(fields, "telegram_chat_id")
+    telegram_chat_id = form_value(fields, "telegram_new_chat_id") or form_value(fields, "telegram_chat_id")
     existing_telegram = existing.get("telegram", {})
     existing_webhook = dict(existing.get("webhook", {}))
     existing_smtp = dict(existing.get("smtp", {}))
     existing_webhook["enabled"] = False
     existing_smtp["enabled"] = False
+    normalized_chat_id = telegram_chat_id.strip()
+    chat_id_error = ""
+    if normalized_chat_id and not valid_telegram_chat_id(normalized_chat_id):
+        chat_id_error = "Chat ID 格式不正确。私聊/群组通常是纯数字，例如 123456789 或 -100xxxxxxxxxx；频道用户名必须以 @ 开头。"
+        normalized_chat_id = ""
     config = {
         "enabled": checked(fields, "enabled"),
         "rules": {
@@ -7383,7 +7414,7 @@ def save_notifications(fields: dict[str, list[str]]) -> None:
         "telegram": {
             "enabled": checked(fields, "telegram_enabled"),
             "bot_token": telegram_token or existing_telegram.get("bot_token", ""),
-            "chat_id": notifications.add_chat_id(existing_telegram.get("chat_id", ""), telegram_chat_id) if telegram_chat_id else existing_telegram.get("chat_id", ""),
+            "chat_id": notifications.add_chat_id(existing_telegram.get("chat_id", ""), normalized_chat_id) if normalized_chat_id else existing_telegram.get("chat_id", ""),
             "disable_web_page_preview": checked(fields, "telegram_disable_preview"),
         },
         "webhook": existing_webhook,
@@ -7391,33 +7422,54 @@ def save_notifications(fields: dict[str, list[str]]) -> None:
     }
     notifications.save_config(config)
     state = notifications.load_state()
-    state.pop("telegram_last_error", None)
+    if chat_id_error:
+        state["telegram_last_error"] = chat_id_error
+    else:
+        state.pop("telegram_last_error", None)
     notifications.save_state(state)
+    return (not chat_id_error), "telegram_chat_invalid" if chat_id_error else "saved"
 
 
-def discover_telegram_chats() -> bool:
+def discover_telegram_chats(fields: dict[str, list[str]] | None = None) -> bool:
+    fields = fields or {}
+    config = notifications.load_config()
+    submitted_token = form_value(fields, "telegram_bot_token")
+    if submitted_token:
+        config.setdefault("telegram", {})["bot_token"] = submitted_token
+        config.setdefault("telegram", {})["disable_web_page_preview"] = checked(fields, "telegram_disable_preview")
+        notifications.save_config(config)
     state = notifications.load_state()
-    result = notifications.discover_telegram_chats()
+    result = notifications.discover_telegram_chats(config)
     if result.get("ok"):
         candidates = result.get("candidates") or []
         state["telegram_chat_candidates"] = candidates
-        state.pop("telegram_last_error", None)
-        config = notifications.load_config()
-        if len(candidates) == 1 and not config.get("telegram", {}).get("chat_id"):
-            config.setdefault("telegram", {})["chat_id"] = candidates[0].get("chat_id", "")
-            notifications.save_config(config)
+        if candidates:
+            state.pop("telegram_last_error", None)
+        else:
+            state["telegram_last_error"] = "暂时没有候选 Chat ID。请先在 Telegram 私聊机器人发送 /start，或把机器人拉进群后在群里发一条消息，然后再点击获取。"
+            notifications.save_state(state)
+            return False
         notifications.save_state(state)
         return True
-    state["telegram_last_error"] = str(result.get("error") or "Telegram getUpdates 失败")
+    state["telegram_last_error"] = humanize_telegram_error(str(result.get("error") or "Telegram getUpdates 失败"))
     notifications.save_state(state)
     return False
 
 
 def use_telegram_chat(chat_id: str) -> None:
+    chat_id = str(chat_id or "").strip()
+    if not valid_telegram_chat_id(chat_id):
+        state = notifications.load_state()
+        state["telegram_last_error"] = "候选 Chat ID 格式异常，未追加。请重新获取候选 Chat ID。"
+        notifications.save_state(state)
+        return
     config = notifications.load_config()
     telegram = config.setdefault("telegram", {})
     telegram["chat_id"] = notifications.add_chat_id(telegram.get("chat_id", ""), chat_id)
     notifications.save_config(config)
+    state = notifications.load_state()
+    state.pop("telegram_last_error", None)
+    notifications.save_state(state)
 
 
 def remove_telegram_chat(chat_id: str) -> None:
@@ -7520,6 +7572,28 @@ def access_key_field(name: str, label: str, value="", field_type: str = "text", 
           </span>
         </div>
         <input class="form-control mt-2" type="{esc(field_type)}" name="{esc(name)}" value="{esc(value)}" placeholder="{esc(placeholder)}"{required_attr}>
+        {hint_html}
+      </div>
+    """
+
+
+def telegram_secret_field(name: str, label: str, value="", placeholder: str = "", hint: str = "") -> str:
+    hint_html = f'<div class="form-hint">{esc(hint)}</div>' if hint else ""
+    return f"""
+      <div class="mb-3">
+        <label class="form-label">{esc(label)}</label>
+        <input class="form-control" type="password" name="{esc(name)}" value="{esc(value)}" placeholder="{esc(placeholder)}" autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore>
+        {hint_html}
+      </div>
+    """
+
+
+def telegram_chat_id_field(name: str, label: str, value="", placeholder: str = "", hint: str = "") -> str:
+    hint_html = f'<div class="form-hint">{esc(hint)}</div>' if hint else ""
+    return f"""
+      <div class="mb-3">
+        <label class="form-label">{esc(label)}</label>
+        <input class="form-control" type="text" name="{esc(name)}" value="{esc(value)}" placeholder="{esc(placeholder)}" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" data-lpignore="true" data-1p-ignore>
         {hint_html}
       </div>
     """
@@ -8083,8 +8157,8 @@ class Handler(BaseHTTPRequestHandler):
             self.redirect("/?flash=balance_checked")
             return
         if parsed.path == "/notifications/save":
-            save_notifications(fields)
-            self.redirect("/notifications?flash=notify_saved")
+            ok, reason = save_notifications(fields)
+            self.redirect("/notifications?flash=notify_saved" if ok else f"/notifications?flash={reason}")
             return
         if parsed.path == "/domain/save":
             save_domain_proxy(fields)
@@ -8124,7 +8198,7 @@ class Handler(BaseHTTPRequestHandler):
             self.redirect("/notifications?flash=notify_test_sent" if result.get("ok") else "/notifications?flash=notify_test_failed")
             return
         if parsed.path == "/notifications/telegram/discover":
-            ok = discover_telegram_chats()
+            ok = discover_telegram_chats(fields)
             self.redirect("/notifications?flash=telegram_discovered" if ok else "/notifications?flash=telegram_discover_failed")
             return
         if parsed.path == "/notifications/telegram/use-chat":
