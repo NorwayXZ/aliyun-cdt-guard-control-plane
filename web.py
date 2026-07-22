@@ -1434,6 +1434,23 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       gap: 8px;
       justify-content: flex-end;
     }}
+    .required-mark {{
+      color: var(--red);
+      font-weight: 800;
+      margin-left: 3px;
+    }}
+    .optional-mark {{
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 720;
+      line-height: 1;
+      margin-left: 6px;
+      padding: 4px 7px;
+      white-space: nowrap;
+    }}
     .pool-option-list {{
       display: flex;
       flex-wrap: wrap;
@@ -5555,10 +5572,11 @@ def remove_telegram_chat(chat_id: str) -> None:
 
 def input_field(name: str, label: str, value="", field_type: str = "text", placeholder: str = "", hint: str = "", required: bool = False) -> str:
     required_attr = " required" if required else ""
+    required_mark = '<span class="required-mark">*</span>' if required else ""
     hint_html = f'<div class="form-hint">{esc(hint)}</div>' if hint else ""
     return (
         '<div class="mb-3">'
-        f'<label class="form-label">{esc(label)}</label>'
+        f'<label class="form-label">{esc(label)}{required_mark}</label>'
         f'<input class="form-control" type="{esc(field_type)}" name="{esc(name)}" value="{esc(value)}" placeholder="{esc(placeholder)}"{required_attr}>'
         f'{hint_html}'
         '</div>'
@@ -5567,11 +5585,13 @@ def input_field(name: str, label: str, value="", field_type: str = "text", place
 
 def access_key_field(name: str, label: str, value="", field_type: str = "text", placeholder: str = "", hint: str = "", required: bool = False) -> str:
     required_attr = " required" if required else ""
+    mark_attrs = ' data-secret-required-mark' if name == "access_key_secret" else ""
+    required_mark = f'<span class="required-mark"{mark_attrs}>*</span>' if required else ""
     hint_html = f'<div class="form-hint">{esc(hint)}</div>' if hint else ""
     return f"""
       <div class="mb-3">
         <div class="form-label-row">
-          <label class="form-label mb-0">{esc(label)}</label>
+          <label class="form-label mb-0">{esc(label)}{required_mark}</label>
           <span class="form-link-group">
             <a class="form-doc-link" href="{esc(ALIYUN_RAM_USERS_CN_URL)}" target="_blank" rel="noopener">国内获取</a>
             <a class="form-doc-link" href="{esc(ALIYUN_RAM_USERS_INTL_URL)}" target="_blank" rel="noopener">国际获取</a>
@@ -5585,6 +5605,7 @@ def access_key_field(name: str, label: str, value="", field_type: str = "text", 
 
 def region_field(name: str, label: str, value="", placeholder: str = "", hint: str = "", required: bool = False) -> str:
     required_attr = " required" if required else ""
+    required_mark = '<span class="required-mark">*</span>' if required else ""
     list_id = f"{name}-options"
     hint_html = f'<div class="form-hint">{esc(hint)}</div>' if hint else ""
     options = "".join(
@@ -5594,7 +5615,7 @@ def region_field(name: str, label: str, value="", placeholder: str = "", hint: s
     return f"""
       <div class="mb-3">
         <div class="form-label-row">
-          <label class="form-label mb-0">{esc(label)}</label>
+          <label class="form-label mb-0">{esc(label)}{required_mark}</label>
           <a class="form-doc-link" href="{esc(ALIYUN_REGION_DOC_URL)}" target="_blank" rel="noopener">查看官方地域 ID</a>
         </div>
         <input class="form-control mt-2" type="text" name="{esc(name)}" value="{esc(value)}" placeholder="{esc(placeholder)}" list="{esc(list_id)}"{required_attr}>
@@ -5632,6 +5653,7 @@ def collect_access_key_options(config: dict, current_id: str = "") -> list[dict[
         options.append(
             {
                 "key_id": key_id,
+                "secret": secret,
                 "label": f"{name} · {mask_middle(key_id)}",
                 "current": "1" if str(item.get("id") or "") == str(current_id or "") else "",
             }
@@ -5656,14 +5678,14 @@ def access_key_reuse_field(options: list[dict[str, str]], selected_key_id: str =
     for option in options:
         key_id = option["key_id"]
         selected = " selected" if key_id == selected_key_id else ""
-        option_html.append(f'<option value="{esc(key_id)}"{selected}>{esc(option["label"])}</option>')
+        option_html.append(f'<option value="{esc(key_id)}" data-secret="{esc(option.get("secret") or "")}"{selected}>{esc(option["label"])}</option>')
     return f"""
       <div class="mb-3">
-        <label class="form-label">复用已保存阿里云账号</label>
+        <label class="form-label">复用已保存阿里云账号<span class="optional-mark">可选</span></label>
         <select class="form-select" name="saved_access_key_id" data-saved-access-key-select>
           {''.join(option_html)}
         </select>
-        <div class="form-hint">选择后会自动使用已保存的 Secret；Secret 不会在页面明文显示。新增其他账号时保持不复用并手动填写即可。</div>
+        <div class="form-hint">选择后会自动填入已保存的 AccessKey ID 和 Secret；新增其他账号时保持不复用并手动填写即可。</div>
       </div>
     """
 
@@ -5818,7 +5840,7 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None, a
     current_scope = item.get("traffic_scope", TRAFFIC_SCOPE_REGION)
     advanced_open = " open" if is_edit else ""
     region_value = item.get("region_id", "") if is_edit else ""
-    require_secret = not is_edit and not access_key_options
+    require_secret = not is_edit
     return f"""
     <form class="card save-form" method="post" action="/servers/save" data-save-form>
       <div class="card-header"><h3 class="card-title">{title}</h3></div>
@@ -5910,15 +5932,21 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None, a
           const select = document.querySelector("[data-saved-access-key-select]");
           const keyInput = document.querySelector('input[name="access_key_id"]');
           const secretInput = document.querySelector('input[name="access_key_secret"]');
+          const secretMark = document.querySelector("[data-secret-required-mark]");
           if (!select || !keyInput || !secretInput) return;
           const isEdit = {"true" if is_edit else "false"};
           const syncSavedKey = () => {{
             if (select.value) {{
+              const selectedOption = select.selectedOptions[0];
               keyInput.value = select.value;
+              secretInput.value = selectedOption?.dataset.secret || "";
               secretInput.required = false;
-              secretInput.placeholder = "已选择保存账号，Secret 会自动复用";
+              if (secretMark) secretMark.hidden = true;
+              secretInput.placeholder = "已填入保存账号的 Secret";
             }} else {{
               if (!isEdit) secretInput.required = true;
+              if (secretMark && !isEdit) secretMark.hidden = false;
+              if (!isEdit) secretInput.value = "";
               secretInput.placeholder = "粘贴 AccessKey Secret";
             }}
           }};
