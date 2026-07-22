@@ -4703,7 +4703,7 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
     """
 
 
-def render_assets_card(instances: list[dict], metadata: dict[str, dict], history: list[dict]) -> str:
+def render_assets_card(instances: list[dict], metadata: dict[str, dict], history: list[dict], summary: dict, generated_at: str) -> str:
     sorted_instances = sorted(instances, key=lambda item: (server_health(item)[2], -used_percent(item), str(item.get("label") or "")))
     groups: dict[str, list[dict]] = {}
     details = []
@@ -4725,6 +4725,7 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
             ),
         )
     )
+    traffic_overview = render_asset_traffic_overview(summary, instances, history, generated_at)
     return f"""
     <div class="card" id="servers" data-asset-board>
       <div class="card-header">
@@ -4736,6 +4737,7 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
           </div>
         </div>
       </div>
+      {traffic_overview}
       <div class="asset-workspace">
         <div class="asset-list-panel">
           <div class="asset-filter-bar">
@@ -4768,7 +4770,7 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
     """
 
 
-def render_overview_intro(summary: dict, instances: list[dict], history: list[dict], generated_at: str) -> str:
+def render_asset_traffic_overview(summary: dict, instances: list[dict], history: list[dict], generated_at: str) -> str:
     total = int(summary.get("total", 0) or 0)
     enabled = int(summary.get("enabled", 0) or 0)
     warnings = int(summary.get("warnings", 0) or 0)
@@ -4787,7 +4789,7 @@ def render_overview_intro(summary: dict, instances: list[dict], history: list[di
         <div class="total-chart-panel">
           <div class="total-chart-head">
             <div>
-              <div class="page-kicker">主页 · 总流量</div>
+              <div class="page-kicker">服务器资产 · 总流量</div>
               <h2>总流量消耗曲线</h2>
             </div>
           </div>
@@ -4834,7 +4836,7 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     metadata = config_by_id(config)
     history = read_history(1000)
     flash = query.get("flash", [""])[0]
-    body = render_overview_intro(summary, instances, history, status.get("generated_at")) + render_summary_cards(summary) + render_assets_card(instances, metadata, history)
+    body = render_assets_card(instances, metadata, history, summary, status.get("generated_at"))
     return page_shell(
         "overview",
         "CDT 流量保护与服务器资产面板",
