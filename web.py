@@ -3817,6 +3817,10 @@ def page_shell(
       background: var(--topbar-bg);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--line);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, .72) inset,
+        0 10px 22px rgba(23, 21, 17, .075),
+        0 2px 0 rgba(23, 21, 17, .035);
       display: flex;
       gap: 18px;
       justify-content: space-between;
