@@ -6,6 +6,7 @@ import smtplib
 import ssl
 import urllib.error
 import urllib.request
+import fcntl
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
@@ -15,6 +16,8 @@ from zoneinfo import ZoneInfo
 BASE_DIR = Path(os.environ.get("CDT_GUARD_HOME", "/opt/aliyun-cdt-guard-control-plane"))
 CONFIG_FILE = BASE_DIR / "notifications.json"
 STATE_FILE = BASE_DIR / "notification_state.json"
+LOCK_FILE = BASE_DIR / "notification_state.lock"
+MAX_PROCESSED_TELEGRAM_UPDATES = 200
 
 
 def default_config() -> dict[str, Any]:
@@ -93,6 +96,23 @@ def load_state() -> dict[str, Any]:
 
 def save_state(state: dict[str, Any]) -> None:
     write_json(STATE_FILE, state)
+
+
+def processed_telegram_update_ids(state: dict[str, Any]) -> set[str]:
+    values = state.get("telegram_processed_update_ids") or []
+    if not isinstance(values, list):
+        return set()
+    return {str(value) for value in values}
+
+
+def remember_telegram_update_id(state: dict[str, Any], update_id: Any) -> None:
+    if update_id is None:
+        return
+    current = [str(value) for value in state.get("telegram_processed_update_ids") or []]
+    update_key = str(update_id)
+    if update_key not in current:
+        current.append(update_key)
+    state["telegram_processed_update_ids"] = current[-MAX_PROCESSED_TELEGRAM_UPDATES:]
 
 
 def gb(value: Any) -> str:
@@ -750,16 +770,29 @@ def handle_telegram_commands(status: dict[str, Any], config: dict[str, Any], sta
         return []
 
     handled: list[dict[str, Any]] = []
+    processed_ids = processed_telegram_update_ids(state)
+    updates = result.get("result") or []
     max_update_id = offset - 1 if offset is not None else None
-    for update in result.get("result") or []:
+    for update in updates:
         update_id = update.get("update_id")
         if isinstance(update_id, int):
             max_update_id = update_id if max_update_id is None else max(max_update_id, update_id)
+    if max_update_id is not None:
+        state["telegram_update_offset"] = max_update_id + 1
+        save_state(state)
+
+    for update in updates:
+        update_id = update.get("update_id")
+        update_key = str(update_id) if update_id is not None else ""
+        if update_key and update_key in processed_ids:
+            continue
         message = extract_message(update)
         text = str(message.get("text") or "").strip()
         chat_id = str((message.get("chat") or {}).get("id") or "")
         if not text.startswith("/"):
             continue
+        remember_telegram_update_id(state, update_id)
+        save_state(state)
         if chat_id not in allowed_chat_ids:
             if chat_id:
                 send_telegram_to_chat(token, chat_id, "这个机器人已绑定到其他 Chat ID，当前会话无权查询面板状态。")
@@ -769,8 +802,6 @@ def handle_telegram_commands(status: dict[str, Any], config: dict[str, Any], sta
         send_result = send_telegram_to_chat(token, chat_id, reply)
         handled.append({"chat_id": chat_id, "command": text, "allowed": True, "result": send_result})
 
-    if max_update_id is not None:
-        state["telegram_update_offset"] = max_update_id + 1
     if handled:
         state["telegram_last_command"] = {
             "at": datetime.now(ZoneInfo("UTC")).isoformat(),
@@ -805,6 +836,19 @@ def should_send_daily_report(config: dict[str, Any], state: dict[str, Any], now:
 
 
 def handle_guard_notifications(
+    status: dict[str, Any],
+    previous_status: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with LOCK_FILE.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            return _handle_guard_notifications_locked(status, previous_status)
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
+def _handle_guard_notifications_locked(
     status: dict[str, Any],
     previous_status: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
