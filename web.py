@@ -12,7 +12,7 @@ import shutil
 import socket
 import subprocess
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -1246,6 +1246,251 @@ def render_total_traffic_chart(series: dict) -> str:
         {current_line}
         {dots}
       </svg>
+    """
+
+
+def daily_chart_label(value: date) -> str:
+    return value.strftime("%m-%d")
+
+
+def build_daily_traffic_usage(instances: list[dict], history: list[dict], generated_at: str | None, days: int = 30) -> dict:
+    local_tz = timezone(timedelta(hours=8))
+    current_time = parse_event_time(generated_at) or datetime.now(timezone.utc)
+    current_day = current_time.astimezone(local_tz).date()
+    start_day = current_day - timedelta(days=days - 1)
+    day_values: dict[date, dict[str, float]] = {
+        start_day + timedelta(days=index): {} for index in range(days)
+    }
+    source_to_display: dict[str, str] = {}
+    source_labels: dict[str, str] = {}
+    aliases: dict[str, str] = {}
+    display_labels: dict[str, str] = {}
+
+    for item in instances:
+        if not item.get("enabled", True):
+            continue
+        display_key = traffic_display_pool_key(item)
+        source_key = traffic_total_key(item)
+        source_to_display[source_key] = display_key
+        display_labels.setdefault(display_key, account_group_title(account_group_key(item)))
+        source_labels[source_key] = display_labels[display_key]
+        for raw_key in (item.get("traffic_pool_key"), item.get("id"), item.get("instance_id")):
+            raw_key = str(raw_key or "").strip()
+            if raw_key:
+                aliases[raw_key] = source_key
+        display_raw = str(item.get("traffic_display_pool_key") or "").strip()
+        if display_raw and display_raw not in aliases:
+            aliases[display_raw] = source_key
+
+    previous_by_source: dict[str, float] = {}
+    for event in sorted(history, key=lambda row: str(row.get("at") or "")):
+        event_time = parse_event_time(event.get("at"))
+        if event_time is None:
+            continue
+        traffic = event.get("traffic_gb")
+        if traffic is None:
+            continue
+        try:
+            traffic_gb = float(traffic)
+        except (TypeError, ValueError):
+            continue
+        raw_key = str(event.get("traffic_pool_key") or event.get("id") or event.get("instance_id") or "").strip()
+        if not raw_key:
+            account_key = str(event.get("account_fingerprint") or "").strip()
+            raw_key = f"account:{account_key}" if account_key else ""
+        source_key = aliases.get(raw_key, raw_key)
+        if not source_key:
+            continue
+        display_key = source_to_display.get(source_key)
+        if display_key is None:
+            display_key = str(event.get("traffic_display_pool_key") or event.get("account_fingerprint") or source_key)
+            if display_key and not display_key.startswith("account:") and event.get("account_fingerprint"):
+                display_key = f"account:{event.get('account_fingerprint')}"
+            source_to_display[source_key] = display_key
+            display_labels.setdefault(display_key, account_group_title(display_key.removeprefix("account:")))
+
+        delta = event.get("traffic_delta_gb")
+        try:
+            delta_gb = float(delta) if delta is not None else None
+        except (TypeError, ValueError):
+            delta_gb = None
+        previous = previous_by_source.get(source_key)
+        if (delta_gb is None or delta_gb <= 0) and previous is not None:
+            delta_gb = traffic_gb - previous if traffic_gb >= previous else traffic_gb
+        previous_by_source[source_key] = traffic_gb
+        if delta_gb is None or delta_gb <= 0:
+            continue
+        day = event_time.astimezone(local_tz).date()
+        if day < start_day or day > current_day:
+            continue
+        bucket = day_values.setdefault(day, {})
+        bucket[display_key] = bucket.get(display_key, 0.0) + delta_gb
+
+    layer_totals: dict[str, float] = {}
+    for values in day_values.values():
+        for key, value in values.items():
+            layer_totals[key] = layer_totals.get(key, 0.0) + value
+    sorted_keys = sorted(layer_totals, key=lambda key: (-layer_totals[key], display_labels.get(key, key)))
+    if len(sorted_keys) > 5:
+        kept = sorted_keys[:5]
+        other_keys = set(sorted_keys[5:])
+        for values in day_values.values():
+            other_total = sum(values.pop(key, 0.0) for key in list(other_keys))
+            if other_total > 0:
+                values["other"] = values.get("other", 0.0) + other_total
+        display_labels["other"] = "其他账号池"
+        sorted_keys = kept + ["other"]
+
+    days_list = [start_day + timedelta(days=index) for index in range(days)]
+    totals_by_day = [sum(day_values.get(day, {}).values()) for day in days_list]
+    return {
+        "days": days_list,
+        "keys": sorted_keys,
+        "labels": display_labels,
+        "values": day_values,
+        "totals_by_day": totals_by_day,
+        "total_delta_gb": sum(totals_by_day),
+        "peak_gb": max(totals_by_day) if totals_by_day else 0.0,
+        "today_gb": totals_by_day[-1] if totals_by_day else 0.0,
+    }
+
+
+def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict], generated_at: str | None) -> str:
+    data = build_daily_traffic_usage(instances, history, generated_at, days=30)
+    days = data["days"]
+    keys = data["keys"]
+    values = data["values"]
+    labels = data["labels"]
+    totals = data["totals_by_day"]
+    palette = ["#4b5f9c", "#bd5b31", "#dca12b", "#7a8a45", "#a14f76", "#2f8479"]
+    width = 1180
+    height = 430
+    pad_left = 56
+    pad_right = 24
+    pad_top = 30
+    pad_bottom = 58
+    plot_w = width - pad_left - pad_right
+    plot_h = height - pad_top - pad_bottom
+    peak = max(float(data["peak_gb"] or 0), 0.01)
+    peak = peak * 1.18
+
+    def x_at(index: int) -> float:
+        if len(days) == 1:
+            return pad_left
+        return pad_left + index * plot_w / (len(days) - 1)
+
+    def y_at(value: float) -> float:
+        return pad_top + (peak - value) / peak * plot_h
+
+    layers_html = []
+    running = [0.0 for _ in days]
+    for layer_index, key in enumerate(keys):
+        color = palette[layer_index % len(palette)]
+        bottom = running[:]
+        top = []
+        for index, day in enumerate(days):
+            running[index] += float(values.get(day, {}).get(key, 0.0))
+            top.append(running[index])
+        top_points = " ".join(f"{x_at(index):.1f},{y_at(value):.1f}" for index, value in enumerate(top))
+        bottom_points = " ".join(
+            f"{x_at(index):.1f},{y_at(value):.1f}" for index, value in reversed(list(enumerate(bottom)))
+        )
+        layers_html.append(
+            f'<polygon class="daily-area-layer" points="{top_points} {bottom_points}" fill="{color}"/>'
+        )
+
+    grid_rows = []
+    for index in range(5):
+        value = peak * (4 - index) / 4
+        y = y_at(value)
+        label = "0 GB" if value <= 0.001 else f"{value:.1f} GB"
+        grid_rows.append(
+            f'<line x1="{pad_left}" y1="{y:.1f}" x2="{width - pad_right}" y2="{y:.1f}" class="daily-grid-line"/>'
+            f'<text x="{pad_left - 10}" y="{y + 4:.1f}" class="daily-axis-label" text-anchor="end">{esc(label)}</text>'
+        )
+
+    tick_indexes = sorted({0, 6, 13, 20, 29})
+    ticks = []
+    for index in tick_indexes:
+        if index >= len(days):
+            continue
+        x = x_at(index)
+        anchor = "start" if index == 0 else ("end" if index == len(days) - 1 else "middle")
+        ticks.append(
+            f'<line x1="{x:.1f}" y1="{height - pad_bottom}" x2="{x:.1f}" y2="{height - pad_bottom + 7}" class="daily-axis-tick"/>'
+            f'<text x="{x:.1f}" y="{height - 22}" class="daily-axis-label" text-anchor="{anchor}">{esc(daily_chart_label(days[index]))}</text>'
+        )
+
+    hover_rects = []
+    step = plot_w / max(len(days) - 1, 1)
+    for index, day in enumerate(days):
+        day_values = values.get(day, {})
+        rows = []
+        for layer_index, key in enumerate(keys):
+            value = float(day_values.get(key, 0.0))
+            if value <= 0:
+                continue
+            color = palette[layer_index % len(palette)]
+            rows.append(
+                f'<div><i style="background:{color}"></i><span>{esc(labels.get(key, key))}</span><b>{fmt_gb(value)}</b></div>'
+            )
+        if not rows:
+            rows.append('<div><span>当天暂无新增流量</span><b>0.00 GB</b></div>')
+        tooltip = (
+            f'<strong>{esc(day.strftime("%Y-%m-%d"))}</strong>'
+            f'<small>每日流量消耗 · 合计 {esc(fmt_gb(totals[index]))}</small>'
+            f'{"".join(rows)}'
+        )
+        x = x_at(index) - step / 2
+        if index == 0:
+            x = pad_left
+        rect_w = step if index not in {0, len(days) - 1} else step / 2
+        hover_rects.append(
+            f'<rect class="daily-hover-zone" x="{x:.1f}" y="{pad_top}" width="{rect_w:.1f}" height="{plot_h}" '
+            f'data-tooltip="{esc(tooltip)}" data-x="{x_at(index):.1f}"/>'
+        )
+
+    legend = []
+    for index, key in enumerate(keys):
+        color = palette[index % len(palette)]
+        total = sum(float(values.get(day, {}).get(key, 0.0)) for day in days)
+        legend.append(
+            f'<span class="daily-legend-item"><i style="background:{color}"></i>'
+            f'<b>{esc(labels.get(key, key))}</b><em>{esc(fmt_gb(total))}</em></span>'
+        )
+
+    if not keys or max(totals or [0]) <= 0:
+        empty = '<div class="daily-chart-empty">暂无每日新增流量记录。手动检查流量或等待定时巡检后，这里会开始显示每天消耗。</div>'
+    else:
+        empty = ""
+    return f"""
+      <section class="daily-traffic-card" data-daily-traffic-chart>
+        <div class="daily-chart-head">
+          <div>
+            <div class="daily-figure">FIG. 1</div>
+            <h3>每日流量消耗</h3>
+          </div>
+          <p>近 30 天</p>
+        </div>
+        <div class="daily-legend">{"".join(legend)}</div>
+        <div class="daily-chart-wrap">
+          {empty}
+          <svg class="daily-traffic-svg" viewBox="0 0 {width} {height}" role="img" aria-label="每日流量消耗图表">
+            {"".join(grid_rows)}
+            <line x1="{pad_left}" y1="{pad_top}" x2="{pad_left}" y2="{height - pad_bottom}" class="daily-axis-line"/>
+            <line x1="{pad_left}" y1="{height - pad_bottom}" x2="{width - pad_right}" y2="{height - pad_bottom}" class="daily-axis-line"/>
+            {"".join(layers_html)}
+            {"".join(ticks)}
+            {"".join(hover_rects)}
+          </svg>
+          <div class="daily-chart-tooltip" data-daily-tooltip></div>
+        </div>
+        <div class="daily-chart-foot">
+          <span>30 天合计 {esc(fmt_gb(data["total_delta_gb"]))}</span>
+          <span>今日新增 {esc(fmt_gb(data["today_gb"]))}</span>
+          <span>单日峰值 {esc(fmt_gb(data["peak_gb"]))}</span>
+        </div>
+      </section>
     """
 
 
@@ -3574,6 +3819,207 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       padding: 24px;
       text-align: center;
     }}
+    .daily-traffic-card {{
+      background: var(--panel-bg);
+      border: 1px solid var(--line-strong);
+      margin: 0 16px 16px;
+      overflow: hidden;
+      padding: 24px 24px 18px;
+      position: relative;
+    }}
+    .daily-chart-head {{
+      align-items: flex-start;
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }}
+    .daily-figure {{
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 760;
+      letter-spacing: .16em;
+      margin-bottom: 5px;
+    }}
+    .daily-chart-head h3 {{
+      color: var(--ink);
+      font-size: clamp(24px, 3vw, 42px);
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1;
+      margin: 0;
+    }}
+    .daily-chart-head p {{
+      color: var(--muted);
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 650;
+      line-height: 1.4;
+      margin: 7px 0 0;
+      white-space: nowrap;
+    }}
+    .daily-legend {{
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 22px;
+      margin-bottom: 16px;
+      min-height: 28px;
+    }}
+    .daily-legend-item {{
+      align-items: center;
+      color: var(--ink);
+      display: inline-flex;
+      gap: 9px;
+      min-width: 0;
+    }}
+    .daily-legend-item i {{
+      border: 1px solid rgba(23, 21, 17, .12);
+      display: inline-block;
+      flex: 0 0 auto;
+      height: 12px;
+      width: 12px;
+    }}
+    .daily-legend-item b {{
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: .08em;
+      max-width: 230px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }}
+    .daily-legend-item em {{
+      color: var(--muted);
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 650;
+      white-space: nowrap;
+    }}
+    .daily-chart-wrap {{
+      background: var(--input-bg);
+      border: 1px solid var(--line);
+      min-height: 430px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      position: relative;
+    }}
+    .daily-traffic-svg {{
+      display: block;
+      height: 430px;
+      min-width: 860px;
+      width: 100%;
+    }}
+    .daily-grid-line {{
+      stroke: rgba(23, 21, 17, .12);
+      stroke-width: 1;
+    }}
+    .daily-axis-line,
+    .daily-axis-tick {{
+      stroke: rgba(23, 21, 17, .42);
+      stroke-width: 1;
+    }}
+    .daily-axis-label {{
+      fill: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+    }}
+    .daily-area-layer {{
+      opacity: .94;
+      stroke: rgba(247, 242, 232, .92);
+      stroke-linejoin: round;
+      stroke-width: 2;
+    }}
+    .daily-hover-zone {{
+      cursor: crosshair;
+      fill: transparent;
+      pointer-events: all;
+    }}
+    .daily-hover-zone:hover {{
+      fill: rgba(23, 21, 17, .035);
+    }}
+    .daily-chart-tooltip {{
+      background: rgba(247, 242, 232, .96);
+      border: 1px solid var(--line-strong);
+      color: var(--ink);
+      display: none;
+      font-size: 12px;
+      line-height: 1.45;
+      min-width: 230px;
+      padding: 12px 14px;
+      pointer-events: none;
+      position: absolute;
+      z-index: 4;
+    }}
+    .daily-chart-tooltip strong {{
+      color: var(--ink);
+      display: block;
+      font-size: 15px;
+      font-weight: 760;
+      margin-bottom: 3px;
+    }}
+    .daily-chart-tooltip small {{
+      color: var(--muted);
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      margin-bottom: 9px;
+      text-transform: uppercase;
+    }}
+    .daily-chart-tooltip div {{
+      align-items: center;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 12px minmax(0, 1fr) auto;
+      margin-top: 6px;
+    }}
+    .daily-chart-tooltip i {{
+      display: inline-block;
+      height: 10px;
+      width: 10px;
+    }}
+    .daily-chart-tooltip span {{
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .daily-chart-tooltip b {{
+      color: var(--ink);
+      font-weight: 760;
+      white-space: nowrap;
+    }}
+    .daily-chart-empty {{
+      align-items: center;
+      background: rgba(251, 248, 239, .82);
+      color: var(--muted);
+      display: flex;
+      inset: 0;
+      justify-content: center;
+      line-height: 1.65;
+      padding: 24px;
+      position: absolute;
+      text-align: center;
+      z-index: 2;
+    }}
+    .daily-chart-foot {{
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 14px;
+      padding-top: 14px;
+    }}
+    .daily-chart-foot span {{
+      color: var(--soft);
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
     .total-chart-facts {{
       align-content: start;
       display: grid;
@@ -3747,6 +4193,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .traffic-chart-wrap,
     .control-plane-theme .traffic-table-wrap,
     .control-plane-theme .traffic-modal-card,
+    .control-plane-theme .daily-traffic-card,
+    .control-plane-theme .daily-chart-wrap,
+    .control-plane-theme .daily-chart-tooltip,
     .control-plane-theme .saved-channel-card,
     .control-plane-theme .setup-box,
     .control-plane-theme .guide-step,
@@ -3938,6 +4387,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .container-xl {{ padding-left: 16px; padding-right: 16px; }}
       .credential-grid, .log-layout, .log-meta, .asset-filter-bar, .detail-grid, .traffic-primary-grid, .traffic-secondary-grid {{ grid-template-columns: 1fr; }}
       .total-chart-facts {{ grid-template-columns: 1fr; }}
+      .daily-traffic-card {{ margin-left: 10px; margin-right: 10px; padding: 18px; }}
+      .daily-chart-head {{ flex-direction: column; }}
       .facts-top-grid, .facts-bottom-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .proxy-grid {{ grid-template-columns: 1fr; }}
       .channel-status {{ grid-template-columns: 1fr; }}
@@ -3956,6 +4407,11 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .navbar-nav.flex-row.order-md-last.ms-auto {{ margin-left: 0 !important; }}
       .page-intro {{ grid-template-columns: 1fr; }}
       .total-chart-head {{ flex-direction: column; }}
+      .daily-traffic-card {{ margin: 0 10px 12px; padding: 14px; }}
+      .daily-legend {{ gap: 8px 12px; }}
+      .daily-legend-item b {{ max-width: 160px; }}
+      .daily-traffic-svg {{ min-width: 720px; }}
+      .daily-chart-foot {{ grid-template-columns: 1fr; }}
       .facts-top-grid, .facts-bottom-grid, .traffic-window-grid {{ grid-template-columns: 1fr; }}
       .metric-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .page-title {{ font-size: 22px; }}
@@ -4461,10 +4917,44 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         if (event.key === "Escape") setModalOpen(false);
       }});
     }}
+    function initDailyTrafficChart() {{
+      document.querySelectorAll("[data-daily-traffic-chart]").forEach((card) => {{
+        const wrap = card.querySelector(".daily-chart-wrap");
+        const tooltip = card.querySelector("[data-daily-tooltip]");
+        if (!wrap || !tooltip) return;
+        const hide = () => {{
+          tooltip.style.display = "none";
+        }};
+        card.querySelectorAll(".daily-hover-zone").forEach((zone) => {{
+          const show = (event) => {{
+            const html = zone.dataset.tooltip || "";
+            if (!html) return;
+            tooltip.innerHTML = html;
+            tooltip.style.display = "block";
+            const rect = wrap.getBoundingClientRect();
+            const tooltipWidth = tooltip.offsetWidth || 240;
+            const tooltipHeight = tooltip.offsetHeight || 140;
+            const rawLeft = event.clientX - rect.left + wrap.scrollLeft + 16;
+            const rawTop = event.clientY - rect.top + 16;
+            const minLeft = wrap.scrollLeft + 10;
+            const maxLeft = wrap.scrollLeft + wrap.clientWidth - tooltipWidth - 10;
+            const left = Math.min(Math.max(rawLeft, minLeft), Math.max(minLeft, maxLeft));
+            const top = Math.min(Math.max(rawTop, 10), Math.max(10, wrap.clientHeight - tooltipHeight - 10));
+            tooltip.style.left = left + "px";
+            tooltip.style.top = top + "px";
+          }};
+          zone.addEventListener("pointerenter", show);
+          zone.addEventListener("pointermove", show);
+          zone.addEventListener("pointerleave", hide);
+        }});
+        wrap.addEventListener("scroll", hide);
+      }});
+    }}
     document.addEventListener("DOMContentLoaded", initAssetBoard);
     document.addEventListener("DOMContentLoaded", initSaveForms);
     document.addEventListener("DOMContentLoaded", initRunCheckForms);
     document.addEventListener("DOMContentLoaded", initTrafficChartModal);
+    document.addEventListener("DOMContentLoaded", initDailyTrafficChart);
   </script>
 </body>
 </html>
@@ -4990,6 +5480,7 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
         )
     )
     traffic_overview = render_asset_traffic_overview(summary, instances, history, generated_at)
+    daily_traffic_chart = render_daily_traffic_usage_chart(instances, history, generated_at)
     return f"""
     <div class="card" id="servers" data-asset-board>
       <div class="card-header">
@@ -5002,6 +5493,7 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
         </div>
       </div>
       {traffic_overview}
+      {daily_traffic_chart}
       <div class="asset-workspace">
         <div class="asset-list-panel">
           <div class="asset-filter-bar">
