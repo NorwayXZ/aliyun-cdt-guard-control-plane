@@ -3779,7 +3779,7 @@ def page_shell(
     body.control-plane-theme {{
       color-scheme: light;
       --page-bg: #f2eee3;
-      --sidebar-bg: #141412;
+      --sidebar-bg: #eee7d8;
       --topbar-bg: rgba(242, 238, 227, 0.9);
       --surface: #f7f2e8;
       --surface-soft: #eee8da;
@@ -3819,7 +3819,7 @@ def page_shell(
     body.control-plane-theme[data-theme="light"] {{
       color-scheme: light;
       --page-bg: #f2eee3;
-      --sidebar-bg: #141412;
+      --sidebar-bg: #eee7d8;
       --topbar-bg: rgba(242, 238, 227, 0.9);
       --surface: #f7f2e8;
       --surface-soft: #eee8da;
@@ -3862,8 +3862,11 @@ def page_shell(
       font-family: var(--font-sans) !important;
     }}
     .sidebar {{
-      background: var(--sidebar-bg);
-      border-right: 1px solid #2a2925;
+      background:
+        linear-gradient(180deg, rgba(247, 242, 232, .96), rgba(238, 231, 216, .98)),
+        var(--sidebar-bg);
+      border-right: 1px solid var(--line);
+      box-shadow: 10px 0 30px rgba(23, 21, 17, .045);
       display: flex;
       flex-direction: column;
       gap: 26px;
@@ -3871,7 +3874,6 @@ def page_shell(
       padding: 24px 12px;
       position: sticky;
       top: 0;
-      box-shadow: none;
     }}
     .brand {{
       align-items: center;
@@ -3887,9 +3889,9 @@ def page_shell(
     }}
     .brand .brand-mark {{
       align-items: center;
-      background: transparent;
-      border: 1px solid #d9d1bf;
-      box-shadow: none;
+      background: #171511;
+      border: 1px solid var(--line-strong);
+      box-shadow: 0 10px 22px rgba(23, 21, 17, .12);
       color: #f2eee3;
       display: inline-flex;
       flex: 0 0 auto;
@@ -3902,27 +3904,27 @@ def page_shell(
       width: 34px;
     }}
     .brand .brand-mark::after {{
-      border: 1px solid rgba(217, 209, 191, .46);
+      border: 1px solid rgba(242, 238, 227, .48);
       content: "";
       inset: 5px;
       position: absolute;
     }}
     .brand .brand-name {{
-      color: #f2eee3;
+      color: var(--ink);
       font-family: var(--font-serif);
       font-size: 18px;
       font-weight: 760;
       line-height: 1;
     }}
     .brand .brand-subtitle {{
-      color: #8c897f;
+      color: var(--muted);
       font-size: 10px;
       font-weight: 700;
       letter-spacing: .16em;
       text-transform: uppercase;
     }}
     .nav-block p {{
-      color: #777469;
+      color: #8b8373;
       font: 700 10px/1 var(--font-sans);
       letter-spacing: .12em;
       margin: 0 10px 9px;
@@ -3932,8 +3934,8 @@ def page_shell(
       align-items: center;
       background: transparent;
       border: 0;
-      border-left: 2px solid transparent;
-      color: #aaa79b;
+      border-left: 3px solid transparent;
+      color: #70695d;
       display: flex;
       gap: 11px;
       min-height: 40px;
@@ -3944,14 +3946,15 @@ def page_shell(
     }}
     .nav-block .nav-item:hover,
     .nav-block .nav-item.active {{
-      background: #1b1b18;
-      color: #f2eee3;
+      background: rgba(255, 255, 255, .46);
+      color: var(--ink);
       text-decoration: none;
     }}
     .nav-block .nav-item.active {{
-      background: #1b1b18;
-      border-left-color: #d9d1bf;
-      color: #f2eee3;
+      background: #fbf8ef;
+      border-left-color: var(--accent);
+      box-shadow: 0 8px 20px rgba(23, 21, 17, .06);
+      color: var(--ink);
       font-weight: 700;
     }}
     .nav-block .nav-icon {{
@@ -3965,15 +3968,15 @@ def page_shell(
       justify-content: center;
     }}
     .sidebar-account {{
-      border-top: 1px solid #2a2925;
+      border-top: 1px solid var(--line);
       margin-top: auto;
       padding-top: 16px;
     }}
     .user-menu {{
       align-items: center;
-      background: transparent;
-      border: 1px solid transparent;
-      color: #d9d1bf;
+      background: rgba(251, 248, 239, .58);
+      border: 1px solid var(--line);
+      color: var(--ink);
       display: flex;
       gap: 10px;
       padding: 9px;
@@ -3982,15 +3985,16 @@ def page_shell(
       width: 100%;
     }}
     .user-menu:hover {{
-      background: #1b1b18;
-      border-color: #2a2925;
-      color: #f2eee3;
+      background: #fbf8ef;
+      border-color: var(--line-strong);
+      color: var(--ink);
       text-decoration: none;
     }}
     .avatar {{
       align-items: center;
-      border: 1px solid #5d5a50;
-      color: #d9d1bf;
+      background: #fbf8ef;
+      border: 1px solid var(--line);
+      color: #c99b43;
       display: inline-flex;
       font-family: var(--font-mono);
       font-weight: 760;
@@ -4007,7 +4011,7 @@ def page_shell(
       display: block;
     }}
     .user-menu small {{
-      color: #7f7b70;
+      color: var(--muted);
       font-size: 11px;
       margin-top: 2px;
     }}
