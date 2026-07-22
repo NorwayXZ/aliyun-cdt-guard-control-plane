@@ -630,37 +630,36 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
   <title>登录 - Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@600;700;900&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
-      --font-sans: "Geist", "Noto Sans SC", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      --bg: #fff4e5;
-      --panel: rgba(255, 250, 242, .95);
-      --panel-soft: #fffdf8;
-      --ink: #3a281f;
-      --muted: #9b806e;
-      --accent: #ef5b42;
-      --line: #ead8c1;
+      --font-sans: "Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-serif: "Newsreader", "Noto Serif SC", Georgia, "Times New Roman", serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --bg: #f2eee3;
+      --panel: rgba(246, 241, 230, .96);
+      --panel-soft: #fbf8ef;
+      --ink: #171511;
+      --muted: #716b5e;
+      --accent: #4b5f9c;
+      --line: #d8d0bd;
     }}
     html, body {{ font-family: var(--font-sans); letter-spacing: 0; }}
     body {{
       min-height: 100vh;
-      background:
-        radial-gradient(circle at 76% 22%, rgba(255, 196, 95, .34), transparent 22rem),
-        var(--bg);
+      background: var(--bg);
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
     }}
     body::before {{
       content: "";
       inset: 0;
-      opacity: .55;
+      opacity: .34;
       pointer-events: none;
       position: fixed;
-      background-image: url("data:image/svg+xml,%3Csvg width='38' height='16' viewBox='0 0 38 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 8c4.75-10.5 14.25-10.5 19 0s14.25 10.5 19 0' fill='none' stroke='%23f4b58f' stroke-width='1.4' stroke-linecap='round' opacity='.52'/%3E%3C/svg%3E");
-      background-size: 38px 16px;
+      background-image: linear-gradient(rgba(23, 21, 17, .055) 1px, transparent 1px);
+      background-size: 100% 28px;
     }}
     .login-shell {{
       display: grid;
@@ -676,8 +675,8 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     .login-card {{
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: 0 24px 80px rgba(82, 45, 25, .16);
+      border-radius: 0;
+      box-shadow: 0 24px 70px rgba(23, 21, 17, .08);
       padding: 38px;
       position: relative;
     }}
@@ -693,10 +692,23 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
       justify-items: center;
     }}
     .login-logo .brand-mark {{
+      align-items: center;
+      border: 1px solid var(--ink);
+      color: var(--ink);
+      display: inline-flex;
+      font-family: var(--font-serif);
+      font-size: 56px;
       height: 104px;
-      width: 104px;
-      filter: drop-shadow(0 18px 28px rgba(239, 91, 66, .18));
+      justify-content: center;
       margin-bottom: 12px;
+      position: relative;
+      width: 104px;
+    }}
+    .login-logo .brand-mark::after {{
+      border: 1px solid color-mix(in srgb, var(--ink) 48%, transparent);
+      content: "";
+      inset: 9px;
+      position: absolute;
     }}
     .login-logo .brand-text {{
       display: grid;
@@ -722,8 +734,9 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     }}
     .login-card h1 {{
       color: var(--ink);
-      font-size: 26px;
-      font-weight: 820;
+      font-family: var(--font-serif);
+      font-size: 32px;
+      font-weight: 760;
       margin: 0 0 6px;
       text-align: center;
     }}
@@ -736,13 +749,13 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     .form-control {{
       background: var(--panel-soft);
       border-color: var(--line);
-      border-radius: 8px;
+      border-radius: 0;
       color: var(--ink);
       min-height: 44px;
     }}
     .form-control:focus {{
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(107, 241, 192, .09);
+      box-shadow: 0 0 0 3px rgba(75, 95, 156, .12);
     }}
     .form-control::placeholder {{
       color: #b99d87;
@@ -755,17 +768,17 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     .btn-primary {{
       background: var(--accent);
       border-color: var(--accent);
-      border-radius: 999px;
-      box-shadow: 0 7px 0 #c64231;
-      color: #fffaf2;
-      font-weight: 820;
+      border-radius: 0;
+      box-shadow: none;
+      color: #f7f2e8;
+      font-weight: 700;
       min-height: 44px;
       width: 100%;
     }}
     .btn-primary:hover {{
-      background: #f26c54;
+      background: #3f518a;
       border-color: var(--accent);
-      color: #fffaf2;
+      color: #f7f2e8;
     }}
     .login-alert {{
       background: #fff7df;
@@ -821,22 +834,10 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
 def render_brand_logo() -> str:
     return """
       <span class="brand-lockup" aria-label="Aliyun CDT Guard">
-        <svg class="brand-mark" viewBox="0 0 72 72" role="img" aria-hidden="true">
-          <defs>
-            <linearGradient id="brandShieldGradient" x1="10" y1="14" x2="62" y2="58" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#ff8d6b"/>
-              <stop offset="0.55" stop-color="#ef5b42"/>
-              <stop offset="1" stop-color="#b93a2c"/>
-            </linearGradient>
-          </defs>
-          <path d="M36 5 62 17v19c0 16-10.7 26.8-26 32C20.7 62.8 10 52 10 36V17L36 5Z" fill="url(#brandShieldGradient)"/>
-          <path d="M24.8 43.8h27.8c5.2 0 9.4-4 9.4-9s-4.2-9-9.4-9c-1 0-2 .1-2.9.4C47.6 18.7 40.8 13.6 33 13.6c-9 0-16.4 6.7-17.2 15.3C11 30.2 7.5 34.3 7.5 39.2c0 6 5.1 10.9 11.4 10.9h5.9c-3.4-1.4-5.8-4.7-5.8-8.6 0-5.1 4.1-9.2 9.2-9.2h8.7l-4.1 6.2h-4.6c-1.7 0-3 1.3-3 3s1.3 3.1 3 3.1h9.2l-3.4 5.5h-9.2Z" fill="#fff"/>
-          <path d="M38 32.3h16.2l-3.8 6.2h-4.6v11.6h-6.6V38.5h-5L38 32.3Z" fill="#fff"/>
-          <path d="M29 32.3h10.2l-3.9 6.2H29c-1.7 0-3 1.3-3 3s1.3 3.1 3 3.1h4.7l-3.4 5.5H29c-5.1 0-9.2-3.8-9.2-8.6s4.1-9.2 9.2-9.2Z" fill="#fff"/>
-        </svg>
+        <span class="brand-mark" role="img" aria-hidden="true">⌁</span>
         <span class="brand-text">
           <span class="brand-name">Aliyun <span>CDT</span> Guard</span>
-          <span class="brand-subtitle">Traffic Protection</span>
+          <span class="brand-subtitle">Control Plane</span>
         </span>
       </span>
     """
@@ -1246,12 +1247,12 @@ def render_total_traffic_chart(series: dict) -> str:
 
 def page_shell(active: str, title: str, subtitle: str, body: str, actions: str = "", flash: str = "", auto_refresh: bool = True) -> bytes:
     run_nav = [
-        ("/", "overview", "主页", "⌂"),
-        ("/servers/new", "servers", "新增服务器", "+"),
+        ("/", "overview", "主页", "▦"),
+        ("/servers/new", "servers", "新增服务器", "＋"),
         ("/logs", "logs", "服务器日志", "≡"),
     ]
     config_nav = [
-        ("/notifications", "notifications", "通知设置", "●"),
+        ("/notifications", "notifications", "通知设置", "◉"),
         ("/domain", "domain", "域名反代", "⇄"),
         ("/security", "security", "账号安全", "◇"),
     ]
@@ -1282,12 +1283,13 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
   <title>Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@600;700;900&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
-      --font-sans: "Geist", "Noto Sans SC", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-sans: "Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-serif: "Newsreader", "Noto Serif SC", Georgia, "Times New Roman", serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --page-bg: #f6f7f9;
       --surface: #ffffff;
       --surface-soft: #fafbfc;
@@ -2825,109 +2827,102 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .asset-toolbar {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }}
     body.control-plane-theme {{
       color-scheme: light;
-      --page-bg: #fff4e5;
-      --sidebar-bg: rgba(49, 34, 25, 0.96);
-      --topbar-bg: rgba(255, 248, 237, 0.86);
-      --surface: #fffaf2;
-      --surface-soft: #fff3e2;
-      --surface-strong: #ffe4c9;
-      --line: #ead8c1;
-      --line-strong: #d9bea0;
-      --ink: #3a281f;
-      --soft: #6f5849;
-      --muted: #9b806e;
-      --accent: #ef5b42;
-      --accent-soft: #ffe1d5;
-      --blue: #2f7f99;
-      --success-soft: #e9f7e8;
-      --warning-soft: #fff0bf;
-      --danger-soft: #ffe0dc;
-      --yellow: #d9951d;
-      --red: #df4f3b;
-      --button-bg: #fffaf2;
-      --input-bg: #fffdf8;
-      --hover-bg: #ffe9d7;
-      --panel-bg: rgba(255, 250, 242, 0.94);
-      --shadow: 0 18px 48px rgba(82, 45, 25, 0.12);
-      background:
-        radial-gradient(circle at 78% 10%, rgba(255, 196, 95, 0.34), transparent 22rem),
-        radial-gradient(circle at 95% 32%, rgba(239, 91, 66, 0.12), transparent 22rem),
-        var(--page-bg);
+      --page-bg: #f2eee3;
+      --sidebar-bg: #141412;
+      --topbar-bg: rgba(242, 238, 227, 0.9);
+      --surface: #f7f2e8;
+      --surface-soft: #eee8da;
+      --surface-strong: #e5dcc9;
+      --line: #d8d0bd;
+      --line-strong: #171511;
+      --ink: #171511;
+      --soft: #4f4a40;
+      --muted: #756f62;
+      --accent: #4b5f9c;
+      --accent-soft: #e4e7f2;
+      --blue: #4b5f9c;
+      --success-soft: #dfe8dc;
+      --warning-soft: #efe2bd;
+      --danger-soft: #ead8d4;
+      --yellow: #c99b43;
+      --red: #b55c3c;
+      --green: #3f8477;
+      --button-bg: #f7f2e8;
+      --input-bg: #fbf8ef;
+      --hover-bg: #e9e2d3;
+      --panel-bg: rgba(247, 242, 232, 0.96);
+      --shadow: none;
+      background: var(--page-bg);
       color: var(--ink);
     }}
     body.control-plane-theme::before {{
       content: "";
       inset: 0;
-      opacity: .55;
+      opacity: .28;
       pointer-events: none;
       position: fixed;
       z-index: 0;
-      background-image:
-        url("data:image/svg+xml,%3Csvg width='38' height='16' viewBox='0 0 38 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 8c4.75-10.5 14.25-10.5 19 0s14.25 10.5 19 0' fill='none' stroke='%23f4b58f' stroke-width='1.4' stroke-linecap='round' opacity='.52'/%3E%3C/svg%3E");
-      background-size: 38px 16px;
+      background-image: linear-gradient(rgba(23, 21, 17, .055) 1px, transparent 1px);
+      background-size: 100% 28px;
     }}
     body.control-plane-theme[data-theme="light"] {{
       color-scheme: light;
-      --page-bg: #fff4e5;
-      --sidebar-bg: rgba(49, 34, 25, 0.96);
-      --topbar-bg: rgba(255, 248, 237, 0.86);
-      --surface: #fffaf2;
-      --surface-soft: #fff3e2;
-      --surface-strong: #ffe4c9;
-      --line: #ead8c1;
-      --line-strong: #d9bea0;
-      --ink: #3a281f;
-      --soft: #6f5849;
-      --muted: #9b806e;
-      --accent: #ef5b42;
-      --accent-soft: #ffe1d5;
-      --blue: #2f7f99;
-      --success-soft: #e9f7e8;
-      --warning-soft: #fff0bf;
-      --danger-soft: #ffe0dc;
-      --yellow: #d9951d;
-      --red: #df4f3b;
-      --button-bg: #fffaf2;
-      --input-bg: #fffdf8;
-      --hover-bg: #ffe9d7;
-      --panel-bg: rgba(255, 250, 242, 0.94);
-      --shadow: 0 18px 48px rgba(82, 45, 25, 0.12);
-      background:
-        radial-gradient(circle at 78% 10%, rgba(255, 196, 95, 0.34), transparent 22rem),
-        radial-gradient(circle at 95% 32%, rgba(239, 91, 66, 0.12), transparent 22rem),
-        var(--page-bg);
+      --page-bg: #f2eee3;
+      --sidebar-bg: #141412;
+      --topbar-bg: rgba(242, 238, 227, 0.9);
+      --surface: #f7f2e8;
+      --surface-soft: #eee8da;
+      --surface-strong: #e5dcc9;
+      --line: #d8d0bd;
+      --line-strong: #171511;
+      --ink: #171511;
+      --soft: #4f4a40;
+      --muted: #756f62;
+      --accent: #4b5f9c;
+      --accent-soft: #e4e7f2;
+      --blue: #4b5f9c;
+      --success-soft: #dfe8dc;
+      --warning-soft: #efe2bd;
+      --danger-soft: #ead8d4;
+      --yellow: #c99b43;
+      --red: #b55c3c;
+      --green: #3f8477;
+      --button-bg: #f7f2e8;
+      --input-bg: #fbf8ef;
+      --hover-bg: #e9e2d3;
+      --panel-bg: rgba(247, 242, 232, 0.96);
+      --shadow: none;
+      background: var(--page-bg);
       color: var(--ink);
     }}
     body.control-plane-theme[data-theme="dark"] {{
       color-scheme: dark;
-      --page-bg: #241812;
-      --sidebar-bg: rgba(34, 22, 16, 0.98);
-      --topbar-bg: rgba(36, 24, 18, 0.84);
-      --surface: #302017;
-      --surface-soft: #3a281d;
-      --surface-strong: #493224;
-      --line: #624535;
-      --line-strong: #7b5943;
-      --ink: #fff4e5;
-      --soft: #e3c7af;
-      --muted: #bb9a80;
-      --accent: #ff755a;
-      --accent-soft: #5a2b22;
-      --blue: #83d4ee;
-      --success-soft: #203823;
-      --warning-soft: #4b3517;
-      --danger-soft: #54251f;
-      --yellow: #ffca66;
-      --red: #ff755a;
-      --button-bg: #3a281d;
-      --input-bg: #281b14;
-      --hover-bg: #493224;
-      --panel-bg: rgba(48, 32, 23, 0.94);
-      --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
-      background:
-        radial-gradient(circle at 78% 10%, rgba(255, 196, 95, 0.12), transparent 22rem),
-        radial-gradient(circle at 95% 32%, rgba(239, 91, 66, 0.14), transparent 22rem),
-        var(--page-bg);
+      --page-bg: #10110f;
+      --sidebar-bg: #080908;
+      --topbar-bg: rgba(16, 17, 15, 0.88);
+      --surface: #171815;
+      --surface-soft: #1f211d;
+      --surface-strong: #292b26;
+      --line: #33342e;
+      --line-strong: #e2ddcf;
+      --ink: #f2eee3;
+      --soft: #c9c2b2;
+      --muted: #918b7e;
+      --accent: #9aa8dc;
+      --accent-soft: #22283f;
+      --blue: #9aa8dc;
+      --success-soft: #1d2a24;
+      --warning-soft: #332a18;
+      --danger-soft: #33211d;
+      --yellow: #d3a954;
+      --red: #cf7558;
+      --green: #77b7a8;
+      --button-bg: #171815;
+      --input-bg: #10110f;
+      --hover-bg: #23251f;
+      --panel-bg: rgba(23, 24, 21, 0.96);
+      --shadow: none;
+      background: var(--page-bg);
       color: var(--ink);
     }}
     .app-shell {{
@@ -2937,17 +2932,21 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       position: relative;
       z-index: 1;
     }}
+    .app-shell,
+    .app-shell * {{
+      box-sizing: border-box;
+    }}
     .sidebar {{
       background: var(--sidebar-bg);
-      border-right: 1px solid var(--line);
+      border-right: 1px solid #2a2925;
       display: flex;
       flex-direction: column;
-      gap: 22px;
+      gap: 26px;
       height: 100vh;
-      padding: 22px 14px;
+      padding: 24px 12px;
       position: sticky;
       top: 0;
-      box-shadow: 18px 0 54px rgba(49, 34, 25, 0.14);
+      box-shadow: none;
     }}
     .brand {{
       align-items: center;
@@ -2962,73 +2961,86 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       min-width: 0;
     }}
     .brand .brand-mark {{
-      background: var(--accent);
-      border: 0;
-      border-radius: 50%;
-      box-shadow: 0 12px 24px rgba(239, 91, 66, .28);
+      align-items: center;
+      background: transparent;
+      border: 1px solid #d9d1bf;
+      box-shadow: none;
+      color: #f2eee3;
+      display: inline-flex;
       flex: 0 0 auto;
-      height: 42px;
-      padding: 5px;
-      width: 42px;
+      font-family: var(--font-serif);
+      font-size: 25px;
+      height: 34px;
+      justify-content: center;
+      padding: 0;
+      position: relative;
+      width: 34px;
+    }}
+    .brand .brand-mark::after {{
+      border: 1px solid rgba(217, 209, 191, .46);
+      content: "";
+      inset: 5px;
+      position: absolute;
     }}
     .brand .brand-name {{
-      color: #fff8ed;
-      font-size: 15px;
-      font-weight: 840;
-      line-height: 1.1;
+      color: #f2eee3;
+      font-family: var(--font-serif);
+      font-size: 18px;
+      font-weight: 760;
+      line-height: 1;
     }}
     .brand .brand-subtitle {{
-      color: #d7b8a0;
-      font-size: 11px;
-      font-weight: 760;
-      letter-spacing: .12em;
+      color: #8c897f;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .16em;
       text-transform: uppercase;
     }}
     .nav-block p {{
-      color: #d7b8a0;
-      font: 11px/1 var(--font-mono);
-      letter-spacing: .08em;
-      margin: 0 12px 9px;
+      color: #777469;
+      font: 700 10px/1 var(--font-sans);
+      letter-spacing: .12em;
+      margin: 0 10px 9px;
       text-transform: uppercase;
     }}
     .nav-block .nav-item {{
       align-items: center;
       background: transparent;
-      border: 1px solid transparent;
-      border-radius: 999px;
-      color: #f1d7c0;
+      border: 0;
+      border-left: 2px solid transparent;
+      color: #aaa79b;
       display: flex;
       gap: 11px;
-      min-height: 42px;
-      padding: 0 14px;
+      min-height: 40px;
+      padding: 0 10px;
       text-align: left;
       text-decoration: none;
       width: 100%;
     }}
     .nav-block .nav-item:hover,
     .nav-block .nav-item.active {{
-      background: rgba(255, 248, 237, .10);
-      color: #fff8ed;
+      background: #1b1b18;
+      color: #f2eee3;
       text-decoration: none;
     }}
     .nav-block .nav-item.active {{
-      background: #fff8ed;
-      border-color: #fff8ed;
-      color: #3a281f;
-      font-weight: 820;
+      background: #1b1b18;
+      border-left-color: #d9d1bf;
+      color: #f2eee3;
+      font-weight: 700;
     }}
     .nav-block .nav-icon {{
-      background: rgba(255, 248, 237, .10);
-      border: 1px solid rgba(255, 248, 237, .12);
-      border-radius: 50%;
+      background: transparent;
+      border: 0;
       flex: 0 0 24px;
       font-family: var(--font-mono);
+      font-size: 14px;
       height: 24px;
       width: 24px;
       justify-content: center;
     }}
     .sidebar-account {{
-      border-top: 1px solid var(--line);
+      border-top: 1px solid #2a2925;
       margin-top: auto;
       padding-top: 16px;
     }}
@@ -3036,7 +3048,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       align-items: center;
       background: transparent;
       border: 1px solid transparent;
-      color: var(--ink);
+      color: #d9d1bf;
       display: flex;
       gap: 10px;
       padding: 9px;
@@ -3045,16 +3057,17 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       width: 100%;
     }}
     .user-menu:hover {{
-      background: var(--hover-bg);
-      border-color: var(--line);
-      color: var(--ink);
+      background: #1b1b18;
+      border-color: #2a2925;
+      color: #f2eee3;
       text-decoration: none;
     }}
     .avatar {{
       align-items: center;
-      border: 1px solid var(--line-strong);
-      color: var(--accent);
+      border: 1px solid #5d5a50;
+      color: #d9d1bf;
       display: inline-flex;
+      font-family: var(--font-mono);
       font-weight: 760;
       height: 30px;
       justify-content: center;
@@ -3069,7 +3082,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       display: block;
     }}
     .user-menu small {{
-      color: var(--muted);
+      color: #7f7b70;
       font-size: 11px;
       margin-top: 2px;
     }}
@@ -3088,24 +3101,34 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       display: flex;
       gap: 18px;
       justify-content: space-between;
-      min-height: 74px;
+      min-height: 82px;
       padding: 0 34px;
       position: sticky;
       top: 0;
       z-index: 10;
     }}
+    .topbar::before {{
+      background: var(--ink);
+      content: "";
+      height: 3px;
+      left: 34px;
+      position: absolute;
+      right: 34px;
+      top: 12px;
+    }}
     .crumb {{
-      color: var(--accent);
-      font: 800 11px var(--font-mono);
-      letter-spacing: .08em;
+      color: var(--muted);
+      font: 700 10px var(--font-mono);
+      letter-spacing: .14em;
       text-transform: uppercase;
     }}
     .topbar h1 {{
       color: var(--ink);
-      font-size: 24px;
-      font-weight: 900;
+      font-family: var(--font-serif);
+      font-size: 34px;
+      font-weight: 760;
       letter-spacing: 0;
-      line-height: 1.2;
+      line-height: 1;
       margin: 4px 0 0;
     }}
     .topbar p {{
@@ -3179,6 +3202,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-color: var(--line);
       box-shadow: var(--shadow);
       color: var(--ink);
+      border-radius: 0;
     }}
     .control-plane-theme .card-header,
     .control-plane-theme .card-footer,
@@ -3188,6 +3212,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: var(--surface-soft);
       border-color: var(--line);
       color: var(--ink);
+      border-radius: 0;
     }}
     .control-plane-theme .server-group-head {{
       background: var(--surface-soft);
@@ -3205,6 +3230,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: color-mix(in srgb, var(--surface) 86%, #ffffff);
       border-color: var(--line);
       color: var(--ink);
+      border-radius: 0;
     }}
     .control-plane-theme .server-group-body {{
       background: var(--surface);
@@ -3215,8 +3241,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: var(--surface-soft);
     }}
     .control-plane-theme .server-row.active {{
-      background: #fff8ec;
-      box-shadow: inset 5px 0 0 var(--accent);
+      background: #ece6d7;
+      box-shadow: inset 4px 0 0 var(--accent);
     }}
     .control-plane-theme .server-cell + .server-cell {{
       border-left-color: color-mix(in srgb, var(--line-strong) 52%, transparent);
@@ -3241,6 +3267,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: var(--surface-soft);
       border-color: var(--line-strong);
       color: var(--ink);
+      border-radius: 0;
     }}
     .control-plane-theme .form-control:focus,
     .control-plane-theme .form-select:focus {{
@@ -3253,16 +3280,18 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .ghost-btn {{
       align-items: center;
       background: var(--button-bg);
-      border: 1px solid var(--line);
-      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      border-radius: 0;
       color: var(--ink);
       display: inline-flex;
-      font-weight: 820;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 650;
       justify-content: center;
       min-height: 38px;
       padding: 8px 16px;
       text-decoration: none;
-      box-shadow: 0 4px 0 color-mix(in srgb, var(--line) 80%, transparent);
+      box-shadow: none;
     }}
     .control-plane-theme .btn:hover,
     .control-plane-theme .logout-link:hover,
@@ -3271,13 +3300,13 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-color: var(--accent);
       color: var(--accent);
       text-decoration: none;
-      transform: translateY(-1px);
+      transform: none;
     }}
     .control-plane-theme .btn-primary {{
       background: var(--accent);
       border-color: var(--accent);
-      color: #fffaf2 !important;
-      box-shadow: 0 7px 0 #c64231;
+      color: #f7f2e8 !important;
+      box-shadow: none;
     }}
     .control-plane-theme[data-theme="light"] .btn-primary {{
       color: #ffffff;
@@ -3720,6 +3749,121 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .recovery-neutral {{
       background: var(--surface-soft);
     }}
+    .control-plane-theme .card,
+    .control-plane-theme .metric-card,
+    .control-plane-theme .page-intro,
+    .control-plane-theme .overview-traffic-hero,
+    .control-plane-theme .asset-workspace,
+    .control-plane-theme .server-group,
+    .control-plane-theme .server-group-body,
+    .control-plane-theme .server-row,
+    .control-plane-theme .server-detail.active,
+    .control-plane-theme .detail-section,
+    .control-plane-theme .detail-item,
+    .control-plane-theme .traffic-chart-wrap,
+    .control-plane-theme .traffic-table-wrap,
+    .control-plane-theme .traffic-modal-card,
+    .control-plane-theme .saved-channel-card,
+    .control-plane-theme .setup-box,
+    .control-plane-theme .guide-step,
+    .control-plane-theme .telegram-step-card,
+    .control-plane-theme .telegram-command,
+    .control-plane-theme .proxy-step-card,
+    .control-plane-theme .proxy-status-card,
+    .control-plane-theme .proxy-status-item,
+    .control-plane-theme .chat-candidate,
+    .control-plane-theme .total-chart-facts article,
+    .control-plane-theme .traffic-window-item {{
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }}
+    .control-plane-theme .card,
+    .control-plane-theme .metric-card,
+    .control-plane-theme .overview-traffic-hero,
+    .control-plane-theme .asset-workspace {{
+      border-color: var(--line-strong);
+    }}
+    .control-plane-theme .card-header,
+    .control-plane-theme .card-footer,
+    .control-plane-theme .server-list-head,
+    .control-plane-theme .traffic-modal-head {{
+      border-color: var(--line-strong);
+    }}
+    .control-plane-theme .card-title,
+    .control-plane-theme .page-intro h2,
+    .control-plane-theme .server-group-title,
+    .control-plane-theme .asset-name {{
+      font-family: var(--font-serif);
+      font-weight: 760;
+      letter-spacing: 0;
+    }}
+    .control-plane-theme .page-intro h2 {{
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: .95;
+    }}
+    .control-plane-theme .metric-card strong,
+    .control-plane-theme .info-value,
+    .control-plane-theme .traffic-value,
+    .control-plane-theme .traffic-amount,
+    .control-plane-theme .reset-duration,
+    .control-plane-theme .recovery-days,
+    .control-plane-theme .chart-stat-value {{
+      font-family: var(--font-mono);
+      font-weight: 500;
+      letter-spacing: -.02em;
+    }}
+    .control-plane-theme .page-kicker,
+    .control-plane-theme .metric-card span,
+    .control-plane-theme .total-chart-facts span,
+    .control-plane-theme .server-list-head,
+    .control-plane-theme .table thead th,
+    .control-plane-theme .form-label,
+    .control-plane-theme .form-section-title {{
+      color: var(--muted) !important;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }}
+    .control-plane-theme .table thead th {{
+      background: var(--surface-soft);
+    }}
+    .control-plane-theme .table td {{
+      font-size: 13px;
+      line-height: 1.55;
+    }}
+    .control-plane-theme .btn-sm {{
+      min-height: 32px;
+      padding: 5px 10px;
+    }}
+    .control-plane-theme .progress,
+    .control-plane-theme .stat-line,
+    .control-plane-theme .track {{
+      border-radius: 0 !important;
+    }}
+    .control-plane-theme .progress-bar.bg-green,
+    .control-plane-theme .stat-card .stat-line span {{
+      background: var(--green) !important;
+    }}
+    .control-plane-theme .range-tab.active,
+    .control-plane-theme .log-filter-tab.active {{
+      color: #f7f2e8 !important;
+    }}
+    .control-plane-theme .badge,
+    .control-plane-theme .server-state,
+    .control-plane-theme .server-state-detail,
+    .control-plane-theme .server-group-pill,
+    .control-plane-theme .pool-chip,
+    .control-plane-theme .product-code,
+    .control-plane-theme .chat-id-code,
+    .control-plane-theme .kbd-soft,
+    .control-plane-theme .proxy-status-chip,
+    .control-plane-theme .saved-channel-badge {{
+      border-radius: 0 !important;
+      font-family: var(--font-mono);
+      letter-spacing: .04em;
+    }}
     @media (max-width: 1180px) {{
       .asset-workspace {{
         --asset-panel-height: auto;
@@ -3735,6 +3879,79 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .server-list {{ max-height: none; }}
     }}
     @media (max-width: 992px) {{
+      html,
+      body.control-plane-theme {{
+        max-width: 100%;
+        overflow-x: hidden;
+      }}
+      .app-shell {{ grid-template-columns: 1fr; }}
+      .sidebar {{
+        height: auto;
+        max-width: 100vw;
+        position: static;
+        width: 100%;
+      }}
+      .brand {{ padding-bottom: 4px; }}
+      .nav-block {{
+        overflow-x: auto;
+        padding-bottom: 2px;
+        width: 100%;
+      }}
+      .nav-block p {{ margin-left: 10px; }}
+      .nav-block .nav-item {{
+        min-width: max-content;
+        white-space: nowrap;
+      }}
+      .nav-block nav,
+      .nav-block {{
+        display: flex;
+        gap: 6px;
+      }}
+      .nav-block p {{
+        align-self: center;
+        flex: 0 0 auto;
+        margin-bottom: 0;
+      }}
+      .sidebar-account {{ display: none; }}
+      .topbar {{
+        align-items: flex-start;
+        flex-direction: column;
+        min-height: 0;
+        padding: 26px 18px 16px;
+      }}
+      .topbar > div:first-child {{
+        min-width: 0;
+        width: 100%;
+      }}
+      .topbar::before {{
+        left: 18px;
+        right: 18px;
+        top: 10px;
+      }}
+      .topbar h1 {{
+        font-size: clamp(28px, 9vw, 40px);
+        line-height: 1;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }}
+      .top-actions {{
+        justify-content: flex-start;
+        width: 100%;
+      }}
+      .top-actions form,
+      .top-actions .btn,
+      .top-actions .ghost-btn,
+      .top-actions .theme-switch {{
+        flex: 1 1 150px;
+      }}
+      .top-actions .btn,
+      .top-actions .ghost-btn,
+      .top-actions .theme-switch {{
+        width: 100%;
+      }}
+      .control-plane-theme .page {{
+        padding: 22px 16px 44px;
+      }}
       .navbar-vertical {{ width: 100%; }}
       .container-xl {{ padding-left: 16px; padding-right: 16px; }}
       .credential-grid, .log-layout, .log-meta, .asset-filter-bar, .detail-grid, .traffic-primary-grid, .traffic-secondary-grid {{ grid-template-columns: 1fr; }}
