@@ -2286,8 +2286,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       z-index: 1;
     }}
     .status-record-pill.running {{
-      background: #edf7ec;
-      border-color: #c9dcc7;
+      background: transparent;
+      border-color: var(--line);
       color: #12834b;
     }}
     .status-record-pill.running .status-record {{
