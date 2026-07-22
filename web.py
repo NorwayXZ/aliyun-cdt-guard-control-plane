@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.5"
+APP_VERSION = "0.2.6"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -577,6 +577,7 @@ def flash_message(code: str) -> str:
         "domain_apply_domain_invalid": "域名格式不正确，请先填写类似 cdt.example.com 的完整域名",
         "domain_apply_port_invalid": "源站端口不正确，请填写面板实际监听端口，例如 8787",
         "domain_apply_disk_low": "服务器磁盘可用空间不足，已尝试清理 apt 缓存；请扩容或继续清理磁盘后重试",
+        "domain_apply_dpkg_broken": "服务器 dpkg/内核包状态异常，Caddy 无法通过 apt 安装；请先修复系统包管理器，或手动安装 Caddy 后再应用反代",
         "domain_apply_install_failed": "安装 Caddy 失败，请检查服务器 apt 源和网络是否正常",
         "domain_apply_write_failed": "写入 Caddy 配置失败，请确认面板以 root 权限运行",
         "domain_apply_restart_failed": "Caddy 配置已写入，但重启失败，请检查域名 DNS 和 80/443 端口",
@@ -3470,12 +3471,32 @@ def page_shell(
       border: 1px solid #fed7aa;
       border-radius: 8px;
       color: #9a3412;
+      display: grid;
       font-size: 12px;
+      gap: 6px;
       line-height: 1.55;
       margin-top: 12px;
       padding: 12px 14px;
-      white-space: pre-wrap;
       word-break: break-word;
+    }}
+    .proxy-apply-log p {{
+      margin: 0;
+    }}
+    .proxy-apply-detail {{
+      margin-top: 4px;
+    }}
+    .proxy-apply-detail summary {{
+      cursor: pointer;
+      font-weight: 760;
+    }}
+    .proxy-apply-detail pre {{
+      color: inherit;
+      font-size: 11px;
+      line-height: 1.55;
+      margin: 8px 0 0;
+      max-height: 260px;
+      overflow: auto;
+      white-space: pre-wrap;
     }}
     .proxy-apply-log.is-ok {{
       background: var(--success-soft);
@@ -6949,6 +6970,21 @@ def shell_result_detail(result: subprocess.CompletedProcess) -> str:
     return compact_output(output)
 
 
+def looks_like_broken_dpkg(detail: str) -> bool:
+    text = str(detail or "").lower()
+    signals = [
+        "dpkg was interrupted",
+        "dpkg returned an error code",
+        "error processing package linux-image",
+        "package is in a very bad inconsistent state",
+        "half-configured",
+        "grub-probe",
+        "flash-kernel",
+        "/etc/kernel/postinst.d",
+    ]
+    return any(signal in text for signal in signals)
+
+
 def update_web_env(updates: dict[str, str]) -> None:
     existing = []
     seen = set()
@@ -7010,6 +7046,9 @@ fi
         if "No space left on device" in detail or disk_free_mb("/") < 120:
             write_domain_proxy_state(False, "disk_low", detail)
             return False, "disk_low"
+        if looks_like_broken_dpkg(detail):
+            write_domain_proxy_state(False, "dpkg_broken", detail)
+            return False, "dpkg_broken"
         write_domain_proxy_state(False, "install_failed", detail)
         return False, "install_failed"
 
@@ -7206,10 +7245,30 @@ def render_domain_page(query: dict[str, list[str]] | None = None, request_host: 
         reason = str(apply_state.get("reason") or "unknown")
         detail = str(apply_state.get("detail") or "")
         updated_at = str(apply_state.get("updated_at") or "")
+        reason_text = flash_message("domain_applied" if state_ok else f"domain_apply_{reason}")
+        advice = ""
+        if reason == "dpkg_broken":
+            advice = "这台服务器的 apt/dpkg 被内核包配置错误卡住了；先修复系统包管理器，或者手动安装 Caddy 后再回到这里应用配置。"
+        elif reason == "install_failed":
+            advice = "通常是 apt 源、网络或 Cloudsmith Caddy 源访问失败；可以稍后重试，或手动安装 Caddy。"
+        elif reason == "restart_failed":
+            advice = "配置已经写入，但 Caddy 重启失败；请确认域名 DNS 已生效，服务器 80/443 端口已放行。"
+        elif reason == "disk_low":
+            advice = "先清理磁盘或扩容后再安装 Caddy。"
+        detail_html = ""
+        if detail:
+            detail_html = f"""
+            <details class="proxy-apply-detail">
+              <summary>查看系统日志</summary>
+              <pre>{esc(detail)}</pre>
+            </details>
+            """
         apply_log_html = f"""
         <div class="proxy-apply-log {'is-ok' if state_ok else ''}">
-          最近一次应用：{esc('成功' if state_ok else '失败')} · {esc(reason)} · {esc(updated_at)}
-          {f'<br>{esc(detail)}' if detail else ''}
+          <strong>最近一次应用：{esc('成功' if state_ok else '失败')}</strong>
+          <span>{esc(reason_text)} · {esc(updated_at)}</span>
+          {f'<p>{esc(advice)}</p>' if advice else ''}
+          {detail_html}
         </div>
         """
     body = f"""
