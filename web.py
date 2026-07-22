@@ -5693,7 +5693,7 @@ def render_form_guide() -> str:
       <div class="card-body">
         <div class="guide-step">
           <strong>1. 新增只填核心信息</strong>
-          <span>产品名、Instance ID、区域和 AccessKey 是必须的；服务器 IP 建议填写，方便识别是哪台机器。</span>
+          <span>产品名、Instance ID、区域和 AccessKey 是必须的；公网 IP 会在巡检后自动识别。</span>
         </div>
         <div class="guide-step">
           <strong>2. 其他信息后期补</strong>
@@ -5747,11 +5747,10 @@ def render_form(item: dict, pool_options: list[tuple[str, str]] | None = None) -
         <section class="form-section">
           <h3 class="form-section-title">必填信息</h3>
           <div class="setup-box">
-            新增服务器只需要先填能完成巡检的核心信息：产品名、实例 ID、区域和阿里云 AccessKey。别名、登录备注、SSH 等可以保存后再编辑补充。
+            新增服务器只需要先填能完成巡检的核心信息：产品名、实例 ID、区域和阿里云 AccessKey。公网 IP 会在巡检后自动识别；别名、登录备注、SSH 等可以保存后再编辑补充。
           </div>
-          {input_field("product_name", "产品自定义名字", item.get("product_name", ""), placeholder="例如：阿里云香港 1号机", required=True)}
           <div class="credential-grid">
-            {input_field("server_ip", "服务器 IP", first_value(item.get("server_ip"), item.get("public_ip")), placeholder="例如：203.0.113.10")}
+            {input_field("product_name", "产品自定义名字", item.get("product_name", ""), placeholder="例如：阿里云香港 1号机", required=True)}
             {input_field("instance_id", "ECS Instance ID", item.get("instance_id", ""), placeholder="例如：i-j6ceg1880o7i5vxdpeq4", required=True)}
           </div>
           <div class="credential-grid">
