@@ -38,6 +38,40 @@ TRAFFIC_SCOPE_LABELS = {
 ALIYUN_REGION_DOC_URL = "https://help.aliyun.com/zh/ecs/user-guide/regions-and-zones"
 ALIYUN_RAM_USERS_CN_URL = "https://ram.console.aliyun.com/users"
 ALIYUN_RAM_USERS_INTL_URL = "https://ram.console.alibabacloud.com/users"
+REPORT_TIMEZONE_OPTIONS = [
+    ("Asia/Shanghai", "中国大陆 / 北京时间 (UTC+8)"),
+    ("Asia/Hong_Kong", "中国香港 (UTC+8)"),
+    ("Asia/Taipei", "中国台湾 (UTC+8)"),
+    ("Asia/Singapore", "新加坡 (UTC+8)"),
+    ("Asia/Tokyo", "日本东京 (UTC+9)"),
+    ("Asia/Seoul", "韩国首尔 (UTC+9)"),
+    ("Asia/Bangkok", "泰国曼谷 (UTC+7)"),
+    ("Asia/Jakarta", "印尼雅加达 (UTC+7)"),
+    ("Asia/Kuala_Lumpur", "马来西亚吉隆坡 (UTC+8)"),
+    ("Asia/Manila", "菲律宾马尼拉 (UTC+8)"),
+    ("Asia/Dubai", "阿联酋迪拜 (UTC+4)"),
+    ("Asia/Kolkata", "印度孟买/新德里 (UTC+5:30)"),
+    ("UTC", "UTC 标准时间"),
+    ("Europe/London", "英国伦敦"),
+    ("Europe/Paris", "法国巴黎"),
+    ("Europe/Berlin", "德国柏林"),
+    ("Europe/Amsterdam", "荷兰阿姆斯特丹"),
+    ("Europe/Istanbul", "土耳其伊斯坦布尔"),
+    ("Europe/Moscow", "俄罗斯莫斯科"),
+    ("America/New_York", "美国纽约 / 美东"),
+    ("America/Chicago", "美国芝加哥 / 美中"),
+    ("America/Denver", "美国丹佛 / 山区"),
+    ("America/Los_Angeles", "美国洛杉矶 / 美西"),
+    ("America/Toronto", "加拿大多伦多"),
+    ("America/Vancouver", "加拿大温哥华"),
+    ("America/Mexico_City", "墨西哥城"),
+    ("America/Sao_Paulo", "巴西圣保罗"),
+    ("Australia/Sydney", "澳大利亚悉尼"),
+    ("Australia/Melbourne", "澳大利亚墨尔本"),
+    ("Australia/Perth", "澳大利亚珀斯"),
+    ("Pacific/Auckland", "新西兰奥克兰"),
+    ("Pacific/Honolulu", "夏威夷檀香山"),
+]
 ALIYUN_REGION_OPTIONS = [
     ("cn-hongkong", "中国香港"),
     ("ap-northeast-1", "日本（东京）"),
@@ -4994,7 +5028,7 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
           </div>
           <div class="credential-grid">
             {input_field("daily_report_time", "每日报告时间", rules.get("daily_report_time", "09:00"), placeholder="09:00", hint="按下面的时区判断，格式 HH:MM。")}
-            {input_field("timezone", "报告时区", rules.get("timezone", "Asia/Shanghai"), placeholder="Asia/Shanghai")}
+            {timezone_field("timezone", rules.get("timezone", "Asia/Shanghai"), "每天报告会按这个时区判断发送时间。")}
           </div>
         </section>
 
@@ -5638,6 +5672,14 @@ def select_field(name: str, label: str, value: str, options: list[tuple[str, str
         f'{hint_html}'
         '</div>'
     )
+
+
+def timezone_field(name: str, value: str, hint: str = "") -> str:
+    value = value or "Asia/Shanghai"
+    options = list(REPORT_TIMEZONE_OPTIONS)
+    if value and value not in {option_value for option_value, _ in options}:
+        options.insert(0, (value, f"当前保存：{value}"))
+    return select_field(name, "报告时区", value, options, hint)
 
 
 def collect_access_key_options(config: dict, current_id: str = "") -> list[dict[str, str]]:
