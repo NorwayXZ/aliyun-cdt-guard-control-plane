@@ -1494,46 +1494,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       max-width: 100%;
       min-width: 0;
     }}
-    .account-balance-line {{
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 7px;
-      min-width: 0;
-    }}
-    .account-key {{
-      color: #667085;
-      flex: 0 1 auto;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      max-width: 100%;
-      min-width: 0;
-    }}
-    .account-balance-pill {{
-      align-items: center;
-      background: #edf7f1;
-      border: 1px solid #cfe8d8;
-      border-radius: 999px;
-      color: #14733a;
-      display: inline-flex;
-      font-size: 11px;
-      font-weight: 720;
-      line-height: 1;
-      max-width: 100%;
-      padding: 5px 8px;
-      white-space: nowrap;
-    }}
-    .account-balance-pill.is-warning {{
-      background: #fff7e6;
-      border-color: #f4d18b;
-      color: #9a6700;
-    }}
-    .account-balance-pill.is-danger {{
-      background: #fff0f0;
-      border-color: #f3b5b5;
-      color: #b42323;
-    }}
     .form-label-row {{
       align-items: center;
       display: flex;
@@ -3196,9 +3156,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .server-row.active .text-secondary {{
       color: var(--soft) !important;
     }}
-    .control-plane-theme .server-row.active .account-key {{
-      color: var(--muted);
-    }}
     .control-plane-theme .table thead th,
     .control-plane-theme .table td,
     .control-plane-theme .table th {{
@@ -4253,44 +4210,6 @@ def balance_amount_level(amount) -> str:
     return ""
 
 
-def render_server_account_balance(item: dict) -> str:
-    account_key = str(item.get("account_fingerprint") or "").strip()
-    balance = item.get("account_balance") or {}
-    if not account_key and not balance:
-        return ""
-
-    account_label = f"阿里云账号 {account_key}" if account_key else "阿里云账号 未识别"
-    source = balance.get("source")
-    if source == "bss":
-        amount = money_text(balance.get("available_amount"), balance.get("currency"))
-        cash = money_text(balance.get("available_cash_amount"), balance.get("currency"))
-        level = balance_amount_level(balance.get("available_amount"))
-        pill_class = f"account-balance-pill {level}".strip()
-        title = f"阿里云账户余额：{amount}；现金余额：{cash}；来源：{balance.get('source_label') or 'BSS 账单 API'}"
-        return f"""
-          <span class="account-balance-line" title="{esc(title)}">
-            <span class="account-key text-truncate">{esc(account_label)}</span>
-            <span class="{pill_class}">余额 {esc(amount)}</span>
-          </span>
-        """
-
-    if source == "error":
-        error = str(balance.get("error") or "请检查 AliyunBSSReadOnlyAccess 权限")
-        return f"""
-          <span class="account-balance-line" title="{esc(error)}">
-            <span class="account-key text-truncate">{esc(account_label)}</span>
-            <span class="account-balance-pill is-danger">余额查询失败</span>
-          </span>
-        """
-
-    return f"""
-      <span class="account-balance-line">
-        <span class="account-key text-truncate">{esc(account_label)}</span>
-        <span class="account-balance-pill is-warning">余额未查询</span>
-      </span>
-    """
-
-
 def account_group_key(item: dict) -> str:
     return str(item.get("account_fingerprint") or item.get("traffic_pool_key") or item.get("region_id") or "unknown")
 
@@ -4613,7 +4532,6 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
           <span class="server-name-stack">
             <span class="asset-name d-block text-truncate">{esc(identity['product_name'])}</span>
             <span class="asset-sub d-block text-truncate">{esc(identity['asset_label'])} · {esc(identity['provider'])}</span>
-            {render_server_account_balance(item)}
           </span>
         </span>
         <span class="server-cell ip-cell"><span class="ip-main text-truncate">{esc(identity['primary_ip'])}</span></span>
