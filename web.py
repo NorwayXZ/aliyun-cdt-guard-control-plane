@@ -908,11 +908,10 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
 
 def render_brand_logo() -> str:
     return """
-      <span class="brand-lockup" aria-label="Aliyun CDT Guard">
+      <span class="brand-lockup" aria-label="阿里云CDT监控">
         <span class="brand-mark" role="img" aria-hidden="true">⌁</span>
         <span class="brand-text">
-          <span class="brand-name">Aliyun <span>CDT</span> Guard</span>
-          <span class="brand-subtitle">Control Plane</span>
+          <span class="brand-name">阿里云<span>CDT</span>监控</span>
         </span>
       </span>
     """
@@ -3972,51 +3971,7 @@ def page_shell(
       margin-top: auto;
       padding-top: 16px;
     }}
-    .user-menu {{
-      align-items: center;
-      background: rgba(251, 248, 239, .58);
-      border: 1px solid var(--line);
-      color: var(--ink);
-      display: flex;
-      gap: 10px;
-      padding: 9px;
-      text-align: left;
-      text-decoration: none;
-      width: 100%;
-    }}
-    .user-menu:hover {{
-      background: #fbf8ef;
-      border-color: var(--line-strong);
-      color: var(--ink);
-      text-decoration: none;
-    }}
-    .avatar {{
-      align-items: center;
-      background: #fbf8ef;
-      border: 1px solid var(--line);
-      color: #c99b43;
-      display: inline-flex;
-      font-family: var(--font-mono);
-      font-weight: 760;
-      height: 30px;
-      justify-content: center;
-      width: 30px;
-    }}
-    .user-menu span:nth-child(2) {{
-      flex: 1;
-      min-width: 0;
-    }}
-    .user-menu strong,
-    .user-menu small {{
-      display: block;
-    }}
-    .user-menu small {{
-      color: var(--muted);
-      font-size: 11px;
-      margin-top: 2px;
-    }}
     .sidebar-logout {{
-      margin-top: 8px;
       width: 100%;
     }}
     .workspace {{
@@ -5205,14 +5160,6 @@ def page_shell(
       </nav>
 
       <div class="sidebar-account">
-        <a class="user-menu" href="/security">
-          <span class="avatar">A</span>
-          <span>
-            <strong>admin</strong>
-            <small>面板管理员</small>
-          </span>
-          <b>›</b>
-        </a>
         <a class="logout-link sidebar-logout" href="/logout" aria-label="退出登录">退出登录</a>
       </div>
     </aside>
