@@ -3832,9 +3832,14 @@ def page_shell(
       pointer-events: none;
     }}
     .topbar-wave span {{
-      animation: topbarPulse 1.45s ease-in-out infinite;
-      animation-delay: calc(var(--d) * -95ms);
-      background: linear-gradient(180deg, #ffd24a 0%, #f1a616 100%);
+      animation:
+        topbarPulse 1.45s ease-in-out infinite,
+        topbarColorShift 4.8s linear infinite;
+      animation-delay:
+        calc(var(--d) * -95ms),
+        calc(var(--d) * -210ms);
+      background: linear-gradient(180deg, #ffd24a 0%, #ff7a59 28%, #62d7ff 55%, #91df6f 78%, #f472d0 100%);
+      background-size: 100% 280%;
       border-radius: 1px 1px 0 0;
       box-shadow: 0 1px 0 rgba(255, 255, 255, .38) inset;
       display: block;
@@ -3848,6 +3853,10 @@ def page_shell(
       0%, 100% {{ transform: scaleY(.68); opacity: .72; }}
       38% {{ transform: scaleY(1.05); opacity: 1; }}
       62% {{ transform: scaleY(.84); opacity: .88; }}
+    }}
+    @keyframes topbarColorShift {{
+      0% {{ background-position: 0 0; }}
+      100% {{ background-position: 0 280%; }}
     }}
     @media (prefers-reduced-motion: reduce) {{
       .topbar-wave span {{
