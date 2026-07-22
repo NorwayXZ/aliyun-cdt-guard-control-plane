@@ -630,13 +630,13 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
   <title>登录 - Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@600;700;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
-      --font-sans: "Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      --font-serif: "Newsreader", "Noto Serif SC", Georgia, "Times New Roman", serif;
-      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-sans: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-serif: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --bg: #f2eee3;
       --panel: rgba(246, 241, 230, .96);
       --panel-soft: #fbf8ef;
@@ -646,6 +646,10 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
       --line: #d8d0bd;
     }}
     html, body {{ font-family: var(--font-sans); letter-spacing: 0; }}
+    body,
+    body * {{
+      font-family: var(--font-sans) !important;
+    }}
     body {{
       min-height: 100vh;
       background: var(--bg);
@@ -1283,13 +1287,13 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
   <title>Aliyun CDT Guard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@600;700;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
   <style>
     :root {{
-      --font-sans: "Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      --font-serif: "Newsreader", "Noto Serif SC", Georgia, "Times New Roman", serif;
-      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-sans: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-serif: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-mono: "IBM Plex Mono", "Noto Sans Mono CJK SC", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --page-bg: #f6f7f9;
       --surface: #ffffff;
       --surface-soft: #fafbfc;
@@ -2935,6 +2939,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .app-shell,
     .app-shell * {{
       box-sizing: border-box;
+    }}
+    .control-plane-theme,
+    .control-plane-theme * {{
+      font-family: var(--font-sans) !important;
     }}
     .sidebar {{
       background: var(--sidebar-bg);
