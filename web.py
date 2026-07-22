@@ -2565,6 +2565,65 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       margin-top: 4px;
       padding: 3px 6px;
     }}
+    .notification-form {{
+      display: block;
+    }}
+    .notification-block-stack {{
+      display: grid;
+      gap: 18px;
+    }}
+    .notification-block {{
+      margin: 0;
+    }}
+    .notification-card-body {{
+      display: grid;
+      gap: 16px;
+    }}
+    .telegram-step-grid {{
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }}
+    .telegram-step-card {{
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: auto minmax(0, 1fr);
+      padding: 12px;
+    }}
+    .telegram-step-number {{
+      align-items: center;
+      background: var(--accent);
+      border-radius: 999px;
+      color: #fff;
+      display: inline-flex;
+      font-size: 12px;
+      font-weight: 820;
+      height: 24px;
+      justify-content: center;
+      width: 24px;
+    }}
+    .telegram-step-card strong {{
+      color: var(--ink);
+      display: block;
+      font-size: 13px;
+      line-height: 1.3;
+      margin-bottom: 4px;
+    }}
+    .telegram-step-card span {{
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      line-height: 1.5;
+    }}
+    .telegram-action-row {{
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }}
     .telegram-command-grid {{
       display: grid;
       gap: 8px;
@@ -2992,6 +3051,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .saved-channel-card,
     .control-plane-theme .setup-box,
     .control-plane-theme .guide-step,
+    .control-plane-theme .telegram-step-card,
     .control-plane-theme .proxy-step-card,
     .control-plane-theme .proxy-status-card,
     .control-plane-theme .proxy-status-item,
@@ -3381,6 +3441,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .guide-step span,
     .control-plane-theme .saved-channel-subtitle,
     .control-plane-theme .telegram-command span,
+    .control-plane-theme .telegram-step-card span,
     .control-plane-theme .saved-channel-meta,
     .control-plane-theme .power-copy,
     .control-plane-theme .recovery-copy,
@@ -3393,6 +3454,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .server-group,
     .control-plane-theme .server-group-body,
     .control-plane-theme .telegram-command,
+    .control-plane-theme .telegram-step-card,
     .control-plane-theme .range-tab,
     .control-plane-theme .recovery-count {{
       background: var(--surface);
@@ -3474,6 +3536,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       .proxy-grid {{ grid-template-columns: 1fr; }}
       .channel-status {{ grid-template-columns: 1fr; }}
       .chat-candidate {{ grid-template-columns: 1fr; }}
+      .telegram-step-grid {{ grid-template-columns: 1fr; }}
       .telegram-command-grid {{ grid-template-columns: 1fr; }}
       .power-panel {{ align-items: flex-start; flex-direction: column; }}
       .table-responsive {{ min-height: 0; }}
@@ -4924,23 +4987,56 @@ def render_saved_notification_channels(config: dict, state: dict) -> str:
     if last_test:
         last_test_text = f'<div class="text-secondary small mt-2">上次测试：{esc("成功" if last_test.get("ok") else "失败，请查看配置")}</div>'
     return f"""
-      <section class="form-section">
-        <h3 class="form-section-title">已保存推送渠道</h3>
-        <div class="saved-channel-grid">{"".join(cards)}</div>
-        {last_test_text}
+      <section class="card notification-block">
+        <div class="card-header"><h3 class="card-title">已保存推送渠道</h3></div>
+        <div class="card-body">
+          <div class="saved-channel-grid">{"".join(cards)}</div>
+          {last_test_text}
+        </div>
       </section>
     """
 
 
-def render_telegram_status(config: dict, state: dict) -> str:
+def telegram_status_messages(config: dict, state: dict) -> str:
     status = notifications.telegram_status(config)
     last_error = state.get("telegram_last_error", "")
     command_error = state.get("telegram_command_error", "")
-    last_command = state.get("telegram_last_command") or {}
     chat_ids = [str(item) for item in status.get("chat_ids") or []]
     chat_warning = ""
     if any(chat_id.startswith("@") for chat_id in chat_ids):
         chat_warning = "有 Chat ID 看起来像用户名。私聊通知通常需要纯数字 Chat ID，请给机器人发消息后点击“获取 Chat ID”。"
+    return f"""
+      {f'<div class="alert alert-danger mb-3">{esc(last_error)}</div>' if last_error else ''}
+      {f'<div class="alert alert-danger mb-3">{esc(command_error)}</div>' if command_error else ''}
+      {f'<div class="alert alert-warning mb-3">{esc(chat_warning)}</div>' if chat_warning else ''}
+    """
+
+
+def render_telegram_setup_steps() -> str:
+    steps = [
+        ("1", "填写 Bot Token", "先从 BotFather 创建机器人，把 Bot Token 粘贴到下面输入框。"),
+        ("2", "保存 Telegram 设置", "点击保存，让面板先记住 Bot Token。"),
+        ("3", "给机器人发消息", "在 Telegram 私聊机器人，或把机器人拉进群后在群里发一条消息。"),
+        ("4", "获取并追加 Chat ID", "回到面板点击“获取 Chat ID”，选择候选 Chat ID 追加到收件人。"),
+        ("5", "启用并测试", "勾选启用 Telegram Bot 通知，保存后发送测试通知确认能收到。"),
+    ]
+    items = "".join(
+        f"""
+        <div class="telegram-step-card">
+          <span class="telegram-step-number">{esc(number)}</span>
+          <div>
+            <strong>{esc(title)}</strong>
+            <span>{esc(copy)}</span>
+          </div>
+        </div>
+        """
+        for number, title, copy in steps
+    )
+    return f'<div class="telegram-step-grid">{items}</div>'
+
+
+def render_telegram_command_guide(config: dict, state: dict) -> str:
+    last_command = state.get("telegram_last_command") or {}
     command_text = "暂无命令"
     if last_command:
         command_text = f"{last_command.get('command') or '未知命令'}，{'已回复' if last_command.get('ok') else '未回复'}"
@@ -4961,14 +5057,16 @@ def render_telegram_status(config: dict, state: dict) -> str:
         ]
     )
     return f"""
-      {f'<div class="alert alert-danger mb-3">{esc(last_error)}</div>' if last_error else ''}
-      {f'<div class="alert alert-danger mb-3">{esc(command_error)}</div>' if command_error else ''}
-      {f'<div class="alert alert-warning mb-3">{esc(chat_warning)}</div>' if chat_warning else ''}
-      <div class="text-secondary small mb-3">最近 Telegram 命令：{esc(command_text)}</div>
-      <div class="setup-box">
-        <strong>主动查询：</strong>保存 Telegram 配置后，在 Telegram 里直接发送下面任意命令即可获取面板数据。主动查询只做状态查看，不提供远程开关机。
+      <section class="card notification-block">
+        <div class="card-header"><h3 class="card-title">Telegram 主动查询命令</h3></div>
+        <div class="card-body">
+          <div class="text-secondary small mb-3">最近 Telegram 命令：{esc(command_text)}</div>
+          <div class="setup-box mb-3">
+            保存 Telegram 配置后，在 Telegram 里直接发送下面任意命令即可获取面板数据。主动查询只做状态查看，不提供远程开关机。
+          </div>
         <div class="telegram-command-grid">{command_cards}</div>
-      </div>
+        </div>
+      </section>
     """
 
 
@@ -5005,58 +5103,54 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
     telegram = config.get("telegram", {})
     flash = query.get("flash", [""])[0]
     body = f"""
-    <form class="card save-form" method="post" action="/notifications/save" data-save-form>
-      <div class="card-header">
-        <div class="asset-toolbar w-100">
-          <h3 class="card-title">通知设置</h3>
-          <button class="btn btn-primary btn-sm" type="submit" data-submit-button data-loading-text="正在保存...">保存通知设置</button>
-        </div>
-      </div>
-      <div class="card-body notification-layout">
+    <form class="notification-form save-form" method="post" action="/notifications/save" data-save-form>
+      <div class="notification-block-stack">
         {render_saved_notification_channels(config, state)}
 
-        <section class="form-section">
-          <h3 class="form-section-title">通知规则</h3>
-          {checkbox_field("enabled", "启用通知系统", bool(config.get("enabled")), "关闭后不会发送 Telegram 通知。")}
-          <div class="credential-grid">
-            {checkbox_field("notify_actions", "启停动作通知", bool(rules.get("notify_actions", True)), "自动停机、自动启动时发送。")}
-            {checkbox_field("notify_warnings", "流量预警通知", bool(rules.get("notify_warnings", True)), "首次进入预警状态时发送，避免每分钟刷屏。")}
+        <section class="card notification-block">
+          <div class="card-header">
+            <div class="asset-toolbar w-100">
+              <h3 class="card-title">通知规则</h3>
+              <button class="btn btn-primary btn-sm btn-submit" type="submit" data-submit-button data-loading-text="正在保存...">保存通知设置</button>
+            </div>
           </div>
-          <div class="credential-grid">
-            {checkbox_field("notify_errors", "检查错误通知", bool(rules.get("notify_errors", True)), "阿里云 API 失败、实例查询失败等错误变化时发送。")}
-            {checkbox_field("daily_report", "每日报告", bool(rules.get("daily_report", False)), "每天按指定时间发送一次服务器和流量池汇总。")}
-          </div>
-          <div class="credential-grid">
-            {input_field("daily_report_time", "每日报告时间", rules.get("daily_report_time", "09:00"), placeholder="09:00", hint="按下面的时区判断，格式 HH:MM。")}
-            {timezone_field("timezone", rules.get("timezone", "Asia/Shanghai"), "每天报告会按这个时区判断发送时间。")}
+          <div class="card-body notification-card-body">
+            {checkbox_field("enabled", "启用通知系统", bool(config.get("enabled")), "关闭后不会发送 Telegram 通知。")}
+            <div class="credential-grid">
+              {checkbox_field("notify_actions", "启停动作通知", bool(rules.get("notify_actions", True)), "自动停机、自动启动时发送。")}
+              {checkbox_field("notify_warnings", "流量预警通知", bool(rules.get("notify_warnings", True)), "首次进入预警状态时发送，避免每分钟刷屏。")}
+            </div>
+            <div class="credential-grid">
+              {checkbox_field("notify_errors", "检查错误通知", bool(rules.get("notify_errors", True)), "阿里云 API 失败、实例查询失败等错误变化时发送。")}
+              {checkbox_field("daily_report", "每日报告", bool(rules.get("daily_report", False)), "每天按指定时间发送一次服务器和流量池汇总。")}
+            </div>
+            <div class="credential-grid">
+              {input_field("daily_report_time", "每日报告时间", rules.get("daily_report_time", "09:00"), placeholder="09:00", hint="按下面的时区判断，格式 HH:MM。")}
+              {timezone_field("timezone", rules.get("timezone", "Asia/Shanghai"), "每天报告会按这个时区判断发送时间。")}
+            </div>
           </div>
         </section>
 
-        <section class="form-section">
-          <h3 class="form-section-title">添加 Telegram</h3>
-          {render_telegram_status(config, state)}
-          <div class="setup-box">
-            <strong>获取 Chat ID：</strong>先填写 Bot Token 并保存；然后在 Telegram 给机器人发送任意一条消息；最后点击下面的“获取 Chat ID”。如果机器人在群组里，请先把机器人拉进群并在群里发一条消息。点击候选 Chat ID 会追加到已保存渠道，不会覆盖已有收件人。
-          </div>
-          {checkbox_field("telegram_enabled", "启用 Telegram Bot 通知", bool(telegram.get("enabled")), "从 BotFather 创建机器人，填 Bot Token；Chat ID 可以是个人、群组或频道。")}
-          <div class="credential-grid">
-            {input_field("telegram_bot_token", "Bot Token", "", "password", placeholder="123456:ABC-DEF...", hint="留空则保留原 Token；重新粘贴新的 Token 会覆盖原 Token。")}
-            {input_field("telegram_chat_id", "新增 Chat ID", "", placeholder="例如：123456789 或 -100xxxxxxxxxx", hint="已保存的 Chat ID 会显示在顶部；这里留空会保留原有收件人，填写后会追加一个新收件人。")}
-          </div>
-          {checkbox_field("telegram_disable_preview", "禁用链接预览", bool(telegram.get("disable_web_page_preview", True)))}
-          <div class="btn-list mt-2">
-            <button class="btn" type="submit" data-submit-button data-loading-text="正在保存...">保存 Telegram 设置</button>
-          </div>
-          <div class="mt-3">
-            <button class="btn btn-outline-primary" type="submit" form="telegram-discover-form">获取 Chat ID</button>
+        <section class="card notification-block">
+          <div class="card-header"><h3 class="card-title">添加 Telegram</h3></div>
+          <div class="card-body notification-card-body">
+            {telegram_status_messages(config, state)}
+            {render_telegram_setup_steps()}
+            {checkbox_field("telegram_enabled", "启用 Telegram Bot 通知", bool(telegram.get("enabled")), "完成 Bot Token 和 Chat ID 后再开启。")}
+            <div class="credential-grid">
+              {input_field("telegram_bot_token", "Bot Token", "", "password", placeholder="123456:ABC-DEF...", hint="第 1 步：从 BotFather 获取；留空则保留原 Token，重新粘贴会覆盖原 Token。")}
+              {input_field("telegram_chat_id", "新增 Chat ID", "", placeholder="例如：123456789 或 -100xxxxxxxxxx", hint="第 4 步：点击候选 Chat ID 会自动追加；手动填写后保存也会追加一个新收件人。")}
+            </div>
+            {checkbox_field("telegram_disable_preview", "禁用链接预览", bool(telegram.get("disable_web_page_preview", True)))}
+            <div class="telegram-action-row">
+              <button class="btn btn-primary btn-submit" type="submit" data-submit-button data-loading-text="正在保存...">保存 Telegram 设置</button>
+              <button class="btn btn-outline-primary" type="submit" form="telegram-discover-form">获取 Chat ID</button>
+            </div>
             {render_chat_candidates(state)}
           </div>
         </section>
 
-      </div>
-      <div class="card-footer d-flex align-items-center gap-2">
-        <div class="submit-feedback"><span class="spinner-dot"></span><span>正在保存通知配置...</span></div>
-        <button class="btn btn-primary btn-submit ms-auto" type="submit" data-submit-button data-loading-text="正在保存...">保存通知设置</button>
+        {render_telegram_command_guide(config, state)}
       </div>
     </form>
     <form id="telegram-discover-form" method="post" action="/notifications/telegram/discover"></form>
