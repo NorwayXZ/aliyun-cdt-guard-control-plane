@@ -993,7 +993,6 @@ def today_server_traffic_gb(item: dict, history: list[dict]) -> float:
 
 def aggregate_total_traffic_series(instances: list[dict], history: list[dict], generated_at: str | None, days: int = 30) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    events: list[tuple[datetime, str, float]] = []
     all_records = []
     key_aliases: dict[str, str] = {}
     for item in instances:
@@ -1047,31 +1046,60 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
     )
 
     last_by_key: dict[str, float] = {}
-    points: list[dict] = []
+    all_points: list[dict] = []
     current_bucket = ""
     bucket_time: datetime | None = None
     for event_time, key, traffic_gb in sorted_records:
         bucket = event_time.strftime("%Y-%m-%d %H:%M")
-        if event_time >= cutoff and current_bucket and bucket != current_bucket and bucket_time is not None:
-            points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
+        if current_bucket and bucket != current_bucket and bucket_time is not None:
+            all_points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
         last_by_key[key] = traffic_gb
-        if event_time >= cutoff:
-            current_bucket = bucket
-            bucket_time = event_time
+        current_bucket = bucket
+        bucket_time = event_time
     if current_bucket and bucket_time is not None:
-        points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
+        all_points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
 
     current_total, current_sources = current_total_traffic(instances)
     total_capacity, capacity_pools = total_protection_capacity(instances)
+    current_time = parse_event_time(generated_at) or datetime.now(timezone.utc)
     if current_total > 0:
-        current_time = parse_event_time(generated_at) or datetime.now(timezone.utc)
-        if not points or abs(float(points[-1].get("total_gb") or 0) - current_total) > 0.0001:
-            points.append({"at": current_time.isoformat(), "total_gb": current_total})
+        if not all_points or abs(float(all_points[-1].get("total_gb") or 0) - current_total) > 0.0001:
+            all_points.append({"at": current_time.isoformat(), "total_gb": current_total})
         else:
-            points[-1]["at"] = current_time.isoformat()
+            all_points[-1]["at"] = current_time.isoformat()
+
+    running_peak = 0.0
+    for point in all_points:
+        value = float(point.get("total_gb") or 0)
+        running_peak = max(running_peak, value)
+        point["total_gb"] = running_peak
+
+    def window_delta(window_days: int) -> float:
+        if not all_points:
+            return 0.0
+        window_start = current_time - timedelta(days=window_days)
+        baseline = None
+        first_in_window = None
+        for point in all_points:
+            point_time = parse_event_time(point.get("at"))
+            if point_time is None:
+                continue
+            total_gb = float(point.get("total_gb") or 0)
+            if point_time <= window_start:
+                baseline = total_gb
+            elif first_in_window is None:
+                first_in_window = total_gb
+        if first_in_window is not None:
+            baseline = first_in_window
+        elif baseline is None:
+            baseline = float(all_points[-1].get("total_gb") or 0)
+        return max(current_total - baseline, 0)
 
     compacted: list[dict] = []
-    for point in points:
+    for point in all_points:
+        point_time = parse_event_time(point.get("at"))
+        if point_time is None or point_time < cutoff:
+            continue
         if compacted and compacted[-1]["at"] == point["at"]:
             compacted[-1] = point
         else:
@@ -1082,12 +1110,6 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
         if sampled[-1] != compacted[-1]:
             sampled.append(compacted[-1])
         compacted = sampled
-
-    running_peak = 0.0
-    for point in compacted:
-        value = float(point.get("total_gb") or 0)
-        running_peak = max(running_peak, value)
-        point["total_gb"] = running_peak
 
     first = float(compacted[0]["total_gb"]) if compacted else None
     last = float(compacted[-1]["total_gb"]) if compacted else current_total
@@ -1102,6 +1124,12 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
         "total_capacity_gb": total_capacity,
         "remaining_capacity_gb": max(total_capacity - current_total, 0),
         "used_percent": used_percent,
+        "window_deltas": {
+            1: window_delta(1),
+            3: window_delta(3),
+            7: window_delta(7),
+            30: window_delta(30),
+        },
         "delta_gb": delta,
     }
 
@@ -3488,6 +3516,28 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       gap: 6px;
       padding: 18px;
     }}
+    .traffic-window-card {{
+      gap: 12px !important;
+    }}
+    .traffic-window-grid {{
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .traffic-window-item {{
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 4px;
+      min-height: 58px;
+      padding: 10px;
+    }}
+    .traffic-window-item span {{
+      font-size: 11px;
+    }}
+    .traffic-window-item strong {{
+      font-size: 17px !important;
+      line-height: 1.2 !important;
+    }}
     .total-chart-facts span {{
       color: var(--muted);
       font-size: 12px;
@@ -4783,6 +4833,7 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
     current_total = float(series.get("current_total_gb") or 0)
     used_percent = float(series.get("used_percent") or 0)
     remaining_capacity = float(series.get("remaining_capacity_gb") or 0)
+    window_deltas = series.get("window_deltas") or {}
     tone = "danger" if errors else ("warning" if warnings or stopped else "neutral")
     return f"""
       <section class="overview-traffic-hero {tone}">
@@ -4808,9 +4859,14 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
             <span>统计范围</span>
             <strong>{enabled}/{total} 台启用保护 · {series.get("source_count", 0)} 个去重统计源</strong>
           </article>
-          <article>
-            <span>近 {series.get("days", 30)} 天新增</span>
-            <strong>{fmt_gb(series.get("delta_gb"))}</strong>
+          <article class="traffic-window-card">
+            <span>近期总流量消耗</span>
+            <div class="traffic-window-grid">
+              <div class="traffic-window-item"><span>近 1 天</span><strong>{fmt_gb(window_deltas.get(1, 0))}</strong></div>
+              <div class="traffic-window-item"><span>近 3 天</span><strong>{fmt_gb(window_deltas.get(3, 0))}</strong></div>
+              <div class="traffic-window-item"><span>近 7 天</span><strong>{fmt_gb(window_deltas.get(7, 0))}</strong></div>
+              <div class="traffic-window-item"><span>近 30 天</span><strong>{fmt_gb(window_deltas.get(30, series.get("delta_gb")))}</strong></div>
+            </div>
           </article>
           <article>
             <span>剩余保护额度</span>
