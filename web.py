@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import html
+import ipaddress
 import json
 import os
 import secrets
@@ -17,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from urllib.request import urlopen
 
 import notifications
 
@@ -5199,6 +5201,37 @@ def read_domain_proxy_config() -> dict:
     return config
 
 
+def detect_public_ipv4() -> str:
+    for url in [
+        "https://api.ipify.org",
+        "https://ifconfig.me/ip",
+        "https://icanhazip.com",
+    ]:
+        try:
+            with urlopen(url, timeout=1.5) as response:
+                value = response.read(64).decode("utf-8", errors="ignore").strip()
+            ip = ipaddress.ip_address(value)
+            if ip.version == 4 and ip.is_global:
+                return value
+        except Exception:
+            continue
+    return ""
+
+
+def public_ipv4_from_host(host: str) -> str:
+    value = str(host or "").strip()
+    if not value:
+        return ""
+    if value.startswith("["):
+        return ""
+    value = value.split(":", 1)[0].strip()
+    try:
+        ip = ipaddress.ip_address(value)
+    except ValueError:
+        return ""
+    return value if ip.version == 4 and ip.is_global else ""
+
+
 def save_domain_proxy(fields: dict[str, list[str]]) -> None:
     config = {
         "domain": form_value(fields, "domain").strip().lower(),
@@ -5479,13 +5512,14 @@ def save_security_settings(fields: dict[str, list[str]]) -> tuple[bool, str]:
     return True, "saved"
 
 
-def render_domain_page(query: dict[str, list[str]] | None = None) -> bytes:
+def render_domain_page(query: dict[str, list[str]] | None = None, request_host: str = "") -> bytes:
     query = query or {}
     config = read_domain_proxy_config()
     saved_domain = str(config.get("domain") or "").strip().lower()
     saved_origin_ip = str(config.get("origin_ip") or "").strip()
+    detected_origin_ip = saved_origin_ip or public_ipv4_from_host(request_host) or detect_public_ipv4()
     domain = saved_domain or "cdt.example.com"
-    origin_ip = saved_origin_ip or "你的服务器公网 IP"
+    origin_ip = detected_origin_ip or "你的服务器公网 IP"
     origin_port = str(config.get("origin_port") or "8787")
     proxy_type = str(config.get("proxy_type") or "caddy")
     cloudflare_proxy = bool(config.get("cloudflare_proxy", True))
@@ -5504,6 +5538,9 @@ def render_domain_page(query: dict[str, list[str]] | None = None) -> bytes:
         dns_chip = proxy_status_chip("ok", "已解析")
         dns_hint = "已开启 Cloudflare 代理时，解析会显示 Cloudflare 节点 IP，不会显示源站 IP，这是正常的。当前解析：" + ", ".join(resolved_ips)
     elif saved_origin_ip and saved_origin_ip in resolved_ips:
+        dns_chip = proxy_status_chip("ok", "已指向本机")
+        dns_hint = "当前解析结果：" + ", ".join(resolved_ips)
+    elif detected_origin_ip and detected_origin_ip in resolved_ips:
         dns_chip = proxy_status_chip("ok", "已指向本机")
         dns_hint = "当前解析结果：" + ", ".join(resolved_ips)
     else:
@@ -5577,7 +5614,7 @@ def render_domain_page(query: dict[str, list[str]] | None = None) -> bytes:
           </div>
           <div class="credential-grid">
             {input_field("domain", "面板域名", config.get("domain", ""), placeholder="例如：cdt.example.com", hint="在 Cloudflare DNS 里添加这个子域名。")}
-            {input_field("origin_ip", "源站公网 IP", config.get("origin_ip", ""), placeholder="例如：203.0.113.10", hint="A 记录指向这台安装面板的服务器 IP。")}
+            {input_field("origin_ip", "源站公网 IP", detected_origin_ip, placeholder="例如：203.0.113.10", hint="已自动识别当前服务器公网 IP；如果不准确，可以手动修改。")}
           </div>
           <div class="credential-grid">
             {input_field("origin_port", "面板源站端口", config.get("origin_port", "8787"), "number", hint="默认 8787；如果安装时改过 WEB_PORT，就填实际端口。")}
@@ -6219,7 +6256,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_bytes(render_notifications_page(query), "text/html; charset=utf-8")
             return
         if parsed.path == "/domain":
-            self.send_bytes(render_domain_page(query), "text/html; charset=utf-8")
+            self.send_bytes(
+                render_domain_page(query, self.headers.get("Host", "")),
+                "text/html; charset=utf-8",
+            )
             return
         if parsed.path == "/security":
             self.send_bytes(render_security_page(query), "text/html; charset=utf-8")
