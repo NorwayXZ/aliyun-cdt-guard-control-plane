@@ -298,18 +298,6 @@ def fmt_time(value) -> str:
     return text.replace("T", " ").replace("+00:00", " UTC")
 
 
-def fmt_header_time(value) -> str:
-    if not value:
-        return "暂无"
-    try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        if parsed.tzinfo is not None:
-            parsed = parsed.astimezone(timezone(timedelta(hours=8)))
-        return parsed.strftime("%b %d, %H:%M")
-    except ValueError:
-        return fmt_time(value)
-
-
 def fmt_date(value) -> str:
     if not value:
         return "暂无"
@@ -1588,7 +1576,6 @@ def page_shell(
     flash: str = "",
     auto_refresh: bool = True,
     crumb_label: str | None = None,
-    meta_line: str = "",
 ) -> bytes:
     run_nav = [
         ("/", "overview", "主页", "▦"),
@@ -1619,7 +1606,6 @@ def page_shell(
         if crumb_label.upper() == "CDT"
         else f"<b>{esc(crumb_label)}</b>"
     )
-    meta_html = f'<span class="topbar-meta">{esc(meta_line)}</span>' if meta_line else ""
     flash_html = f'<div class="alert {flash_class(flash)}">{esc(flash_message(flash))}</div>' if flash else ""
     refresh_meta = '<meta http-equiv="refresh" content="60">' if auto_refresh else ""
     header_actions = f"""
@@ -3827,8 +3813,8 @@ def page_shell(
       font-family: var(--font-topbar);
       gap: 18px;
       justify-content: space-between;
-      min-height: 96px;
-      padding: 12px 34px 10px;
+      min-height: 86px;
+      padding: 10px 34px;
       position: sticky;
       top: 0;
       z-index: 10;
@@ -3874,34 +3860,13 @@ def page_shell(
       max-width: 100%;
       overflow-wrap: anywhere;
     }}
-    .topbar p {{
-      color: var(--muted);
-      font-family: var(--font-topbar);
-      font-size: 15px;
-      font-weight: 500;
-      line-height: 1.45;
-      margin: 0;
-    }}
-    .topbar-support {{
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 14px;
-    }}
-    .topbar-meta {{
-      color: var(--soft);
-      font-family: var(--font-topbar);
-      font-size: 14px;
-      font-weight: 500;
-      line-height: 1.45;
-    }}
     .top-actions {{
       align-items: center;
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       justify-content: flex-end;
-      padding-top: 8px;
+      padding-top: 0;
     }}
     .engine-state {{
       align-items: center;
@@ -5064,10 +5029,6 @@ def page_shell(
         <div>
           <span class="crumb">Console / {crumb_value}</span>
           <h1>{esc(title)}</h1>
-          <div class="topbar-support">
-            <p>{esc(subtitle)}</p>
-            {meta_html}
-          </div>
         </div>
         <div class="top-actions">
           <span class="engine-state"><i></i>Engine OK</span>
@@ -6221,11 +6182,6 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     history = read_history(1000)
     flash = query.get("flash", [""])[0]
     body = render_assets_card(instances, metadata, history, summary, status.get("generated_at"))
-    account_count = len({account_group_key(item) for item in instances}) if instances else 0
-    server_count = len(instances)
-    account_word = "account" if account_count == 1 else "accounts"
-    server_word = "server" if server_count == 1 else "servers"
-    header_meta = f"Server Assets · {account_count} {account_word} · {server_count} {server_word} · Updated {fmt_header_time(status.get('generated_at'))}"
     return page_shell(
         "overview",
         "Traffic Protection & Server Assets",
@@ -6234,7 +6190,6 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
         actions=render_check_action(),
         flash=flash,
         crumb_label="CDT",
-        meta_line=header_meta,
     )
 
 
