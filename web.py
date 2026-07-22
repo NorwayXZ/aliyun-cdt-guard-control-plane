@@ -1598,6 +1598,15 @@ def page_shell(
     config_nav_html = render_nav(config_nav)
     flash_html = f'<div class="alert {flash_class(flash)}">{esc(flash_message(flash))}</div>' if flash else ""
     refresh_meta = '<meta http-equiv="refresh" content="60">' if auto_refresh else ""
+    topbar_wave = "".join(
+        f'<span style="--h:{height};--d:{index % 12};"></span>'
+        for index, height in enumerate(
+            [18, 38, 54, 36, 28, 48, 21, 26, 24, 44, 57, 40, 64, 31, 16, 52, 23, 19,
+             68, 46, 35, 29, 59, 25, 14, 51, 36, 22, 62, 48, 42, 18, 28, 33, 56, 45,
+             66, 38, 26, 21, 47, 58, 30, 17, 40, 53, 34, 29, 61, 50, 37, 24, 44, 32,
+             20, 55, 67, 41, 27, 16, 39, 49, 31, 22, 60, 46, 33, 18, 52, 64, 36, 25]
+        )
+    )
     header_actions = f"""
       {actions}
     """
@@ -3800,8 +3809,9 @@ def page_shell(
         0 10px 22px rgba(23, 21, 17, .075),
         0 2px 0 rgba(23, 21, 17, .035);
       display: flex;
+      gap: 22px;
       font-family: var(--font-topbar);
-      justify-content: flex-end;
+      justify-content: space-between;
       min-height: 58px;
       padding: 8px 34px;
       position: sticky;
@@ -3810,6 +3820,39 @@ def page_shell(
     }}
     .topbar::before {{
       content: none;
+    }}
+    .topbar-wave {{
+      align-items: flex-end;
+      display: flex;
+      flex: 1 1 auto;
+      gap: 8px;
+      height: 42px;
+      min-width: 160px;
+      overflow: hidden;
+      pointer-events: none;
+    }}
+    .topbar-wave span {{
+      animation: topbarPulse 1.45s ease-in-out infinite;
+      animation-delay: calc(var(--d) * -95ms);
+      background: linear-gradient(180deg, #ffd24a 0%, #f1a616 100%);
+      border-radius: 1px 1px 0 0;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .38) inset;
+      display: block;
+      flex: 0 0 7px;
+      height: calc(var(--h) * 1%);
+      min-height: 8px;
+      opacity: .95;
+      transform-origin: center bottom;
+    }}
+    @keyframes topbarPulse {{
+      0%, 100% {{ transform: scaleY(.68); opacity: .72; }}
+      38% {{ transform: scaleY(1.05); opacity: 1; }}
+      62% {{ transform: scaleY(.84); opacity: .88; }}
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .topbar-wave span {{
+        animation: none;
+      }}
     }}
     .top-actions {{
       align-items: center;
@@ -4811,6 +4854,7 @@ def page_shell(
       .sidebar-account {{ display: none; }}
       .topbar {{
         align-items: center;
+        gap: 12px;
         min-height: 0;
         padding: 12px 16px;
       }}
@@ -4822,6 +4866,9 @@ def page_shell(
       .top-actions {{
         justify-content: flex-end;
         width: 100%;
+      }}
+      .topbar-wave {{
+        display: none;
       }}
       .top-actions form,
       .top-actions .btn,
@@ -4966,6 +5013,7 @@ def page_shell(
 
     <main class="workspace">
       <header class="topbar">
+        <div class="topbar-wave" aria-hidden="true">{topbar_wave}</div>
         <div class="top-actions">
           <span class="engine-state"><i></i>Engine OK</span>
           {header_actions}
