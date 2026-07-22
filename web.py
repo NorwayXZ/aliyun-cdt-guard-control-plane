@@ -493,6 +493,15 @@ def status_record_html(state_class: str, state_label: str, extra_class: str = ""
     """
 
 
+def status_dot_html(state_class: str, state_label: str) -> str:
+    return f"""
+      <span class="row-status {esc(state_class)}">
+        <span class="row-status-dot" aria-hidden="true"></span>
+        <span>{esc(state_label)}</span>
+      </span>
+    """
+
+
 def power_controls(server_id: str, status: str | None) -> str:
     status = status or ""
     if status == "Running":
@@ -1973,12 +1982,12 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .server-group-head {{
       align-items: center;
-      background: #fbfcff;
+      background: var(--surface);
       border-bottom: 1px solid var(--line);
       display: grid;
-      gap: 10px;
+      gap: 14px;
       grid-template-columns: minmax(260px, 1fr) auto;
-      padding: 8px 14px;
+      padding: 12px 14px;
     }}
     .server-group-info {{
       align-items: center;
@@ -2003,28 +2012,24 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       align-items: center;
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 14px;
       justify-content: flex-end;
     }}
-    .server-group-pill {{
-      background: #eef2f6;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      color: #42526b;
-      font-size: 11px;
-      font-weight: 730;
-      line-height: 1;
-      padding: 6px 9px;
+    .server-group-metrics span {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
       white-space: nowrap;
     }}
-    .server-group-pill.is-danger {{
-      background: #fff0f0;
-      border-color: #f3b5b5;
+    .server-group-metrics strong {{
+      color: var(--ink);
+      font-weight: 760;
+      margin-left: 4px;
+    }}
+    .server-group-metrics .is-danger strong {{
       color: #b42323;
     }}
-    .server-group-pill.is-warning {{
-      background: #fff7e6;
-      border-color: #f4d18b;
+    .server-group-metrics .is-warning strong {{
       color: #9a6700;
     }}
     .server-group-body {{
@@ -2038,25 +2043,25 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-row {{
       align-items: center;
       display: grid;
-      gap: 16px;
-      grid-template-columns: 126px minmax(230px, 1.35fr) minmax(150px, .8fr) 120px minmax(230px, 1fr);
-      min-width: 900px;
+      gap: 14px;
+      grid-template-columns: 112px minmax(190px, 1.25fr) minmax(120px, .62fr) minmax(150px, .75fr) minmax(190px, 1fr) 82px;
+      min-width: 960px;
     }}
     .server-list-head {{
-      background: #f7f9fc;
+      background: var(--surface-soft);
       border-bottom: 1px solid var(--line);
       color: #687386;
       font-size: 12px;
       font-weight: 720;
       justify-items: stretch;
-      padding: 10px 16px;
+      padding: 9px 14px;
     }}
     .server-list-head > div {{
       align-items: center;
       display: flex;
-      justify-content: center;
-      min-height: 26px;
-      text-align: center;
+      justify-content: flex-start;
+      min-height: 24px;
+      text-align: left;
       width: 100%;
     }}
     .server-row {{
@@ -2066,8 +2071,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-radius: 0;
       color: var(--ink);
       cursor: pointer;
-      align-items: stretch;
-      padding: 14px 16px;
+      align-items: center;
+      min-height: 86px;
+      padding: 12px 14px;
       text-align: left;
       transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
       width: 100%;
@@ -2089,35 +2095,65 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-cell {{
       align-items: center;
       display: flex;
-      min-height: 74px;
+      min-height: 0;
       min-width: 0;
     }}
-    .server-cell.status-cell,
+    .server-cell.status-cell {{
+      align-items: flex-start;
+      display: grid;
+      gap: 6px;
+    }}
+    .server-cell.region-cell,
     .server-cell.ip-cell,
-    .server-cell.region-cell {{
-      justify-content: center;
-      text-align: center;
-    }}
-    .server-cell.traffic-cell {{
-      align-items: center;
-    }}
-    .server-cell + .server-cell {{
-      border-left: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
-      padding-left: 14px;
+    .server-cell.traffic-cell,
+    .server-cell.action-cell {{
+      justify-content: flex-start;
+      text-align: left;
     }}
     .server-name-stack {{
       display: grid;
-      gap: 6px;
+      gap: 4px;
       min-width: 0;
     }}
-    .server-state {{
+    .row-status {{
       align-items: center;
-      border-radius: 8px;
       display: inline-flex;
-      gap: 8px;
-      min-width: 102px;
-      padding: 8px 10px;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 760;
+      line-height: 1.1;
       white-space: nowrap;
+    }}
+    .row-status-dot {{
+      background: currentColor;
+      border-radius: 999px;
+      box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
+      flex: 0 0 auto;
+      height: 8px;
+      width: 8px;
+    }}
+    .row-status.running {{ color: #15884f; }}
+    .row-status.stopped {{ color: #c92a2a; }}
+    .row-status.pending {{ color: #9a6700; }}
+    .row-status.muted {{ color: var(--muted); }}
+    .row-alert {{
+      border: 1px solid var(--line);
+      display: inline-flex;
+      font-size: 11px;
+      font-weight: 760;
+      line-height: 1;
+      padding: 4px 6px;
+      width: fit-content;
+    }}
+    .row-alert.warning {{
+      background: var(--warning-soft);
+      border-color: color-mix(in srgb, #f59f00 34%, var(--line));
+      color: #9a6700;
+    }}
+    .row-alert.danger {{
+      background: var(--danger-soft);
+      border-color: color-mix(in srgb, #c92a2a 34%, var(--line));
+      color: #b42323;
     }}
     .server-detail-panel {{
       border: 1px solid var(--line);
@@ -2649,7 +2685,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .traffic-compact {{
       display: grid;
-      gap: 8px;
+      gap: 5px;
       min-width: 0;
       width: 100%;
     }}
@@ -2667,7 +2703,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .traffic-amount {{
       color: #111827;
-      font-weight: 720;
+      font-size: 14px;
+      font-weight: 760;
+      line-height: 1.2;
     }}
     .traffic-daily {{
       color: var(--soft);
@@ -2691,6 +2729,15 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .server-row .text-secondary {{
       line-height: 1.4;
     }}
+    .server-row .asset-name {{
+      font-size: 16px;
+      font-weight: 760;
+      line-height: 1.15;
+    }}
+    .server-row .ip-main {{
+      font-size: 14px;
+      font-weight: 650;
+    }}
     .chart-trigger {{
       background: transparent;
       border: 0;
@@ -2701,7 +2748,23 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       margin-top: 6px;
       padding: 0;
     }}
+    .row-chart-trigger {{
+      align-items: center;
+      border: 1px solid var(--line);
+      gap: 5px;
+      justify-content: center;
+      margin-top: 0;
+      min-height: 30px;
+      min-width: 64px;
+      padding: 0 8px;
+      text-decoration: none;
+      white-space: nowrap;
+    }}
     .chart-trigger:hover {{ text-decoration: underline; }}
+    .row-chart-trigger:hover {{
+      background: var(--surface-soft);
+      text-decoration: none;
+    }}
     .traffic-modal {{
       background: rgba(15, 23, 42, .42);
       display: none;
@@ -4542,6 +4605,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .traffic-modal-head {{
       border-color: var(--line-strong);
     }}
+    .control-plane-theme .server-group-body,
+    .control-plane-theme .server-list-head {{
+      border-color: var(--line);
+    }}
     .control-plane-theme .card-title,
     .control-plane-theme .page-intro h2,
     .control-plane-theme .server-group-title,
@@ -5378,7 +5445,9 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
     balance_text, balance_level = group_balance_summary(items)
     scope_text = group_scope_summary(items)
     regions = sorted({str(item.get("region_id") or "") for item in items if item.get("region_id")})
-    region_text = "、".join(regions[:3]) + (" 等" if len(regions) > 3 else "")
+    region_count = len(regions)
+    region_text = "、".join(regions) if regions else "区域未知"
+    title_hint = f"{scope_text} · {region_text}"
     group_name = account_group_title(group_key)
     rows = "".join(
         render_server_row(item, metadata, history, active=str(item.get("id") or item.get("instance_id")) == active_id)
@@ -5386,21 +5455,19 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
     )
     return f"""
       <section class="server-group" data-server-group data-group-priority="{group_priority}" data-group-used="{total_traffic:.4f}" data-group-name="{esc(group_name.lower())}">
-        <div class="server-group-head">
+        <div class="server-group-head" title="{esc(title_hint)}">
           <div class="server-group-info">
             <div class="server-group-title">{esc(group_name)}</div>
-            <div class="server-group-sub">
-              <span data-group-visible-count>{len(items)}</span> / {len(items)} 台 · {esc(scope_text)}{f' · {esc(region_text)}' if region_text else ''}
-            </div>
+            <div class="server-group-sub"><span data-group-visible-count>{len(items)}</span> / {len(items)} 台 · {region_count or 0} 个区域</div>
           </div>
           <div class="server-group-metrics">
-            <span class="server-group-pill">账号池合计 {fmt_gb(total_traffic)}</span>
-            <span class="server-group-pill {balance_level}">余额 {esc(balance_text)}</span>
+            <span>账户总用量 <strong>{fmt_gb(total_traffic)}</strong></span>
+            <span class="{balance_level}">余额 <strong>{esc(balance_text)}</strong></span>
           </div>
         </div>
         <div class="server-group-body" data-server-group-body>
           <div class="server-list-head">
-            <div>状态</div><div>服务器</div><div>IP</div><div>区域</div><div>本机 CDT</div>
+            <div>状态</div><div>服务器</div><div>区域</div><div>IP</div><div>流量</div><div>操作</div>
           </div>
           {rows}
         </div>
@@ -5618,9 +5685,12 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     today_traffic = today_server_traffic_gb(item, history)
     member_count = int(item.get("display_pool_member_count") or item.get("traffic_pool_member_count") or 0)
     self_traffic = item.get("traffic_gb")
-    pool_total_html = ""
-    if member_count > 1 or abs(as_float(str(pool_traffic or 0), 0) - as_float(str(self_traffic or 0), 0)) > 0.0001:
-        pool_total_html = f'<span class="asset-sub">账号池合计 {fmt_gb(pool_traffic)}</span>'
+    pool_label = traffic_pool_badge(item)
+    health_tag = ""
+    if health_class == "danger":
+        health_tag = '<span class="row-alert danger">异常</span>'
+    elif health_class == "warning":
+        health_tag = '<span class="row-alert warning">预警</span>'
     account_balance = item.get("account_balance") or {}
     search_text = " ".join(
         [
@@ -5647,28 +5717,27 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
         data-search="{esc(search_text)}" data-filter-state="{esc(health_class)}" data-priority="{priority}"
         data-used="{pct:.4f}" data-name="{esc(identity['product_name'].lower())}" aria-selected="{'true' if active else 'false'}">
         <span class="server-cell status-cell">
-          {status_record_html(state_class, state_label, "server-state")}
+          {status_dot_html(state_class, state_label)}
+          {health_tag}
         </span>
         <span class="server-cell server-info-cell">
           <span class="server-name-stack">
             <span class="asset-name d-block text-truncate">{esc(identity['product_name'])}</span>
+            <span class="asset-sub text-truncate">{esc(item.get('instance_name') or item.get('instance_id') or identity['asset_label'])}</span>
           </span>
         </span>
-        <span class="server-cell ip-cell"><span class="ip-main text-truncate">{esc(identity['primary_ip'])}</span></span>
         <span class="server-cell region-cell"><span class="text-secondary small">{esc(item.get('region_id'))}</span></span>
+        <span class="server-cell ip-cell"><span class="ip-main text-truncate">{esc(identity['primary_ip'])}</span></span>
         <span class="server-cell traffic-cell">
           <span class="traffic-compact">
-            <span class="traffic-meta">
-              <span class="traffic-label">本机累计</span>
-              <span class="traffic-amount">{fmt_gb(self_traffic)}</span>
-            </span>
-            <span class="traffic-daily">今日本机 <strong>{fmt_gb(today_traffic)}</strong></span>
-            <span class="traffic-tags">
-              <span class="asset-sub">{traffic_pool_badge(item)}</span>
-              {pool_total_html}
-              <button class="chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}">查看曲线</button>
-            </span>
+            <span class="traffic-amount">{fmt_gb(self_traffic)}</span>
+            <span class="traffic-daily">今日 {fmt_gb(today_traffic)} · {esc(pool_label)}</span>
           </span>
+        </span>
+        <span class="server-cell action-cell">
+          <button class="chart-trigger row-chart-trigger" type="button" data-chart-trigger data-server-id="{esc(identity['id'])}" data-chart-pool="{esc(item.get('traffic_pool_key') or '')}" data-server-name="{esc(identity['product_name'])}" title="查看流量趋势">
+            <span aria-hidden="true">▥</span><span>趋势</span>
+          </button>
         </span>
       </article>
     """
