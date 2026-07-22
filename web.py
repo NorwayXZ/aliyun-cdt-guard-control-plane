@@ -3356,7 +3356,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-color: color-mix(in srgb, var(--red) 40%, var(--line));
     }}
     .total-chart-panel,
-    .total-chart-facts article {{
+    .total-chart-facts {{
       background: var(--panel-bg);
     }}
     .total-chart-panel {{
@@ -3464,29 +3464,48 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       text-align: center;
     }}
     .total-chart-facts {{
-      background: var(--line);
-      display: grid;
-      gap: 1px;
+      align-content: start;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 18px;
     }}
     .total-chart-facts article {{
+      border: 1px solid var(--line);
       display: grid;
       gap: 6px;
-      padding: 18px;
+      min-width: 0;
+      padding: 12px;
+    }}
+    .facts-top-grid,
+    .facts-bottom-grid {{
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .fact-primary strong {{
+      color: var(--accent) !important;
+      font-size: 24px !important;
+      line-height: 1.12 !important;
+    }}
+    .fact-alert {{
+      align-items: center;
+      grid-template-columns: minmax(0, 1fr);
     }}
     .traffic-window-card {{
       gap: 12px !important;
     }}
     .traffic-window-grid {{
       display: grid;
-      gap: 10px;
+      gap: 8px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }}
     .traffic-window-item {{
       border: 1px solid var(--line);
       display: grid;
       gap: 4px;
-      min-height: 58px;
-      padding: 10px;
+      min-height: 52px;
+      padding: 9px;
     }}
     .traffic-window-item span {{
       font-size: 11px;
@@ -3506,11 +3525,6 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       font-weight: 780;
       line-height: 1.45;
       overflow-wrap: anywhere;
-    }}
-    .total-chart-facts article:first-child strong {{
-      color: var(--accent);
-      font-size: 24px;
-      line-height: 1.15;
     }}
     .control-plane-theme .form-label,
     .control-plane-theme .form-section-title,
@@ -4764,18 +4778,16 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
           {chart_html}
         </div>
         <aside class="total-chart-facts">
-          <article>
-            <span>当前累计使用流量</span>
-            <strong>{fmt_gb(current_total)} · {used_percent:.1f}%</strong>
-          </article>
-          <article>
-            <span>总保护额度</span>
-            <strong>{fmt_gb(total_capacity)} · {series.get("capacity_pool_count", pools)} 个账号池</strong>
-          </article>
-          <article>
-            <span>统计范围</span>
-            <strong>{enabled}/{total} 台启用保护 · {series.get("source_count", 0)} 个去重统计源</strong>
-          </article>
+          <div class="facts-top-grid">
+            <article class="fact-primary">
+              <span>当前累计使用流量</span>
+              <strong>{fmt_gb(current_total)} · {used_percent:.1f}%</strong>
+            </article>
+            <article>
+              <span>剩余保护额度</span>
+              <strong>{fmt_gb(remaining_capacity)}</strong>
+            </article>
+          </div>
           <article class="traffic-window-card">
             <span>近期总流量消耗</span>
             <div class="traffic-window-grid">
@@ -4785,11 +4797,17 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
               <div class="traffic-window-item"><span>近 30 天</span><strong>{fmt_gb(window_deltas.get(30, series.get("delta_gb")))}</strong></div>
             </div>
           </article>
-          <article>
-            <span>剩余保护额度</span>
-            <strong>{fmt_gb(remaining_capacity)}</strong>
-          </article>
-          <article>
+          <div class="facts-bottom-grid">
+            <article>
+              <span>总保护额度</span>
+              <strong>{fmt_gb(total_capacity)} · {series.get("capacity_pool_count", pools)} 个账号池</strong>
+            </article>
+            <article>
+              <span>统计范围</span>
+              <strong>{enabled}/{total} 台启用 · {series.get("source_count", 0)} 个统计源</strong>
+            </article>
+          </div>
+          <article class="fact-alert">
             <span>当前关注</span>
             <strong>预警 {warnings} · 错误 {errors} · 已停机 {stopped}</strong>
           </article>
