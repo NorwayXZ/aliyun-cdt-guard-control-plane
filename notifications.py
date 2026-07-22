@@ -360,18 +360,172 @@ def action_label(action: str | None) -> str:
         "manual_start": "手动开机",
         "keep_running": "保持运行",
         "keep_stopped": "保持停止",
+        "none": "保持运行",
         "error": "检查错误",
     }
     return labels.get(action or "", action or "未知动作")
 
 
+def as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def used_percent(item: dict[str, Any]) -> float:
+    traffic = as_float(item.get("protection_traffic_gb"), as_float(item.get("traffic_gb"), 0.0))
+    threshold = as_float(item.get("stop_threshold_gb"), 0.0)
+    if threshold <= 0:
+        return 0.0
+    return traffic / threshold * 100
+
+
+def status_badge(status: str | None) -> str:
+    mapping = {
+        "Running": "🟢 运行中",
+        "Stopped": "🔴 已关机",
+        "Starting": "🟡 开机中",
+        "Stopping": "🟡 关机中",
+        "Disabled": "⚫ 已禁用",
+    }
+    return mapping.get(status or "", f"⚪ {status or '未知'}")
+
+
+def item_icon(item: dict[str, Any]) -> str:
+    if item.get("last_error"):
+        return "🔴"
+    status = item.get("instance_status") or item.get("status")
+    pct = used_percent(item)
+    if status in {"Stopped", "Stopping"}:
+        return "🔴"
+    if item.get("warning") or pct >= 85:
+        return "🟡"
+    if status == "Running":
+        return "🟢"
+    return "⚪"
+
+
+def pool_icon(pool: dict[str, Any]) -> str:
+    if pool.get("warning") or as_float(pool.get("used_pct"), 0.0) >= 85:
+        return "🟡"
+    return "🟢"
+
+
+def reset_text(item: dict[str, Any]) -> str:
+    plan = item.get("recovery_plan") or {}
+    next_reset = str(plan.get("next_reset_at") or "").split("T")[0] or "未知"
+    countdown = plan.get("reset_countdown_label")
+    if countdown:
+        return f"{next_reset}（{countdown}）"
+    days = plan.get("days_until_reset")
+    if days is not None:
+        return f"{next_reset}（剩余 {days} 天）"
+    return next_reset
+
+
+def compact_time(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "暂无"
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        return text.replace("T", " ")[:16]
+
+
+def instance_name(item: dict[str, Any]) -> str:
+    return str(item.get("label") or item.get("product_name") or item.get("id") or item.get("instance_id") or "未命名服务器")
+
+
+def public_ip_text(item: dict[str, Any]) -> str:
+    return ", ".join(str(ip) for ip in item.get("public_ips") or []) or str(item.get("server_ip") or "未知")
+
+
+def pool_brief(item: dict[str, Any]) -> str:
+    count = int(item.get("traffic_pool_member_count") or item.get("display_pool_member_count") or 0)
+    if count > 1:
+        return f"账号共享池 · {count} 台机器"
+    scope = str(item.get("traffic_scope") or "")
+    if scope == "region":
+        return f"区域统计 · {item.get('traffic_region_id') or item.get('region_id') or '未知区域'}"
+    return "账号池 · 1 台机器"
+
+
+def account_key(item: dict[str, Any]) -> str:
+    return str(item.get("account_fingerprint") or item.get("access_key_id") or item.get("traffic_display_pool_key") or "unknown")
+
+
+def account_name(key: str) -> str:
+    if key == "unknown":
+        return "未知阿里云账号"
+    return f"阿里云账号 {key}"
+
+
+def account_icon(items: list[dict[str, Any]]) -> str:
+    if any(item.get("last_error") for item in items):
+        return "🔴"
+    if any(item.get("warning") for item in items):
+        return "🟡"
+    if any(item.get("instance_status") == "Running" for item in items):
+        return "🟢"
+    return "⚪"
+
+
+def account_groups(status: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]]]:
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for item in status.get("instances", []):
+        groups.setdefault(account_key(item), []).append(item)
+    return list(groups.items())
+
+
+def group_usage(items: list[dict[str, Any]]) -> tuple[float, float, float]:
+    traffic = max(
+        as_float(item.get("protection_traffic_gb"), as_float(item.get("traffic_gb"), 0.0))
+        for item in items
+    ) if items else 0.0
+    threshold = max(as_float(item.get("stop_threshold_gb"), 0.0) for item in items) if items else 0.0
+    pct = traffic / threshold * 100 if threshold > 0 else 0.0
+    return traffic, threshold, pct
+
+
+def group_reset_text(items: list[dict[str, Any]]) -> str:
+    for item in items:
+        text = reset_text(item)
+        if text and text != "未知":
+            return text
+    return "未知"
+
+
+def usage_line(item: dict[str, Any]) -> str:
+    traffic = item.get("protection_traffic_gb")
+    if traffic is None:
+        traffic = item.get("traffic_gb")
+    return f"{gb(traffic)} / {gb(item.get('stop_threshold_gb'))}（{used_percent(item):.0f}%）"
+
+
+def server_usage_line(item: dict[str, Any]) -> str:
+    return gb(item.get("traffic_gb"))
+
+
+def delta_line(item: dict[str, Any]) -> str:
+    delta = item.get("traffic_delta_gb")
+    if delta is None:
+        return "本次新增：暂无"
+    prefix = "+" if as_float(delta) >= 0 else ""
+    return f"本次新增：{prefix}{gb(delta)}"
+
+
 def instance_line(item: dict[str, Any]) -> str:
     return (
-        f"{item.get('label') or item.get('id')}\n"
-        f"状态：{item.get('instance_status') or item.get('status') or '未知'}\n"
+        f"{item_icon(item)} {instance_name(item)}\n"
+        f"状态：{status_badge(item.get('instance_status') or item.get('status'))}\n"
         f"动作：{action_label(item.get('action'))}\n"
-        f"流量：{gb(item.get('traffic_gb'))} / {gb(item.get('stop_threshold_gb'))}\n"
-        f"流量池：{item.get('traffic_pool_label') or item.get('traffic_region_id') or '未知'}\n"
+        f"账号 CDT：{usage_line(item)}\n"
+        f"本机 CDT：{server_usage_line(item)}\n"
+        f"{delta_line(item)}\n"
+        f"归属：{pool_brief(item)}\n"
         f"原因：{item.get('reason') or '无'}"
     )
 
@@ -379,93 +533,132 @@ def instance_line(item: dict[str, Any]) -> str:
 def build_daily_report(status: dict[str, Any]) -> tuple[str, str]:
     summary = status.get("summary", {})
     instances = status.get("instances", [])
-    title = "Aliyun CDT Guard 每日流量报告"
+    title = "📮 Aliyun CDT Guard 每日流量报告"
+    running = sum(1 for item in instances if item.get("instance_status") == "Running")
+    stopped = sum(1 for item in instances if item.get("instance_status") == "Stopped")
     lines = [
-        f"更新时间：{status.get('generated_at') or '暂无'}",
-        f"机器：{summary.get('enabled', 0)}/{summary.get('total', 0)} 启用，流量池 {summary.get('pools', 0)}，预警 {summary.get('warnings', 0)}，错误 {summary.get('errors', 0)}，停止 {summary.get('stopped', 0)}",
+        f"更新时间：{compact_time(status.get('generated_at'))}",
+        "",
+        "📌 今日概览",
+        f"机器：{summary.get('total', len(instances))} 台 · 🟢 {running} 运行 · 🔴 {stopped} 停止",
+        f"风险：🟡 {summary.get('warnings', 0)} 预警 · 🔴 {summary.get('errors', 0)} 错误",
+        f"启停动作：{summary.get('actions', 0)}",
         "",
     ]
-    for item in instances:
-        lines.append(
-            f"- {item.get('label') or item.get('id')} | {item.get('instance_status') or '未知'} | "
-            f"{gb(item.get('traffic_gb'))}/{gb(item.get('stop_threshold_gb'))} | {item.get('traffic_pool_label') or '未知流量池'}"
-        )
+    pools = pool_summary(status)
+    if pools:
+        lines.append("🧩 账号流量池")
+        for pool in pools[:6]:
+            lines.append(
+                f"{pool_icon(pool)} {pool.get('name')}：{gb(pool.get('traffic_gb'))} / {gb(pool.get('stop_threshold_gb'))}（{as_float(pool.get('used_pct')):.0f}%）"
+            )
+        lines.append("")
+    lines.append("🖥 服务器")
+    for key, items in account_groups(status):
+        traffic, threshold, pct = group_usage(items)
+        lines.append(f"{account_icon(items)} {account_name(key)} · {len(items)} 台")
+        lines.append(f"账号 CDT：{gb(traffic)} / {gb(threshold)}（{pct:.0f}%）")
+        for item in items:
+            lines.append(
+                f"  {item_icon(item)} {instance_name(item)}：{status_badge(item.get('instance_status'))} · 本机 {server_usage_line(item)} · {delta_line(item)}"
+            )
     return title, "\n".join(lines).strip()
 
 
 def pool_summary(status: dict[str, Any]) -> list[dict[str, Any]]:
     pools: dict[str, dict[str, Any]] = {}
     for item in status.get("instances", []):
-        key = str(item.get("traffic_pool_key") or item.get("id"))
+        key = account_key(item)
+        if key == "unknown":
+            key = str(item.get("traffic_display_pool_key") or item.get("traffic_pool_key") or item.get("id"))
+        traffic = item.get("protection_traffic_gb")
+        if traffic is None:
+            traffic = item.get("traffic_gb")
+        threshold = item.get("stop_threshold_gb")
         pool = pools.setdefault(
             key,
             {
-                "label": item.get("traffic_pool_label") or item.get("traffic_region_id") or "未知流量池",
-                "traffic_gb": item.get("traffic_gb"),
-                "stop_threshold_gb": item.get("stop_threshold_gb"),
+                "name": "",
+                "traffic_gb": traffic,
+                "stop_threshold_gb": threshold,
                 "members": [],
                 "warning": False,
+                "used_pct": 0.0,
             },
         )
-        pool["members"].append(item.get("label") or item.get("id"))
+        pool["traffic_gb"] = max(as_float(pool.get("traffic_gb")), as_float(traffic))
+        pool["stop_threshold_gb"] = max(as_float(pool.get("stop_threshold_gb")), as_float(threshold))
+        pool["members"].append(instance_name(item))
         pool["warning"] = bool(pool.get("warning") or item.get("warning"))
+    for index, pool in enumerate(pools.values(), start=1):
+        members = pool.get("members", [])
+        pool["name"] = f"账号池 #{index}"
+        threshold = as_float(pool.get("stop_threshold_gb"), 0.0)
+        pool["used_pct"] = (as_float(pool.get("traffic_gb")) / threshold * 100) if threshold > 0 else 0.0
     return list(pools.values())
 
 
 def telegram_help_text() -> str:
     return (
-        "Aliyun CDT Guard 可用命令\n\n"
-        "/status - 查看面板总览\n"
-        "/traffic - 查看每台机器 CDT 用量\n"
-        "/pools - 查看流量池用量\n"
-        "/report - 立即生成一次流量报告\n"
-        "/server 关键词 - 查看某台服务器详情\n"
-        "/help - 查看帮助\n\n"
-        "说明：Telegram 命令只用于查询，不提供远程开关机。"
+        "🧭 Aliyun CDT Guard 命令\n\n"
+        "/status  面板总览、机器数量、预警和错误\n"
+        "/traffic  账号 CDT 用量、机器状态和重置时间\n"
+        "/pools  共享流量池用量和成员机器\n"
+        "/server 关键词  查询单台服务器详情\n"
+        "/report  立即生成完整流量报告\n"
+        "/help  查看帮助\n\n"
+        "说明：Telegram 只用于查询状态，不提供远程开关机。"
     )
 
 
 def build_status_reply(status: dict[str, Any]) -> str:
     summary = status.get("summary", {})
+    instances = status.get("instances", [])
+    running = sum(1 for item in instances if item.get("instance_status") == "Running")
+    stopped = sum(1 for item in instances if item.get("instance_status") == "Stopped")
+    warnings = int(summary.get("warnings", 0) or 0)
+    errors = int(summary.get("errors", 0) or 0)
+    health = "🔴" if errors else ("🟡" if warnings else "🟢")
+    pools = pool_summary(status)
+    pool_lines = []
+    for pool in pools[:4]:
+        pool_lines.append(f"{pool_icon(pool)} {pool.get('name')}：{gb(pool.get('traffic_gb'))} / {gb(pool.get('stop_threshold_gb'))}（{as_float(pool.get('used_pct')):.0f}%）")
     return (
-        "Aliyun CDT Guard 总览\n\n"
-        f"更新时间：{status.get('generated_at') or '暂无'}\n"
-        f"机器：{summary.get('enabled', 0)}/{summary.get('total', 0)} 启用\n"
-        f"流量池：{summary.get('pools', 0)}\n"
-        f"预警：{summary.get('warnings', 0)}\n"
-        f"错误：{summary.get('errors', 0)}\n"
-        f"已停止：{summary.get('stopped', 0)}\n"
-        f"本次启停动作：{summary.get('actions', 0)}"
+        f"{health} Aliyun CDT Guard 总览\n\n"
+        f"更新时间：{compact_time(status.get('generated_at'))}\n"
+        f"机器：{summary.get('total', len(instances))} 台 · 🟢 {running} 运行 · 🔴 {stopped} 停止\n"
+        f"风险：🟡 {warnings} 预警 · 🔴 {errors} 错误\n"
+        f"启停动作：{summary.get('actions', 0)}\n\n"
+        f"🧩 账号流量池\n{chr(10).join(pool_lines) if pool_lines else '暂无流量池数据'}"
     )
 
 
 def build_traffic_reply(status: dict[str, Any]) -> str:
-    lines = ["每台机器流量", ""]
-    for item in status.get("instances", []):
-        plan = item.get("recovery_plan") or {}
-        countdown = plan.get("reset_countdown_label") or f"{plan.get('days_until_reset', '未知')} 天"
-        lines.append(
-            f"- {item.get('label') or item.get('id')}\n"
-            f"  状态：{item.get('instance_status') or '未知'}\n"
-            f"  CDT：{gb(item.get('traffic_gb'))} / {gb(item.get('stop_threshold_gb'))}\n"
-            f"  本次新增：{gb(item.get('traffic_delta_gb'))}\n"
-            f"  流量池：{item.get('traffic_pool_label') or '未知'}\n"
-            f"  下次重置：{str(plan.get('next_reset_at') or '暂无').split('T')[0]}，剩余 {countdown}"
-        )
+    lines = ["📊 服务器流量状态", f"更新时间：{compact_time(status.get('generated_at'))}", ""]
+    for key, items in account_groups(status):
+        traffic, threshold, pct = group_usage(items)
+        lines.append(f"{account_icon(items)} {account_name(key)} · {len(items)} 台")
+        lines.append(f"账号 CDT：{gb(traffic)} / {gb(threshold)}（{pct:.0f}%）")
+        lines.append(f"重置：{group_reset_text(items)}")
+        for item in items:
+            lines.extend(
+                [
+                    f"• {item_icon(item)} {instance_name(item)} · {status_badge(item.get('instance_status'))}",
+                    f"  本机：{server_usage_line(item)} · {delta_line(item)}",
+                    f"  {item.get('region_id') or '未知区域'} · {public_ip_text(item)}",
+                ]
+            )
+        lines.append("")
     return "\n".join(lines).strip()
 
 
 def build_pools_reply(status: dict[str, Any]) -> str:
-    lines = ["流量池用量", ""]
+    lines = ["🧩 账号流量池", ""]
     for pool in pool_summary(status):
-        try:
-            used_pct = float(pool.get("traffic_gb") or 0) / float(pool.get("stop_threshold_gb") or 1) * 100
-        except (TypeError, ValueError, ZeroDivisionError):
-            used_pct = 0
         lines.append(
-            f"- {pool.get('label')}\n"
-            f"  用量：{gb(pool.get('traffic_gb'))} / {gb(pool.get('stop_threshold_gb'))} ({used_pct:.0f}%)\n"
-            f"  机器：{', '.join(str(name) for name in pool.get('members', []))}"
+            f"{pool_icon(pool)} {pool.get('name')} · {len(pool.get('members', []))} 台\n"
+            f"用量：{gb(pool.get('traffic_gb'))} / {gb(pool.get('stop_threshold_gb'))}（{as_float(pool.get('used_pct')):.0f}%）\n"
+            f"成员：{'、'.join(str(name) for name in pool.get('members', []))}\n"
         )
     return "\n".join(lines).strip()
 
@@ -488,19 +681,21 @@ def build_server_reply(status: dict[str, Any], keyword: str) -> str:
         if keyword not in haystack:
             continue
         plan = item.get("recovery_plan") or {}
-        countdown = plan.get("reset_countdown_label") or f"{plan.get('days_until_reset', '未知')} 天"
         return (
-            f"{item.get('label') or item.get('id')}\n\n"
-            f"状态：{item.get('instance_status') or '未知'}\n"
+            f"{item_icon(item)} {instance_name(item)}\n\n"
+            f"状态：{status_badge(item.get('instance_status'))}\n"
             f"实例：{item.get('instance_id')}\n"
-            f"公网 IP：{', '.join(item.get('public_ips') or []) or '未知'}\n"
+            f"公网 IP：{public_ip_text(item)}\n"
             f"区域：{item.get('region_id')}\n"
-            f"CDT：{gb(item.get('traffic_gb'))} / {gb(item.get('stop_threshold_gb'))}\n"
+            f"账号：{account_name(account_key(item))}\n"
+            f"本机 CDT：{server_usage_line(item)}\n"
+            f"账号 CDT：{usage_line(item)}\n"
             f"剩余：{gb(item.get('remaining_gb'))}\n"
+            f"{delta_line(item)}\n"
             f"动作：{action_label(item.get('action'))}\n"
-            f"原因：{item.get('reason') or '无'}\n"
-            f"流量池：{item.get('traffic_pool_label') or '未知'}\n"
-            f"预计重置：{str(plan.get('next_reset_at') or '暂无').split('T')[0]}，剩余 {countdown}"
+            f"归属：{pool_brief(item)}\n"
+            f"重置：{reset_text(item)}\n"
+            f"原因：{item.get('reason') or '无'}"
         )
     return f"没有找到匹配服务器：{keyword}"
 
