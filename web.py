@@ -636,26 +636,39 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     :root {{
       --font-sans: "Geist", "Noto Sans SC", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
       --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      --bg: #101617;
-      --panel: #151d1e;
-      --panel-soft: #111819;
-      --ink: #e9f0ee;
-      --muted: #91a19e;
-      --accent: #6bf1c0;
-      --line: #2d3a3b;
+      --bg: #fff4e5;
+      --panel: rgba(255, 250, 242, .95);
+      --panel-soft: #fffdf8;
+      --ink: #3a281f;
+      --muted: #9b806e;
+      --accent: #ef5b42;
+      --line: #ead8c1;
     }}
     html, body {{ font-family: var(--font-sans); letter-spacing: 0; }}
     body {{
       min-height: 100vh;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at 76% 22%, rgba(255, 196, 95, .34), transparent 22rem),
+        var(--bg);
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
+    }}
+    body::before {{
+      content: "";
+      inset: 0;
+      opacity: .55;
+      pointer-events: none;
+      position: fixed;
+      background-image: url("data:image/svg+xml,%3Csvg width='38' height='16' viewBox='0 0 38 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 8c4.75-10.5 14.25-10.5 19 0s14.25 10.5 19 0' fill='none' stroke='%23f4b58f' stroke-width='1.4' stroke-linecap='round' opacity='.52'/%3E%3C/svg%3E");
+      background-size: 38px 16px;
     }}
     .login-shell {{
       display: grid;
       min-height: 100vh;
       padding: 34px 20px;
       place-items: center;
+      position: relative;
+      z-index: 1;
     }}
     .login-panel {{
       width: min(470px, 100%);
@@ -663,9 +676,10 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     .login-card {{
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 10px;
-      box-shadow: 0 24px 80px rgba(0, 0, 0, .28);
+      border-radius: 8px;
+      box-shadow: 0 24px 80px rgba(82, 45, 25, .16);
       padding: 38px;
+      position: relative;
     }}
     .login-logo {{
       display: grid;
@@ -681,7 +695,7 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     .login-logo .brand-mark {{
       height: 104px;
       width: 104px;
-      filter: drop-shadow(0 18px 28px rgba(107, 241, 192, .14));
+      filter: drop-shadow(0 18px 28px rgba(239, 91, 66, .18));
       margin-bottom: 12px;
     }}
     .login-logo .brand-text {{
@@ -721,7 +735,7 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
     }}
     .form-control {{
       background: var(--panel-soft);
-      border-color: #3a4947;
+      border-color: var(--line);
       border-radius: 8px;
       color: var(--ink);
       min-height: 44px;
@@ -731,26 +745,27 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
       box-shadow: 0 0 0 3px rgba(107, 241, 192, .09);
     }}
     .form-control::placeholder {{
-      color: #63716f;
+      color: #b99d87;
     }}
     .form-label {{
-      color: #c4d0cd;
+      color: var(--muted);
       font-size: 12px;
       font-weight: 650;
     }}
     .btn-primary {{
-      background: #112b24;
-      border-color: #437869;
-      border-radius: 7px;
-      color: var(--accent);
-      font-weight: 700;
+      background: var(--accent);
+      border-color: var(--accent);
+      border-radius: 999px;
+      box-shadow: 0 7px 0 #c64231;
+      color: #fffaf2;
+      font-weight: 820;
       min-height: 44px;
       width: 100%;
     }}
     .btn-primary:hover {{
-      background: #18392f;
+      background: #f26c54;
       border-color: var(--accent);
-      color: var(--accent);
+      color: #fffaf2;
     }}
     .login-alert {{
       background: #fff7df;
@@ -809,9 +824,9 @@ def render_brand_logo() -> str:
         <svg class="brand-mark" viewBox="0 0 72 72" role="img" aria-hidden="true">
           <defs>
             <linearGradient id="brandShieldGradient" x1="10" y1="14" x2="62" y2="58" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#22d3ee"/>
-              <stop offset="0.55" stop-color="#1686f2"/>
-              <stop offset="1" stop-color="#0755d7"/>
+              <stop stop-color="#ff8d6b"/>
+              <stop offset="0.55" stop-color="#ef5b42"/>
+              <stop offset="1" stop-color="#b93a2c"/>
             </linearGradient>
           </defs>
           <path d="M36 5 62 17v19c0 16-10.7 26.8-26 32C20.7 62.8 10 52 10 36V17L36 5Z" fill="url(#brandShieldGradient)"/>
@@ -1483,10 +1498,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       color: var(--ink);
     }}
     .asset-name {{
-      color: #111827;
-      font-size: 15px;
-      font-weight: 720;
-      line-height: 1.35;
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1.08;
     }}
     .asset-sub {{ color: var(--muted); font-size: 12px; margin-top: 3px; }}
     .server-name-stack {{
@@ -2809,71 +2824,118 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .grid-full {{ grid-column: 1 / -1; }}
     .asset-toolbar {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }}
     body.control-plane-theme {{
-      color-scheme: dark;
-      --page-bg: #0c1112;
-      --sidebar-bg: rgba(8, 13, 14, 0.96);
-      --topbar-bg: rgba(12, 17, 18, 0.78);
-      --surface: #12191a;
-      --surface-soft: #162021;
-      --surface-strong: #1a2526;
-      --line: #263334;
-      --line-strong: #344849;
-      --ink: #edf4f1;
-      --soft: #aebbb8;
-      --muted: #778683;
-      --accent: #65e8b5;
-      --accent-soft: #113126;
-      --blue: #7bd8ff;
-      --success-soft: #10271f;
-      --warning-soft: #2c2514;
-      --danger-soft: #2c171b;
-      --yellow: #ffd166;
-      --red: #ff6b75;
-      --button-bg: #11191a;
-      --input-bg: #0d1415;
-      --hover-bg: #111b1c;
-      --panel-bg: rgba(18, 25, 26, 0.92);
-      --shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+      color-scheme: light;
+      --page-bg: #fff4e5;
+      --sidebar-bg: rgba(49, 34, 25, 0.96);
+      --topbar-bg: rgba(255, 248, 237, 0.86);
+      --surface: #fffaf2;
+      --surface-soft: #fff3e2;
+      --surface-strong: #ffe4c9;
+      --line: #ead8c1;
+      --line-strong: #d9bea0;
+      --ink: #3a281f;
+      --soft: #6f5849;
+      --muted: #9b806e;
+      --accent: #ef5b42;
+      --accent-soft: #ffe1d5;
+      --blue: #2f7f99;
+      --success-soft: #e9f7e8;
+      --warning-soft: #fff0bf;
+      --danger-soft: #ffe0dc;
+      --yellow: #d9951d;
+      --red: #df4f3b;
+      --button-bg: #fffaf2;
+      --input-bg: #fffdf8;
+      --hover-bg: #ffe9d7;
+      --panel-bg: rgba(255, 250, 242, 0.94);
+      --shadow: 0 18px 48px rgba(82, 45, 25, 0.12);
       background:
-        radial-gradient(circle at 72% -10%, rgba(101, 232, 181, 0.08), transparent 32rem),
-        linear-gradient(180deg, #0e1415, var(--page-bg));
+        radial-gradient(circle at 78% 10%, rgba(255, 196, 95, 0.34), transparent 22rem),
+        radial-gradient(circle at 95% 32%, rgba(239, 91, 66, 0.12), transparent 22rem),
+        var(--page-bg);
       color: var(--ink);
+    }}
+    body.control-plane-theme::before {{
+      content: "";
+      inset: 0;
+      opacity: .55;
+      pointer-events: none;
+      position: fixed;
+      z-index: 0;
+      background-image:
+        url("data:image/svg+xml,%3Csvg width='38' height='16' viewBox='0 0 38 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 8c4.75-10.5 14.25-10.5 19 0s14.25 10.5 19 0' fill='none' stroke='%23f4b58f' stroke-width='1.4' stroke-linecap='round' opacity='.52'/%3E%3C/svg%3E");
+      background-size: 38px 16px;
     }}
     body.control-plane-theme[data-theme="light"] {{
       color-scheme: light;
-      --page-bg: #f4f7f6;
-      --sidebar-bg: rgba(255, 255, 255, 0.98);
-      --topbar-bg: rgba(255, 255, 255, 0.82);
-      --surface: #ffffff;
-      --surface-soft: #f8fbfa;
-      --surface-strong: #eef5f2;
-      --line: #d9e5e1;
-      --line-strong: #b8ccc6;
-      --ink: #17211f;
-      --soft: #354641;
-      --muted: #6a7a76;
-      --accent: #087f61;
-      --accent-soft: #e4f6ef;
-      --blue: #16729a;
-      --success-soft: #e7f8ef;
-      --warning-soft: #fff4d6;
-      --danger-soft: #fde8eb;
-      --yellow: #a96d00;
-      --red: #c94352;
-      --button-bg: #ffffff;
-      --input-bg: #ffffff;
-      --hover-bg: #eef6f3;
-      --panel-bg: rgba(255, 255, 255, 0.94);
-      --shadow: 0 20px 60px rgba(18, 38, 32, 0.12);
+      --page-bg: #fff4e5;
+      --sidebar-bg: rgba(49, 34, 25, 0.96);
+      --topbar-bg: rgba(255, 248, 237, 0.86);
+      --surface: #fffaf2;
+      --surface-soft: #fff3e2;
+      --surface-strong: #ffe4c9;
+      --line: #ead8c1;
+      --line-strong: #d9bea0;
+      --ink: #3a281f;
+      --soft: #6f5849;
+      --muted: #9b806e;
+      --accent: #ef5b42;
+      --accent-soft: #ffe1d5;
+      --blue: #2f7f99;
+      --success-soft: #e9f7e8;
+      --warning-soft: #fff0bf;
+      --danger-soft: #ffe0dc;
+      --yellow: #d9951d;
+      --red: #df4f3b;
+      --button-bg: #fffaf2;
+      --input-bg: #fffdf8;
+      --hover-bg: #ffe9d7;
+      --panel-bg: rgba(255, 250, 242, 0.94);
+      --shadow: 0 18px 48px rgba(82, 45, 25, 0.12);
       background:
-        radial-gradient(circle at 75% -10%, rgba(8, 127, 97, 0.12), transparent 32rem),
-        linear-gradient(180deg, #f8fbfa, var(--page-bg));
+        radial-gradient(circle at 78% 10%, rgba(255, 196, 95, 0.34), transparent 22rem),
+        radial-gradient(circle at 95% 32%, rgba(239, 91, 66, 0.12), transparent 22rem),
+        var(--page-bg);
+      color: var(--ink);
+    }}
+    body.control-plane-theme[data-theme="dark"] {{
+      color-scheme: dark;
+      --page-bg: #241812;
+      --sidebar-bg: rgba(34, 22, 16, 0.98);
+      --topbar-bg: rgba(36, 24, 18, 0.84);
+      --surface: #302017;
+      --surface-soft: #3a281d;
+      --surface-strong: #493224;
+      --line: #624535;
+      --line-strong: #7b5943;
+      --ink: #fff4e5;
+      --soft: #e3c7af;
+      --muted: #bb9a80;
+      --accent: #ff755a;
+      --accent-soft: #5a2b22;
+      --blue: #83d4ee;
+      --success-soft: #203823;
+      --warning-soft: #4b3517;
+      --danger-soft: #54251f;
+      --yellow: #ffca66;
+      --red: #ff755a;
+      --button-bg: #3a281d;
+      --input-bg: #281b14;
+      --hover-bg: #493224;
+      --panel-bg: rgba(48, 32, 23, 0.94);
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+      background:
+        radial-gradient(circle at 78% 10%, rgba(255, 196, 95, 0.12), transparent 22rem),
+        radial-gradient(circle at 95% 32%, rgba(239, 91, 66, 0.14), transparent 22rem),
+        var(--page-bg);
       color: var(--ink);
     }}
     .app-shell {{
       display: grid;
       grid-template-columns: 256px minmax(0, 1fr);
       min-height: 100vh;
+      position: relative;
+      z-index: 1;
     }}
     .sidebar {{
       background: var(--sidebar-bg);
@@ -2885,6 +2947,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       padding: 22px 14px;
       position: sticky;
       top: 0;
+      box-shadow: 18px 0 54px rgba(49, 34, 25, 0.14);
     }}
     .brand {{
       align-items: center;
@@ -2899,63 +2962,70 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       min-width: 0;
     }}
     .brand .brand-mark {{
-      background: linear-gradient(135deg, var(--accent-soft), var(--button-bg));
-      border: 1px solid color-mix(in srgb, var(--accent) 72%, transparent);
-      box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 14%, transparent);
+      background: var(--accent);
+      border: 0;
+      border-radius: 50%;
+      box-shadow: 0 12px 24px rgba(239, 91, 66, .28);
       flex: 0 0 auto;
-      height: 34px;
-      width: 34px;
+      height: 42px;
+      padding: 5px;
+      width: 42px;
     }}
     .brand .brand-name {{
-      color: var(--ink);
-      font-size: 14px;
-      font-weight: 760;
+      color: #fff8ed;
+      font-size: 15px;
+      font-weight: 840;
       line-height: 1.1;
     }}
     .brand .brand-subtitle {{
-      color: var(--muted);
+      color: #d7b8a0;
       font-size: 11px;
-      font-weight: 650;
-      letter-spacing: 0;
-      text-transform: none;
+      font-weight: 760;
+      letter-spacing: .12em;
+      text-transform: uppercase;
     }}
     .nav-block p {{
-      color: var(--muted);
+      color: #d7b8a0;
       font: 11px/1 var(--font-mono);
-      margin: 0 10px 8px;
+      letter-spacing: .08em;
+      margin: 0 12px 9px;
+      text-transform: uppercase;
     }}
     .nav-block .nav-item {{
       align-items: center;
       background: transparent;
-      border: 0;
-      border-left: 2px solid transparent;
-      border-radius: 0 7px 7px 0;
-      color: var(--soft);
+      border: 1px solid transparent;
+      border-radius: 999px;
+      color: #f1d7c0;
       display: flex;
       gap: 11px;
       min-height: 42px;
-      padding: 0 12px;
+      padding: 0 14px;
       text-align: left;
       text-decoration: none;
       width: 100%;
     }}
     .nav-block .nav-item:hover,
     .nav-block .nav-item.active {{
-      background: var(--hover-bg);
-      color: var(--ink);
+      background: rgba(255, 248, 237, .10);
+      color: #fff8ed;
       text-decoration: none;
     }}
     .nav-block .nav-item.active {{
-      border-left-color: var(--accent);
-      color: var(--accent);
+      background: #fff8ed;
+      border-color: #fff8ed;
+      color: #3a281f;
+      font-weight: 820;
     }}
     .nav-block .nav-icon {{
-      border: 0;
-      border-radius: 0;
-      flex: 0 0 18px;
+      background: rgba(255, 248, 237, .10);
+      border: 1px solid rgba(255, 248, 237, .12);
+      border-radius: 50%;
+      flex: 0 0 24px;
       font-family: var(--font-mono);
-      height: auto;
-      width: 18px;
+      height: 24px;
+      width: 24px;
+      justify-content: center;
     }}
     .sidebar-account {{
       border-top: 1px solid var(--line);
@@ -3025,13 +3095,15 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       z-index: 10;
     }}
     .crumb {{
-      color: var(--muted);
-      font: 11px var(--font-mono);
+      color: var(--accent);
+      font: 800 11px var(--font-mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
     }}
     .topbar h1 {{
       color: var(--ink);
-      font-size: 20px;
-      font-weight: 650;
+      font-size: 24px;
+      font-weight: 900;
       letter-spacing: 0;
       line-height: 1.2;
       margin: 4px 0 0;
@@ -3067,9 +3139,9 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: transparent;
       display: block;
       margin: 0 auto;
-      max-width: 1480px;
+      max-width: 1500px;
       min-height: auto;
-      padding: 30px 34px 54px;
+      padding: 34px 38px 58px;
     }}
     .control-plane-theme .page-title,
     .control-plane-theme .card-title,
@@ -3105,7 +3177,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .chat-candidate {{
       background: var(--panel-bg);
       border-color: var(--line);
-      box-shadow: none;
+      box-shadow: var(--shadow);
       color: var(--ink);
     }}
     .control-plane-theme .card-header,
@@ -3118,7 +3190,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       color: var(--ink);
     }}
     .control-plane-theme .server-group-head {{
-      background: var(--input-bg);
+      background: var(--surface-soft);
       border-color: var(--line);
       color: var(--ink);
     }}
@@ -3130,7 +3202,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .control-plane-theme .traffic-chart-wrap,
     .control-plane-theme .traffic-table-wrap,
     .control-plane-theme .traffic-modal-card {{
-      background: var(--surface);
+      background: color-mix(in srgb, var(--surface) 86%, #ffffff);
       border-color: var(--line);
       color: var(--ink);
     }}
@@ -3143,8 +3215,8 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       background: var(--surface-soft);
     }}
     .control-plane-theme .server-row.active {{
-      background: var(--input-bg);
-      box-shadow: inset 4px 0 0 var(--red);
+      background: #fff8ec;
+      box-shadow: inset 5px 0 0 var(--accent);
     }}
     .control-plane-theme .server-cell + .server-cell {{
       border-left-color: color-mix(in srgb, var(--line-strong) 52%, transparent);
@@ -3182,14 +3254,15 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       align-items: center;
       background: var(--button-bg);
       border: 1px solid var(--line);
-      border-radius: 0;
+      border-radius: 999px;
       color: var(--ink);
       display: inline-flex;
-      font-weight: 700;
+      font-weight: 820;
       justify-content: center;
       min-height: 38px;
-      padding: 8px 12px;
+      padding: 8px 16px;
       text-decoration: none;
+      box-shadow: 0 4px 0 color-mix(in srgb, var(--line) 80%, transparent);
     }}
     .control-plane-theme .btn:hover,
     .control-plane-theme .logout-link:hover,
@@ -3198,11 +3271,13 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       border-color: var(--accent);
       color: var(--accent);
       text-decoration: none;
+      transform: translateY(-1px);
     }}
     .control-plane-theme .btn-primary {{
       background: var(--accent);
       border-color: var(--accent);
-      color: #071211 !important;
+      color: #fffaf2 !important;
+      box-shadow: 0 7px 0 #c64231;
     }}
     .control-plane-theme[data-theme="light"] .btn-primary {{
       color: #ffffff;
@@ -3247,6 +3322,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       grid-template-columns: minmax(0, 1fr) minmax(280px, 38%);
       margin-bottom: 18px;
       overflow: hidden;
+      border-radius: 8px;
     }}
     .page-intro.warning {{ border-color: color-mix(in srgb, #f59f00 42%, var(--line)); }}
     .page-intro.danger {{ border-color: color-mix(in srgb, #ff7b83 42%, var(--line)); }}
@@ -3257,17 +3333,17 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .page-kicker {{
       color: var(--accent);
       font-size: 12px;
-      font-weight: 820;
-      letter-spacing: .04em;
+      font-weight: 900;
+      letter-spacing: .08em;
       margin-bottom: 8px;
       text-transform: uppercase;
     }}
     .page-intro h2 {{
       color: var(--ink);
-      font-size: clamp(24px, 3vw, 34px);
-      font-weight: 760;
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 940;
       letter-spacing: 0;
-      line-height: 1.12;
+      line-height: .98;
       margin: 0;
     }}
     .page-intro p {{
@@ -3340,14 +3416,15 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       color: var(--red);
     }}
     .overview-traffic-hero {{
-      background: var(--line);
+      background: color-mix(in srgb, var(--accent) 18%, var(--line));
       border: 1px solid var(--line-strong);
       box-shadow: var(--shadow);
       display: grid;
-      gap: 1px;
+      gap: 0;
       grid-template-columns: minmax(0, 1fr) minmax(280px, 28%);
       margin-bottom: 18px;
       overflow: hidden;
+      border-radius: 8px;
     }}
     .overview-traffic-hero.warning {{
       border-color: color-mix(in srgb, var(--yellow) 40%, var(--line));
@@ -3361,7 +3438,24 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .total-chart-panel {{
       min-width: 0;
-      padding: 22px;
+      padding: 26px;
+      position: relative;
+    }}
+    .total-chart-panel::after {{
+      background: rgba(255, 195, 88, .20);
+      border-radius: 50%;
+      content: "";
+      height: 280px;
+      pointer-events: none;
+      position: absolute;
+      right: -74px;
+      top: -76px;
+      width: 280px;
+      z-index: 0;
+    }}
+    .total-chart-panel > * {{
+      position: relative;
+      z-index: 1;
     }}
     .total-chart-head {{
       align-items: flex-start;
@@ -3372,10 +3466,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .total-chart-head h2 {{
       color: var(--ink);
-      font-size: clamp(24px, 3vw, 34px);
-      font-weight: 760;
+      font-size: clamp(34px, 4.6vw, 56px);
+      font-weight: 940;
       letter-spacing: 0;
-      line-height: 1.12;
+      line-height: .95;
       margin: 0;
     }}
     .total-chart-head p {{
@@ -3388,6 +3482,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .total-chart-svg {{
       background: var(--input-bg);
       border: 1px solid var(--line);
+      border-radius: 8px;
       display: block;
       height: 320px;
       width: 100%;
@@ -3419,7 +3514,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
       stroke: var(--accent);
       stroke-linecap: round;
       stroke-linejoin: round;
-      stroke-width: 3;
+      stroke-width: 4;
     }}
     .total-capacity-line {{
       stroke: var(--line-strong);
@@ -3449,7 +3544,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     .total-chart-dot {{
       fill: var(--input-bg);
       stroke: var(--accent);
-      stroke-width: 2;
+      stroke-width: 3;
     }}
     .total-chart-empty {{
       align-items: center;
@@ -3465,6 +3560,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .total-chart-facts {{
       align-content: start;
+      border-left: 1px solid var(--line);
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -3472,6 +3568,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .total-chart-facts article {{
       border: 1px solid var(--line);
+      border-radius: 8px;
       display: grid;
       gap: 6px;
       min-width: 0;
@@ -3502,6 +3599,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     }}
     .traffic-window-item {{
       border: 1px solid var(--line);
+      border-radius: 8px;
       display: grid;
       gap: 4px;
       min-height: 52px;
@@ -3737,7 +3835,7 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
         </div>
         <div class="top-actions">
           <span class="engine-state"><i></i>保护引擎正常</span>
-          <button class="ghost-btn theme-switch" type="button" data-theme-toggle>浅色模式</button>
+          <button class="ghost-btn theme-switch" type="button" data-theme-toggle>深色模式</button>
           {header_actions}
         </div>
       </header>
@@ -3793,10 +3891,10 @@ def page_shell(active: str, title: str, subtitle: str, body: str, actions: str =
     (function () {{
       const body = document.body;
       const button = document.querySelector("[data-theme-toggle]");
-      const stored = localStorage.getItem("cdtGuardTheme") || "dark";
+      const stored = localStorage.getItem("cdtGuardTheme") || "light";
       function applyTheme(theme) {{
         body.dataset.theme = theme;
-        if (button) button.textContent = theme === "light" ? "深色模式" : "浅色模式";
+        if (button) button.textContent = theme === "light" ? "深色模式" : "暖色模式";
       }}
       applyTheme(stored);
       if (button) {{
