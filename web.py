@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.3"
+APP_VERSION = "0.2.4"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>

@@ -31,6 +31,14 @@ curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-p
 8788
 ```
 
+如果默认端口已被占用，安装脚本会自动从 `8788` 开始向后寻找可用端口，例如 `8789`、`8790`，并在安装完成后输出真实访问地址。也可以指定扫描起始端口：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main/install.sh | sudo env WEB_PORT=8790 bash
+```
+
+如果是重复安装或更新，脚本会保留已有 `web.env` 里的端口，不会擅自改掉已经配置好的访问地址。
+
 安装完成后终端会输出面板地址、用户名和随机生成的密码。
 
 如果系统提示：

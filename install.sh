@@ -207,6 +207,55 @@ PY
   fi
 }
 
+is_valid_port() {
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
+}
+
+port_is_free() {
+  local port="$1"
+  python3 - "$port" <<'PY' >/dev/null 2>&1
+import socket
+import sys
+
+port = int(sys.argv[1])
+for family, host in ((socket.AF_INET, "0.0.0.0"), (socket.AF_INET6, "::")):
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((host, port))
+    except OSError:
+        sys.exit(1)
+    finally:
+        sock.close()
+sys.exit(0)
+PY
+}
+
+find_available_port() {
+  local start_port="$1"
+  local port="$start_port"
+  local max_port="${PORT_SCAN_MAX:-65535}"
+
+  if ! is_valid_port "$start_port"; then
+    echo "Invalid WEB_PORT: $start_port. WEB_PORT must be between 1 and 65535." >&2
+    exit 1
+  fi
+
+  while [ "$port" -le "$max_port" ]; do
+    if port_is_free "$port"; then
+      echo "$port"
+      return 0
+    fi
+    port=$((port + 1))
+  done
+
+  echo "No free web port found from $start_port to $max_port." >&2
+  exit 1
+}
+
 python_has_ensurepip() {
   python3 - <<'PY' >/dev/null 2>&1
 import ensurepip
@@ -309,6 +358,10 @@ EOF
 fi
 
 if [ ! -f "$INSTALL_DIR/web.env" ]; then
+  SELECTED_WEB_PORT="$(find_available_port "$WEB_PORT")"
+  if [ "$SELECTED_WEB_PORT" != "$WEB_PORT" ]; then
+    echo "Port $WEB_PORT is already in use. Using available port $SELECTED_WEB_PORT instead."
+  fi
   WEB_PASS="$(openssl rand -base64 24 | tr -d '\n')"
   WEB_SESSION_SECRET="$(openssl rand -hex 32)"
   umask 077
@@ -317,10 +370,16 @@ WEB_USERNAME=$WEB_USER
 WEB_PASSWORD=$WEB_PASS
 WEB_SESSION_SECRET=$WEB_SESSION_SECRET
 CDT_GUARD_HOST=0.0.0.0
-CDT_GUARD_PORT=$WEB_PORT
+CDT_GUARD_PORT=$SELECTED_WEB_PORT
 EOF
 else
   WEB_PASS="$(sed -n 's/^WEB_PASSWORD=//p' "$INSTALL_DIR/web.env" | head -n 1)"
+  SELECTED_WEB_PORT="$(sed -n 's/^CDT_GUARD_PORT=//p' "$INSTALL_DIR/web.env" | head -n 1)"
+  if [ -z "$SELECTED_WEB_PORT" ]; then
+    SELECTED_WEB_PORT="$(find_available_port "$WEB_PORT")"
+    umask 077
+    printf '\nCDT_GUARD_PORT=%s\n' "$SELECTED_WEB_PORT" >> "$INSTALL_DIR/web.env"
+  fi
   if ! grep -q '^WEB_SESSION_SECRET=' "$INSTALL_DIR/web.env"; then
     WEB_SESSION_SECRET="$(openssl rand -hex 32)"
     umask 077
@@ -358,7 +417,7 @@ cat <<EOF
 $APP_NAME installed.
 
 Web panel:
-  URL:      http://$IP_ADDR:$WEB_PORT
+  URL:      http://$IP_ADDR:$SELECTED_WEB_PORT
   Username: $WEB_USER
   Password: $WEB_PASS
 
