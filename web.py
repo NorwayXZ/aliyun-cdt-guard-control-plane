@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.10"
+APP_VERSION = "0.2.11"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -1410,38 +1410,31 @@ def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict],
     palette = ["#4b5f9c", "#bd5b31", "#dca12b", "#7a8a45", "#a14f76", "#2f8479"]
     width = 1180
     height = 430
-    pad_left = 56
-    pad_right = 24
+    pad_left = 82
+    pad_right = 28
     pad_top = 30
-    pad_bottom = 58
+    pad_bottom = 76
     plot_w = width - pad_left - pad_right
     plot_h = height - pad_top - pad_bottom
     peak = max(float(data["peak_gb"] or 0), 0.01)
     peak = peak * 1.18
 
     def x_at(index: int) -> float:
-        if len(days) == 1:
-            return pad_left
-        return pad_left + index * plot_w / (len(days) - 1)
+        return pad_left + (index + 0.5) * plot_w / max(len(days), 1)
 
     def y_at(value: float) -> float:
         return pad_top + (peak - value) / peak * plot_h
 
-    layers_html = []
-    running = [0.0 for _ in days]
-    for layer_index, key in enumerate(keys):
-        color = palette[layer_index % len(palette)]
-        bottom = running[:]
-        top = []
-        for index, day in enumerate(days):
-            running[index] += float(values.get(day, {}).get(key, 0.0))
-            top.append(running[index])
-        top_points = " ".join(f"{x_at(index):.1f},{y_at(value):.1f}" for index, value in enumerate(top))
-        bottom_points = " ".join(
-            f"{x_at(index):.1f},{y_at(value):.1f}" for index, value in reversed(list(enumerate(bottom)))
-        )
-        layers_html.append(
-            f'<polygon class="daily-area-layer" points="{top_points} {bottom_points}" fill="{color}"/>'
+    step = plot_w / max(len(days), 1)
+    bar_w = max(8, min(30, step * 0.58))
+    bars = []
+    for index, value in enumerate(totals):
+        value = float(value or 0)
+        x = x_at(index) - bar_w / 2
+        y = y_at(value)
+        bar_h = max(0, height - pad_bottom - y)
+        bars.append(
+            f'<rect class="daily-total-bar" x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" rx="2.5"/>'
         )
 
     grid_rows = []
@@ -1467,7 +1460,6 @@ def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict],
         )
 
     hover_rects = []
-    step = plot_w / max(len(days) - 1, 1)
     for index, day in enumerate(days):
         day_values = values.get(day, {})
         rows = []
@@ -1486,22 +1478,9 @@ def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict],
             f'<small>当天新增流量 · 合计 {esc(fmt_gb(totals[index]))}</small>'
             f'{"".join(rows)}'
         )
-        x = x_at(index) - step / 2
-        if index == 0:
-            x = pad_left
-        rect_w = step if index not in {0, len(days) - 1} else step / 2
         hover_rects.append(
-            f'<rect class="daily-hover-zone" x="{x:.1f}" y="{pad_top}" width="{rect_w:.1f}" height="{plot_h}" '
+            f'<rect class="daily-hover-zone" x="{pad_left + index * step:.1f}" y="{pad_top}" width="{step:.1f}" height="{plot_h}" '
             f'data-tooltip="{esc(tooltip)}" data-x="{x_at(index):.1f}"/>'
-        )
-
-    legend = []
-    for index, key in enumerate(keys):
-        color = palette[index % len(palette)]
-        total = sum(float(values.get(day, {}).get(key, 0.0)) for day in days)
-        legend.append(
-            f'<span class="daily-legend-item"><i style="background:{color}"></i>'
-            f'<b>{esc(labels.get(key, key))}</b><em>{esc(fmt_gb(total))}</em></span>'
         )
 
     if not keys or max(totals or [0]) <= 0:
@@ -1513,19 +1492,20 @@ def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict],
         <div class="daily-chart-head">
           <div>
             <div class="daily-figure">FIG. 1</div>
-            <h3>近30天每日流量消耗</h3>
-            <small class="daily-chart-note">按每天新增 CDT 流量统计，不是月账单金额。</small>
+            <h3>每日总流量消耗</h3>
+            <small class="daily-chart-note">每根柱子代表当天所有账号和服务器合计消耗的 CDT 流量。</small>
           </div>
-          <p>每日新增</p>
+          <p>近 30 天</p>
         </div>
-        <div class="daily-legend">{"".join(legend)}</div>
         <div class="daily-chart-wrap">
           {empty}
-          <svg class="daily-traffic-svg" viewBox="0 0 {width} {height}" role="img" aria-label="每日流量消耗图表">
+          <svg class="daily-traffic-svg" viewBox="0 0 {width} {height}" role="img" aria-label="每日总流量消耗图表">
             {"".join(grid_rows)}
+            <text x="22" y="{pad_top + plot_h / 2:.1f}" class="daily-axis-title" text-anchor="middle" transform="rotate(-90 22 {pad_top + plot_h / 2:.1f})">消耗量 GB</text>
+            <text x="{pad_left + plot_w / 2:.1f}" y="{height - 12}" class="daily-axis-title" text-anchor="middle">日期</text>
             <line x1="{pad_left}" y1="{pad_top}" x2="{pad_left}" y2="{height - pad_bottom}" class="daily-axis-line"/>
             <line x1="{pad_left}" y1="{height - pad_bottom}" x2="{width - pad_right}" y2="{height - pad_bottom}" class="daily-axis-line"/>
-            {"".join(layers_html)}
+            {"".join(bars)}
             {"".join(ticks)}
             {"".join(hover_rects)}
           </svg>
@@ -4552,11 +4532,26 @@ def page_shell(
       font-size: 11px;
       font-weight: 650;
     }}
+    .daily-axis-title {{
+      fill: var(--soft);
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: .08em;
+    }}
     .daily-area-layer {{
       opacity: .94;
       stroke: rgba(247, 242, 232, .92);
       stroke-linejoin: round;
       stroke-width: 2;
+    }}
+    .daily-total-bar {{
+      fill: #4b5f9c;
+      opacity: .94;
+      transition: opacity .16s ease, filter .16s ease;
+    }}
+    .daily-total-bar:hover {{
+      filter: brightness(1.08);
+      opacity: 1;
     }}
     .daily-hover-zone {{
       cursor: crosshair;
