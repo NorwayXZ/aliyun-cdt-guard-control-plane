@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.9"
+APP_VERSION = "0.2.10"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -1483,7 +1483,7 @@ def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict],
             rows.append('<div><span>当天暂无新增流量</span><b>0.00 GB</b></div>')
         tooltip = (
             f'<strong>{esc(day.strftime("%Y-%m-%d"))}</strong>'
-            f'<small>每日流量消耗 · 合计 {esc(fmt_gb(totals[index]))}</small>'
+            f'<small>当天新增流量 · 合计 {esc(fmt_gb(totals[index]))}</small>'
             f'{"".join(rows)}'
         )
         x = x_at(index) - step / 2
@@ -1513,9 +1513,10 @@ def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict],
         <div class="daily-chart-head">
           <div>
             <div class="daily-figure">FIG. 1</div>
-            <h3>每日流量消耗</h3>
+            <h3>近30天每日流量消耗</h3>
+            <small class="daily-chart-note">按每天新增 CDT 流量统计，不是月账单金额。</small>
           </div>
-          <p>近 30 天</p>
+          <p>每日新增</p>
         </div>
         <div class="daily-legend">{"".join(legend)}</div>
         <div class="daily-chart-wrap">
@@ -1531,7 +1532,7 @@ def render_daily_traffic_usage_chart(instances: list[dict], history: list[dict],
           <div class="daily-chart-tooltip" data-daily-tooltip></div>
         </div>
         <div class="daily-chart-foot">
-          <span>30 天合计 {esc(fmt_gb(data["total_delta_gb"]))}</span>
+          <span>近30天累计新增 {esc(fmt_gb(data["total_delta_gb"]))}</span>
           <span>今日新增 {esc(fmt_gb(data["today_gb"]))}</span>
           <span>单日峰值 {esc(fmt_gb(data["peak_gb"]))}</span>
         </div>
@@ -4466,6 +4467,14 @@ def page_shell(
       letter-spacing: 0;
       line-height: 1;
       margin: 0;
+    }}
+    .daily-chart-note {{
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      font-weight: 560;
+      line-height: 1.45;
+      margin-top: 8px;
     }}
     .daily-chart-head p {{
       color: var(--muted);
