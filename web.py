@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.12"
+APP_VERSION = "0.2.13"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -995,6 +995,58 @@ def current_total_traffic(instances: list[dict]) -> tuple[float, int]:
     return sum(totals.values()), display_pool_count(instances)
 
 
+def current_quota_usage(instances: list[dict]) -> dict[str, float | int]:
+    capacities: dict[str, float] = {}
+    source_values: dict[str, float] = {}
+    source_display: dict[str, str] = {}
+    for item in instances:
+        if not item.get("enabled", True):
+            continue
+        display_key = traffic_display_pool_key(item)
+        if not display_key:
+            continue
+        try:
+            threshold = float(item.get("stop_threshold_gb") or 180)
+        except (TypeError, ValueError):
+            threshold = 180.0
+        capacities[display_key] = max(capacities.get(display_key, 0), threshold)
+        if item.get("traffic_gb") is None:
+            continue
+        try:
+            traffic_gb = float(item.get("traffic_gb"))
+        except (TypeError, ValueError):
+            continue
+        source_key = traffic_total_key(item)
+        source_values[source_key] = max(source_values.get(source_key, 0), traffic_gb)
+        source_display[source_key] = display_key
+
+    actual_by_pool: dict[str, float] = {}
+    for source_key, traffic_gb in source_values.items():
+        display_key = source_display.get(source_key, source_key)
+        actual_by_pool[display_key] = actual_by_pool.get(display_key, 0) + traffic_gb
+
+    actual_total = sum(actual_by_pool.values())
+    capped_total = sum(
+        min(traffic_gb, capacities.get(display_key, traffic_gb))
+        for display_key, traffic_gb in actual_by_pool.items()
+    )
+    total_capacity = sum(capacities.values())
+    overage_total = sum(
+        max(traffic_gb - capacities.get(display_key, traffic_gb), 0)
+        for display_key, traffic_gb in actual_by_pool.items()
+    )
+    return {
+        "actual_total_gb": actual_total,
+        "capped_total_gb": capped_total,
+        "overage_gb": overage_total,
+        "total_capacity_gb": total_capacity,
+        "remaining_capacity_gb": max(total_capacity - capped_total, 0),
+        "used_percent": (capped_total / total_capacity * 100) if total_capacity > 0 else 0.0,
+        "pool_count": len(capacities),
+        "source_count": len(source_values),
+    }
+
+
 def total_protection_capacity(instances: list[dict]) -> tuple[float, int]:
     capacities: dict[str, float] = {}
     for item in instances:
@@ -1125,7 +1177,10 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
         all_points.append({"at": bucket_time.isoformat(), "total_gb": sum(last_by_key.values())})
 
     current_total, current_sources = current_total_traffic(instances)
-    total_capacity, capacity_pools = total_protection_capacity(instances)
+    quota_usage = current_quota_usage(instances)
+    quota_total = float(quota_usage.get("capped_total_gb") or 0)
+    total_capacity = float(quota_usage.get("total_capacity_gb") or 0)
+    capacity_pools = int(quota_usage.get("pool_count") or 0)
     current_time = parse_event_time(generated_at) or datetime.now(timezone.utc)
     if current_total > 0:
         if not all_points or abs(float(all_points[-1].get("total_gb") or 0) - current_total) > 0.0001:
@@ -1179,15 +1234,17 @@ def aggregate_total_traffic_series(instances: list[dict], history: list[dict], g
     first = float(compacted[0]["total_gb"]) if compacted else None
     last = float(compacted[-1]["total_gb"]) if compacted else current_total
     delta = max(last - first, 0) if first is not None else 0
-    used_percent = (current_total / total_capacity * 100) if total_capacity > 0 else 0
+    used_percent = float(quota_usage.get("used_percent") or 0)
     return {
         "days": days,
         "points": compacted,
-        "current_total_gb": current_total,
+        "current_total_gb": quota_total,
+        "actual_total_gb": current_total,
+        "overage_gb": float(quota_usage.get("overage_gb") or 0),
         "source_count": current_sources,
         "capacity_pool_count": capacity_pools,
         "total_capacity_gb": total_capacity,
-        "remaining_capacity_gb": max(total_capacity - current_total, 0),
+        "remaining_capacity_gb": float(quota_usage.get("remaining_capacity_gb") or 0),
         "used_percent": used_percent,
         "window_deltas": {
             1: window_delta(1),
@@ -4668,6 +4725,12 @@ def page_shell(
       font-size: 24px !important;
       line-height: 1.12 !important;
     }}
+    .fact-primary small {{
+      color: var(--soft);
+      font-size: 11px;
+      font-weight: 680;
+      line-height: 1.45;
+    }}
     .fact-alert {{
       align-items: center;
       grid-template-columns: minmax(0, 1fr);
@@ -6284,17 +6347,25 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
     series = aggregate_total_traffic_series(instances, history, generated_at, days=30)
     total_capacity = float(series.get("total_capacity_gb") or 0)
     current_total = float(series.get("current_total_gb") or 0)
+    actual_total = float(series.get("actual_total_gb") or current_total)
+    overage = float(series.get("overage_gb") or 0)
     used_percent = float(series.get("used_percent") or 0)
     remaining_capacity = float(series.get("remaining_capacity_gb") or 0)
     window_deltas = series.get("window_deltas") or {}
+    overage_note = (
+        f'<small>真实用量 {fmt_gb(actual_total)} · 超额 {fmt_gb(overage)} 不计入剩余池</small>'
+        if overage > 0.0001
+        else '<small>按账号池阈值封顶统计</small>'
+    )
     tone = "danger" if errors else ("warning" if warnings or stopped else "neutral")
     return f"""
       <section class="overview-traffic-hero {tone}">
         <aside class="total-chart-facts">
           <div class="facts-top-grid">
             <article class="fact-primary">
-              <span>当前累计使用流量</span>
+              <span>当前额度占用</span>
               <strong>{fmt_gb(current_total)} · {used_percent:.1f}%</strong>
+              {overage_note}
             </article>
             <article>
               <span>剩余保护额度</span>
