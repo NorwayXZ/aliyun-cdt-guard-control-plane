@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.11"
+APP_VERSION = "0.2.12"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -5738,7 +5738,7 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
         <div class="server-group-head" title="{esc(title_hint)}">
           <div class="server-group-info">
             <div class="server-group-title">{esc(group_name)}</div>
-            <div class="server-group-sub"><span data-group-visible-count>{len(items)}</span> 台服务器 · {region_count or 0} 个区域 · 按 CDT 区域统计</div>
+            <div class="server-group-sub"><span data-group-visible-count>{len(items)}</span> 台服务器 · {region_count or 0} 个区域 · {esc(scope_text)}</div>
           </div>
           <div class="server-group-metrics">
             <span>本期 CDT <strong>{fmt_gb(total_traffic)}</strong></span>
@@ -7704,7 +7704,7 @@ def access_key_reuse_field(options: list[dict[str, str]], selected_key_id: str =
         <select class="form-select" name="saved_access_key_id" data-saved-access-key-select>
           {''.join(option_html)}
         </select>
-        <div class="form-hint">选择后会自动填入已保存的 AccessKey ID 和 Secret，并直接显示出来；新增其他账号时保持不复用并手动填写即可。</div>
+        <div class="form-hint">选择后会自动填入已保存的 AccessKey ID 和 Secret，并归入同一个 CDT 账号共享池；如果这是另一个阿里云账号，必须选择“不复用”并填写那个账号自己的 AccessKey。</div>
       </div>
     """
 
@@ -7819,7 +7819,7 @@ def render_form_guide() -> str:
         </div>
         <div class="guide-step">
           <strong>3. 填 AccessKey</strong>
-          <span>如果以前保存过同一个阿里云账号，可以直接选择复用；新增其他账号时再手动填写 AccessKey ID 和 Secret。</span>
+          <span>如果以前保存过同一个阿里云账号，可以直接选择复用；新增另一个阿里云账号时，不要复用旧 AccessKey，要手动填写新账号自己的 AccessKey ID 和 Secret。</span>
         </div>
         <div class="guide-step">
           <strong>4. 区域 ID 要填准</strong>
@@ -7831,7 +7831,7 @@ def render_form_guide() -> str:
         </div>
         <div class="guide-step">
           <strong>6. CDT 额度按账号共享</strong>
-          <span>这里的“非中国内地区域”指服务器地域，例如中国香港、日本、新加坡，不是指你的阿里云账号注册地；同一个账号下多台服务器请复用同一组 AccessKey，面板会自动归到同一共享池。</span>
+          <span>这里的“非中国内地区域”指服务器地域，例如中国香港、日本、新加坡，不是指你的阿里云账号注册地；同一个账号下多台服务器可以复用同一组 AccessKey，面板会自动归到同一共享池。</span>
         </div>
         <div class="guide-step">
           <strong>7. 不用填写流量池 ID</strong>
