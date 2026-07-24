@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.13"
+APP_VERSION = "0.2.14"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -5792,9 +5792,10 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
     region_text = "、".join(region_display_text(region_id) for region_id in regions) if regions else "区域未知"
     title_hint = f"{scope_text} · {region_text}"
     group_name = account_group_title(group_key)
+    sorted_items = sorted(items, key=server_default_sort_key)
     rows = "".join(
         render_server_row(item, metadata, history, active=str(item.get("id") or item.get("instance_id")) == active_id)
-        for item in items
+        for item in sorted_items
     )
     return f"""
       <section class="server-group" data-server-group data-group-priority="{group_priority}" data-group-used="{total_traffic:.4f}" data-group-name="{esc(group_name.lower())}">
@@ -5892,6 +5893,37 @@ def server_health(item: dict) -> tuple[str, str, int]:
     if status == "Running":
         return "running", "正常运行", 5
     return "muted", "状态未知", 3
+
+
+def is_server_running(item: dict) -> bool:
+    return item.get("instance_status") == "Running"
+
+
+def is_server_stopped(item: dict) -> bool:
+    return item.get("instance_status") in {"Stopped", "Stopping"} or bool(item.get("manual_stop"))
+
+
+def server_default_sort_key(item: dict) -> tuple[int, float, int, str]:
+    running_rank = 0 if is_server_running(item) else 1
+    stopped_rank = 1 if is_server_stopped(item) else 0
+    return (
+        running_rank,
+        -as_float(str(protection_traffic_gb(item) or item.get("traffic_gb") or 0), 0),
+        stopped_rank,
+        str(item.get("label") or item.get("product_name") or item.get("id") or ""),
+    )
+
+
+def group_default_sort_key(group_key: str, items: list[dict]) -> tuple[int, float, int, str]:
+    has_running = any(is_server_running(item) for item in items)
+    all_stopped = bool(items) and all(is_server_stopped(item) for item in items)
+    total_traffic, _ = current_total_traffic(items)
+    return (
+        0 if has_running else 1,
+        -total_traffic,
+        1 if all_stopped else 0,
+        account_group_title(group_key),
+    )
 
 
 def server_identity(item: dict, metadata: dict[str, dict]) -> dict[str, str]:
@@ -6269,7 +6301,7 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
 
 
 def render_assets_card(instances: list[dict], metadata: dict[str, dict], history: list[dict], summary: dict, generated_at: str) -> str:
-    sorted_instances = sorted(instances, key=lambda item: (server_health(item)[2], -used_percent(item), str(item.get("label") or "")))
+    sorted_instances = sorted(instances, key=server_default_sort_key)
     groups: dict[str, list[dict]] = {}
     details = []
     active_id = None
@@ -6283,11 +6315,7 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
         render_server_group(group_key, group_items, metadata, history, active_id)
         for group_key, group_items in sorted(
             groups.items(),
-            key=lambda pair: (
-                min(server_health(item)[2] for item in pair[1]),
-                -current_total_traffic(pair[1])[0],
-                account_group_title(pair[0]),
-            ),
+            key=lambda pair: group_default_sort_key(pair[0], pair[1]),
         )
     )
     traffic_overview = render_asset_traffic_overview(summary, instances, history, generated_at)
