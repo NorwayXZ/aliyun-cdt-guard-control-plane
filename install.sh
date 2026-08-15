@@ -312,6 +312,7 @@ SRC_DIR="$(prepare_source)"
 
 install -d -m 700 "$INSTALL_DIR"
 install -m 755 "$SRC_DIR/guard.py" "$INSTALL_DIR/guard.py"
+install -m 644 "$SRC_DIR/cloudmonitor.py" "$INSTALL_DIR/cloudmonitor.py"
 install -m 755 "$SRC_DIR/web.py" "$INSTALL_DIR/web.py"
 install -m 755 "$SRC_DIR/notifications.py" "$INSTALL_DIR/notifications.py"
 install -m 755 "$SRC_DIR/update.sh" "$INSTALL_DIR/update.sh"

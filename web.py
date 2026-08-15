@@ -302,6 +302,18 @@ def fmt_gb_rich(value) -> str:
     return f'{number:.2f} <small>GB</small>'
 
 
+def fmt_mbps(value) -> str:
+    if value is None:
+        return "暂无"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "暂无"
+    if number < 0.01:
+        return "<0.01 Mbps"
+    return f"{number:.2f} Mbps"
+
+
 def fmt_time(value) -> str:
     if not value:
         return "暂无"
@@ -2199,6 +2211,30 @@ def page_shell(
       font-weight: 680;
       letter-spacing: -.01em;
       line-height: 1.15;
+    }}
+    .server-realtime-line {{
+      align-items: center;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 11px;
+      gap: 5px;
+      justify-content: flex-end;
+      line-height: 1.25;
+      max-width: 220px;
+    }}
+    .server-realtime-line.is-error {{ color: #b42323; }}
+    .server-realtime-dot {{
+      background: #15884f;
+      border-radius: 999px;
+      box-shadow: 0 0 0 3px rgba(21, 136, 79, .12);
+      flex: 0 0 auto;
+      height: 6px;
+      width: 6px;
+    }}
+    .server-realtime-line.is-error .server-realtime-dot {{
+      background: #c92a2a;
+      box-shadow: 0 0 0 3px rgba(201, 42, 42, .12);
     }}
     .server-card-meta {{
       color: var(--muted);
@@ -5138,7 +5174,8 @@ def page_shell(
       .server-card-status,
       .server-card-actions,
       .server-card-right,
-      .server-metric-side {{
+      .server-metric-side,
+      .server-realtime-line {{
         justify-content: flex-start;
         justify-items: start;
         text-align: left;
@@ -5432,6 +5469,44 @@ def page_shell(
         }});
       }});
     }}
+    function realtimeGbText(value) {{
+      if (value === null || value === undefined || value === "") return "暂无";
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toFixed(2) + " GB" : "暂无";
+    }}
+    function realtimeMbpsText(value) {{
+      if (value === null || value === undefined || value === "") return "暂无";
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "暂无";
+      return (number < 0.01 ? "<0.01" : number.toFixed(2)) + " Mbps";
+    }}
+    function refreshRealtimeStatus(status) {{
+      const instances = new Map((status.instances || []).map((item) => [String(item.id || item.instance_id || ""), item]));
+      document.querySelectorAll("[data-realtime-last-minute]").forEach((node) => {{
+        const item = instances.get(String(node.dataset.realtimeLastMinute || ""));
+        if (item) node.textContent = realtimeGbText(item.realtime_last_minute_gb);
+      }});
+      document.querySelectorAll("[data-realtime-rate]").forEach((node) => {{
+        const item = instances.get(String(node.dataset.realtimeRate || ""));
+        if (item) node.textContent = item.realtime_error ? "监控不可用" : realtimeMbpsText(item.realtime_out_mbps);
+      }});
+      document.querySelectorAll("[data-realtime-updated]").forEach((node) => {{
+        const item = instances.get(String(node.dataset.realtimeUpdated || ""));
+        if (item) node.textContent = timeText(item.realtime_updated_at);
+      }});
+      document.querySelectorAll("[data-realtime-line]").forEach((node) => {{
+        const item = instances.get(String(node.dataset.realtimeLine || ""));
+        if (item) node.classList.toggle("is-error", Boolean(item.realtime_error));
+      }});
+    }}
+    function initRealtimeStatus() {{
+      if (!document.querySelector("[data-realtime-last-minute]")) return;
+      const refresh = () => requestJson("/api/status?realtime=" + Date.now())
+        .then(refreshRealtimeStatus)
+        .catch(() => {{}});
+      window.setTimeout(refresh, 1200);
+      window.setInterval(refresh, 60000);
+    }}
     const trafficChart = {{
       serverId: "",
       poolKey: "",
@@ -5703,6 +5778,7 @@ def page_shell(
     document.addEventListener("DOMContentLoaded", initAssetBoard);
     document.addEventListener("DOMContentLoaded", initSaveForms);
     document.addEventListener("DOMContentLoaded", initRunCheckForms);
+    document.addEventListener("DOMContentLoaded", initRealtimeStatus);
     document.addEventListener("DOMContentLoaded", initTrafficChartModal);
     document.addEventListener("DOMContentLoaded", initDailyTrafficChart);
   </script>
@@ -5976,6 +6052,15 @@ def traffic_delta_badge(value) -> str:
     return '<span class="traffic-delta flat">本次无变化</span>'
 
 
+def realtime_monitor_text(item: dict) -> tuple[str, str, str]:
+    last_minute = fmt_gb(item.get("realtime_last_minute_gb"))
+    rate = fmt_mbps(item.get("realtime_out_mbps"))
+    updated = fmt_time(item.get("realtime_updated_at"))
+    if item.get("realtime_error"):
+        return "监控不可用", "请检查 CloudMonitor 权限", updated
+    return last_minute, rate, updated
+
+
 def render_traffic_breakdown(item: dict) -> str:
     products = item.get("traffic_products") or []
     if not products:
@@ -6055,6 +6140,8 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     pct = used_percent(item)
     today_traffic = today_server_traffic_gb(item, history)
     self_traffic = item.get("traffic_gb")
+    realtime_last_minute, realtime_rate, realtime_updated = realtime_monitor_text(item)
+    realtime_error = bool(item.get("realtime_error"))
     pool_label = traffic_pool_badge(item)
     health_tag = ""
     if health_class == "danger":
@@ -6168,6 +6255,13 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
             <span>今日</span>
             <strong>{esc(fmt_gb(today_traffic))}</strong>
           </span>
+          <span class="server-realtime-line {'is-error' if realtime_error else ''}" data-realtime-line="{esc(identity['id'])}" title="CloudMonitor 更新时间：{esc(realtime_updated)}">
+            <span class="server-realtime-dot" aria-hidden="true"></span>
+            <span>近 1 分钟</span>
+            <strong data-realtime-last-minute="{esc(identity['id'])}">{esc(realtime_last_minute)}</strong>
+            <span>·</span>
+            <span data-realtime-rate="{esc(identity['id'])}">{esc(realtime_rate)}</span>
+          </span>
           <div class="server-card-meta">
             <span class="ip-main text-truncate">{esc(ip_value)}</span>
             <button class="copy-ip-btn" type="button" data-copy-ip="{esc(ip_value)}">复制</button>
@@ -6208,6 +6302,9 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
         ssh_text = f"{meta.get('ssh_user', 'root')}@{identity['primary_ip']}:{meta.get('ssh_port', 22)}"
     note_text = first_value(meta.get("notes"), meta.get("remark"), meta.get("account_note"))
     manual_note = "手动关机保持中，自动启动已暂停。" if item.get("manual_stop") else ""
+    realtime_last_minute, realtime_rate, realtime_updated = realtime_monitor_text(item)
+    realtime_source = item.get("realtime_monitor_source_label") or "CloudMonitor"
+    realtime_error = item.get("realtime_error")
     name_color = server_name_color(identity["id"])
     return f"""
       <section class="server-detail {'active' if active else ''}" data-server-detail data-server-id="{esc(identity['id'])}" style="--server-name-color: {esc(name_color)};">
@@ -6238,6 +6335,18 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
               <div class="progress quota-progress">
                 <div class="progress-bar {progress_class(item)}" style="width:{pct:.2f}%"></div>
               </div>
+            </div>
+            <div class="quota-pool-card {'is-warning' if realtime_error else ''}">
+              <div>
+                <div class="info-label">近实时出方向流量</div>
+                <div class="quota-pool-title" data-realtime-last-minute="{esc(identity['id'])}">{esc(realtime_last_minute)}</div>
+                <div class="quota-pool-sub">
+                  <span data-realtime-rate="{esc(identity['id'])}">{esc(realtime_rate)}</span>
+                  · {esc(realtime_source)}
+                  · 更新时间 <span data-realtime-updated="{esc(identity['id'])}">{esc(realtime_updated)}</span>
+                </div>
+              </div>
+              {f'<div class="quota-check"><span>监控状态</span><span class="traffic-delta up">不可用</span></div>' if realtime_error else '<div class="quota-check"><span>监控状态</span><span class="traffic-delta flat">正常</span></div>'}
             </div>
             <div class="quota-pool-card">
               <div>
@@ -7962,6 +8071,9 @@ def render_form(item: dict, access_key_options: list[dict[str, str]] | None = No
     ssh_password_value = first_value(item.get("ssh_password"))
     panel_url_value = first_value(item.get("panel_url"), item.get("login_url"), item.get("website"))
     notes_value = first_value(item.get("notes"), item.get("remark"), item.get("account_note"))
+    realtime_monitoring = bool(item.get("realtime_monitoring", True))
+    realtime_monitor_source = str(item.get("realtime_monitor_source") or "auto")
+    eip_allocation_id = str(item.get("eip_allocation_id") or "")
     notes_open = " open" if is_edit else ""
     region_value = item.get("region_id", "") if is_edit else ""
     require_secret = not is_edit
@@ -8004,6 +8116,32 @@ def render_form(item: dict, access_key_options: list[dict[str, str]] | None = No
             </div>
           </div>
         </section>
+        <details class="form-section detail-disclosure">
+          <summary>近实时流量监控</summary>
+          <div class="setup-box mt-3">
+            用 CloudMonitor 展示每台机器近一分钟的出方向流量。它只用于近实时展示，不替代 CDT 账单统计，也不改变自动关机判断。
+          </div>
+          <div class="credential-grid">
+            <div class="mb-3">
+              <label class="form-label">CloudMonitor 监控</label>
+              <label class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" name="realtime_monitoring" value="1" {"checked" if realtime_monitoring else ""}>
+                <span class="form-check-label">启用近实时流量查询</span>
+              </label>
+              <div class="form-hint">需要给当前 AccessKey 添加 CloudMonitor 只读权限；权限失败不会影响 CDT 自动保护。</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">监控来源</label>
+              <select class="form-select" name="realtime_monitor_source">
+                <option value="auto" {"selected" if realtime_monitor_source == "auto" else ""}>自动选择</option>
+                <option value="ecs" {"selected" if realtime_monitor_source == "ecs" else ""}>ECS InternetOut</option>
+                <option value="eip" {"selected" if realtime_monitor_source == "eip" else ""}>EIP net.tx</option>
+              </select>
+              <div class="form-hint">填写 EIP AllocationId 后，自动选择会优先使用 EIP 出方向指标。</div>
+            </div>
+          </div>
+          {input_field("eip_allocation_id", "EIP AllocationId（可选）", eip_allocation_id, placeholder="例如：eip-xxxxxxxxxxxx", hint="只有需要按 EIP net.tx 统计时填写；不填写则使用 ECS InternetOut。")}
+        </details>
         <details class="form-section detail-disclosure"{notes_open}>
           <summary>登录备注</summary>
           <div class="setup-box mt-3">
@@ -8100,6 +8238,9 @@ def save_server(fields: dict[str, list[str]]) -> str:
         "stop_threshold_gb": as_float(form_value(fields, "stop_threshold_gb"), 180),
         "start_threshold_gb": as_float(form_value(fields, "start_threshold_gb"), 175),
         "traffic_reset_day": int(max(1, min(as_float(form_value(fields, "traffic_reset_day"), 1), 28))),
+        "realtime_monitoring": form_value(fields, "realtime_monitoring") == "1",
+        "realtime_monitor_source": form_value(fields, "realtime_monitor_source") or existing.get("realtime_monitor_source", "auto"),
+        "eip_allocation_id": form_value(fields, "eip_allocation_id") or existing.get("eip_allocation_id", ""),
         "panel_url": form_value(fields, "panel_url"),
         "panel_username": form_value(fields, "panel_username"),
         "panel_password": panel_password,

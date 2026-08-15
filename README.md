@@ -141,6 +141,7 @@ systemctl status cdt-guard-control-plane-web.service
 - 支持 AccessKey ID/Secret、ECS Instance ID、区域、阈值、备注等配置。
 - 支持一个阿里云账号多台服务器共享 CDT 流量池的归组统计。
 - 支持 CDT 流量查询、ECS 状态查询、自动关机、恢复开机。
+- 支持 CloudMonitor 近实时出方向流量展示；可使用 ECS `InternetOut`，或填写 EIP AllocationId 后使用 EIP `net.tx`。
 - 支持 BSS 账单 API 查询真实账期重置时间和账户余额。
 - 支持 Telegram、邮件、Webhook 通知。
 - 支持 Telegram 主动查询命令。
@@ -157,6 +158,18 @@ systemctl status cdt-guard-control-plane-web.service
 - 域名反代：展示 Cloudflare DNS、Caddy、Nginx 的配置思路。
 - 账号安全：面板账号密码修改和会话安全设计。
 - 登录页：正式面板内置登录页，桌面端居中展示账号密码输入区，移动端自动适配。
+
+## 近实时流量监控
+
+主页每台服务器会显示 CloudMonitor 最近一个监控周期的出方向流量和速率。这个数值用于近实时观察，不替代 CDT 账单累计值，也不参与自动关机判断；自动保护仍然只使用 CDT 共享池数据。
+
+在新增或编辑服务器的“近实时流量监控”折叠区：
+
+- 默认使用 ECS `InternetOut`，维度为 ECS Instance ID。
+- 如果要按 EIP 统计，选择 EIP 监控并填写 EIP AllocationId，面板会调用 EIP `net.tx`。
+- 需要给保存该服务器凭证的 RAM 用户增加 `AliyunCloudMonitorReadOnlyAccess`。
+- 如果只开通了 ECS/CDT 权限，近实时卡片会显示不可用，但 CDT 查询和自动保护仍可用。
+- 可通过 `CLOUD_MONITOR_ENDPOINT` 环境变量覆盖默认 CloudMonitor API endpoint。
 
 ## 后续接入计划
 

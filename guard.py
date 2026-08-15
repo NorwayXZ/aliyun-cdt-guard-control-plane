@@ -20,6 +20,7 @@ from aliyunsdkecs.request.v20140526 import (
 )
 
 import notifications
+from cloudmonitor import query_realtime_traffic
 
 BASE_DIR = Path(os.environ.get("CDT_GUARD_HOME", "/opt/aliyun-cdt-guard-control-plane"))
 ENV_FILE = BASE_DIR / "guard.env"
@@ -717,6 +718,9 @@ def run_guard() -> dict[str, Any]:
                 "start_threshold_gb": item["start_threshold_gb"],
                 "stop_threshold_gb": item["stop_threshold_gb"],
                 "traffic_reset_day": item["traffic_reset_day"],
+                "realtime_monitoring": bool(item.get("realtime_monitoring", True)),
+                "realtime_monitor_source": item.get("realtime_monitor_source", "auto"),
+                "eip_allocation_id": item.get("eip_allocation_id", ""),
                 "updated_at": iso_now(),
                 "last_error": None,
             }
@@ -788,6 +792,7 @@ def run_guard() -> dict[str, Any]:
                 public_ips = instance_public_ips(instance)
                 private_ips = instance_private_ips(instance)
                 action, reason = decide_action(item, protection_traffic_gb, ecs_status)
+                realtime = query_realtime_traffic(client, item)
                 if abs(protection_traffic_gb - traffic_gb) > 0.0001:
                     reason = f"流量池合计 {protection_traffic_gb:.2f} GB，{reason}"
                 api_response = None
@@ -823,6 +828,7 @@ def run_guard() -> dict[str, Any]:
                         "action": action,
                         "reason": reason,
                         "api_response": api_response,
+                        **realtime,
                         "billing_cycle_source": billing_info.get("source"),
                         "billing_cycle_source_label": billing_info.get("source_label"),
                         "billing_cycle": billing_info.get("billing_cycle"),
@@ -864,6 +870,14 @@ def run_guard() -> dict[str, Any]:
                     "traffic_gb": result.get("traffic_gb"),
                     "traffic_delta_gb": result.get("traffic_delta_gb"),
                     "protection_traffic_gb": result.get("protection_traffic_gb"),
+                    "realtime_last_minute_gb": result.get("realtime_last_minute_gb"),
+                    "realtime_window_gb": result.get("realtime_window_gb"),
+                    "realtime_out_mbps": result.get("realtime_out_mbps"),
+                    "realtime_monitor_source": result.get("realtime_monitor_source"),
+                    "realtime_monitor_source_label": result.get("realtime_monitor_source_label"),
+                    "realtime_updated_at": result.get("realtime_updated_at"),
+                    "realtime_collected_at": result.get("realtime_collected_at"),
+                    "realtime_error": result.get("realtime_error"),
                     "traffic_scope": result.get("traffic_scope"),
                     "traffic_pool_id": result.get("traffic_pool_id"),
                     "traffic_pool_key": result.get("traffic_pool_key"),

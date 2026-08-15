@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
-Last updated: 2026-07-23
-Current version: 0.2.9
+Last updated: 2026-08-15
+Current version: 0.2.15
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -11,6 +11,7 @@ Aliyun CDT Guard Control Plane is a lightweight self-hosted dashboard for monito
 - adding multiple Alibaba Cloud ECS servers,
 - grouping servers by Alibaba Cloud account/access key,
 - checking CDT traffic and account balance,
+- showing near-real-time outbound traffic from CloudMonitor,
 - stopping servers when a shared quota threshold is reached,
 - showing reset/recovery timing,
 - sending Telegram/email/webhook notifications,
@@ -334,4 +335,3 @@ Use placeholders such as:
 <TELEGRAM_BOT_TOKEN>
 <TELEGRAM_CHAT_ID>
 ```
-
