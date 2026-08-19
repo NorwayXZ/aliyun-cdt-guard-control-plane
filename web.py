@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.14"
+APP_VERSION = "0.2.16"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -528,6 +528,7 @@ def status_view(status: str | None) -> tuple[str, str, str]:
         "Starting": ("pending", "开机中", ""),
         "Stopping": ("pending", "关机中", ""),
         "Disabled": ("muted", "已禁用", ""),
+        "PendingCheck": ("pending", "待检查", ""),
     }
     return mapping.get(status or "", ("muted", status or "未知", ""))
 
@@ -559,6 +560,106 @@ def config_by_id(config: dict) -> dict[str, dict]:
     }
 
 
+def credential_fingerprint(value: str | None) -> str:
+    if not value:
+        return ""
+    return hashlib.sha1(str(value).encode("utf-8")).hexdigest()[:10]
+
+
+def default_traffic_pool_id(scope: str | None, traffic_region_id: str | None) -> str:
+    scope = normalize_traffic_scope(scope)
+    if scope == TRAFFIC_SCOPE_ACCOUNT_NON_CHINA:
+        return "cdt-account-non-china"
+    if scope == TRAFFIC_SCOPE_ACCOUNT_ALL:
+        return "cdt-account-all"
+    return f"cdt-region-{traffic_region_id or 'all'}"
+
+
+def configured_status_placeholder(raw: dict, defaults: dict) -> dict:
+    item = dict(defaults)
+    item.update(raw)
+    scope = normalize_traffic_scope(item.get("traffic_scope"))
+    region_id = item.get("region_id") or ""
+    traffic_region_id = item.get("traffic_region_id") or region_id
+    pool_id = item.get("traffic_pool_id") or default_traffic_pool_id(scope, traffic_region_id)
+    account_fingerprint = credential_fingerprint(item.get("access_key_id"))
+    if item.get("traffic_pool_id"):
+        pool_key = f"custom:{scope}:{pool_id}"
+        display_pool_key = pool_key
+        pool_custom = True
+    elif account_fingerprint:
+        pool_key = f"{account_fingerprint}:{scope}:{pool_id}"
+        display_pool_key = f"account:{account_fingerprint}"
+        pool_custom = False
+    else:
+        pool_key = str(item.get("id") or item.get("instance_id") or pool_id)
+        display_pool_key = pool_key
+        pool_custom = False
+    label = item.get("label") or item.get("product_name") or item.get("instance_id") or item.get("id") or "未命名产品"
+    return {
+        "id": str(item.get("id") or item.get("instance_id") or slug(label)),
+        "label": label,
+        "product_name": item.get("product_name") or label,
+        "provider": item.get("provider", "阿里云"),
+        "enabled": bool(item.get("enabled", True)),
+        "manual_stop": bool(item.get("manual_stop", False)),
+        "account_fingerprint": account_fingerprint,
+        "region_id": region_id,
+        "traffic_region_id": traffic_region_id,
+        "traffic_scope": scope,
+        "traffic_scope_label": traffic_scope_label(scope),
+        "traffic_pool_id": pool_id,
+        "traffic_pool_key": pool_key,
+        "traffic_display_pool_key": display_pool_key,
+        "traffic_pool_custom": pool_custom,
+        "traffic_pool_label": traffic_pool_text({**item, "traffic_scope": scope, "traffic_region_id": traffic_region_id, "traffic_pool_id": pool_id, "traffic_pool_custom": pool_custom}),
+        "traffic_pool_member_count": 0,
+        "instance_id": item.get("instance_id"),
+        "warning_threshold_gb": item.get("warning_threshold_gb", 160),
+        "start_threshold_gb": item.get("start_threshold_gb", 175),
+        "stop_threshold_gb": item.get("stop_threshold_gb", 180),
+        "traffic_reset_day": item.get("traffic_reset_day", 1),
+        "traffic_gb": None,
+        "remaining_gb": None,
+        "used_pct": None,
+        "warning": False,
+        "instance_name": None,
+        "instance_status": "PendingCheck" if item.get("enabled", True) else "Disabled",
+        "public_ips": [],
+        "private_ips": [],
+        "action": "pending_check" if item.get("enabled", True) else "disabled",
+        "reason": "已保存配置，等待下一次巡检写入状态",
+        "last_error": "已保存但尚未完成巡检" if item.get("enabled", True) else None,
+        "updated_at": None,
+    }
+
+
+def merge_configured_status_instances(config: dict, status: dict) -> list[dict]:
+    status_items = list(status.get("instances", []) or [])
+    seen = {
+        str(item.get("id") or item.get("instance_id"))
+        for item in status_items
+        if item.get("id") or item.get("instance_id")
+    }
+    defaults = config.get("defaults", {})
+    for raw in config.get("instances", []) or []:
+        raw_key = str(raw.get("id") or raw.get("instance_id") or "")
+        if raw_key and raw_key not in seen:
+            status_items.append(configured_status_placeholder(raw, defaults))
+            seen.add(raw_key)
+    return status_items
+
+
+def apply_display_summary(summary: dict, instances: list[dict]) -> dict:
+    display_summary = dict(summary)
+    display_summary["total"] = len(instances)
+    display_summary["enabled"] = sum(1 for item in instances if item.get("enabled", True))
+    display_summary["warnings"] = sum(1 for item in instances if item.get("warning"))
+    display_summary["errors"] = sum(1 for item in instances if item.get("last_error"))
+    display_summary["stopped"] = sum(1 for item in instances if item.get("instance_status") == "Stopped")
+    return display_summary
+
+
 def selected_instance(config: dict, server_id: str | None) -> dict:
     if not server_id:
         return {}
@@ -572,7 +673,7 @@ def flash_message(code: str) -> str:
     messages = {
         "checked": "已完成一次手动检查",
         "balance_checked": "已查询阿里云账户余额",
-        "saved": "服务器已保存并完成一次检查",
+        "saved": "服务器已保存；如果巡检暂时失败，主页也会先显示为待检查",
         "deleted": "服务器已删除",
         "started": "已提交开机指令，并恢复自动保护",
         "stopped": "已提交关机指令，自动启动已暂停",
@@ -6541,9 +6642,9 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     query = query or {}
     status = read_json(STATUS_FILE, {"summary": {}, "instances": [], "generated_at": "暂无"})
     config = read_config()
-    instances = status.get("instances", [])
+    instances = merge_configured_status_instances(config, status)
     enrich_display_traffic(instances)
-    summary = dict(status.get("summary", {}) or {})
+    summary = apply_display_summary(status.get("summary", {}) or {}, instances)
     summary["pools"] = display_pool_count(instances) or int(summary.get("pools", 0) or 0)
     metadata = config_by_id(config)
     history = read_history(1000)
