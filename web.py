@@ -33,7 +33,7 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.16"
+APP_VERSION = "0.2.17"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -168,12 +168,30 @@ def read_config() -> dict:
     )
 
 
+def tail_lines(path: Path, limit: int, block_size: int = 8192) -> list[str]:
+    if limit <= 0 or not path.exists():
+        return []
+    with path.open("rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        position = fh.tell()
+        chunks: list[bytes] = []
+        newline_count = 0
+        while position > 0 and newline_count <= limit:
+            read_size = min(block_size, position)
+            position -= read_size
+            fh.seek(position)
+            chunk = fh.read(read_size)
+            chunks.append(chunk)
+            newline_count += chunk.count(b"\n")
+        data = b"".join(reversed(chunks))
+    return data.decode("utf-8", errors="ignore").splitlines()[-limit:]
+
+
 def read_history(limit: int = 200) -> list[dict]:
     if not HISTORY_FILE.exists():
         return []
-    lines = HISTORY_FILE.read_text(encoding="utf-8").splitlines()
     records = []
-    for line in lines[-limit:]:
+    for line in tail_lines(HISTORY_FILE, limit):
         try:
             records.append(json.loads(line))
         except json.JSONDecodeError:
@@ -635,7 +653,20 @@ def configured_status_placeholder(raw: dict, defaults: dict) -> dict:
 
 
 def merge_configured_status_instances(config: dict, status: dict) -> list[dict]:
-    status_items = list(status.get("instances", []) or [])
+    configured_keys = {
+        str(value)
+        for raw in config.get("instances", []) or []
+        for value in (raw.get("id"), raw.get("instance_id"))
+        if value
+    }
+    raw_status_items = list(status.get("instances", []) or [])
+    if configured_keys:
+        status_items = [
+            item for item in raw_status_items
+            if str(item.get("id") or "") in configured_keys or str(item.get("instance_id") or "") in configured_keys
+        ]
+    else:
+        status_items = raw_status_items
     seen = {
         str(item.get("id") or item.get("instance_id"))
         for item in status_items
@@ -673,8 +704,8 @@ def flash_message(code: str) -> str:
     messages = {
         "checked": "已完成一次手动检查",
         "balance_checked": "已查询阿里云账户余额",
-        "saved": "服务器已保存；如果巡检暂时失败，主页也会先显示为待检查",
-        "deleted": "服务器已删除",
+        "saved": "服务器已保存，后台正在巡检；主页会先显示为待检查",
+        "deleted": "服务器已删除，后台正在刷新状态",
         "started": "已提交开机指令，并恢复自动保护",
         "stopped": "已提交关机指令，自动启动已暂停",
         "power_failed": "电源操作失败，请查看服务器日志",
@@ -8267,7 +8298,7 @@ def render_form(item: dict, access_key_options: list[dict[str, str]] | None = No
         </details>
       </div>
       <div class="card-footer d-flex align-items-center gap-2">
-        <div class="submit-feedback"><span class="spinner-dot"></span><span>正在保存配置并立即检查，请稍等...</span></div>
+        <div class="submit-feedback"><span class="spinner-dot"></span><span>正在保存配置，巡检将在后台刷新...</span></div>
         {f'<a href="/" class="btn me-2">取消编辑</a>' if is_edit else ""}
         <button class="btn btn-primary btn-submit ms-auto" type="submit" data-submit-button data-loading-text="正在保存...">保存服务器</button>
       </div>
@@ -8380,6 +8411,19 @@ def run_guard_now() -> None:
     )
 
 
+def start_guard_background() -> None:
+    try:
+        subprocess.Popen(
+            [str(BASE_DIR / "venv/bin/python"), str(BASE_DIR / "guard.py"), "run"],
+            cwd=str(BASE_DIR),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception:
+        pass
+
+
 def run_power_action(server_id: str, power_action: str) -> bool:
     result = subprocess.run(
         [str(BASE_DIR / "venv/bin/python"), str(BASE_DIR / "guard.py"), "power", server_id, power_action],
@@ -8471,12 +8515,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/servers/save":
             save_server(fields)
-            run_guard_now()
+            start_guard_background()
             self.redirect("/?flash=saved")
             return
         if parsed.path == "/servers/delete":
             delete_server(form_value(fields, "id"))
-            run_guard_now()
+            start_guard_background()
             self.redirect("/?flash=deleted")
             return
         if parsed.path == "/servers/power":

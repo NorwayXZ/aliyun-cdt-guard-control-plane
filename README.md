@@ -143,6 +143,7 @@ systemctl status cdt-guard-control-plane-web.service
 - 支持 CDT 流量查询、ECS 状态查询、自动关机、恢复开机。
 - 支持 CloudMonitor 近实时出方向流量展示；可使用 ECS `InternetOut`，或填写 EIP AllocationId 后使用 EIP `net.tx`。
 - 新增服务器保存后即使首次巡检失败，也会先在主页显示为“待检查”，方便继续编辑和查看错误。
+- 新增/删除服务器会立即返回主页，巡检在后台刷新状态，避免阿里云 API 响应慢时卡住面板。
 - 支持 BSS 账单 API 查询真实账期重置时间和账户余额。
 - 支持 Telegram、邮件、Webhook 通知。
 - 支持 Telegram 主动查询命令。
