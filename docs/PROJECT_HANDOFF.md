@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.17
+Current version: 0.2.18
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -271,6 +271,17 @@ Known Linux package issues addressed:
 4. UI has gone through many iterations.
    - Be careful with CSS churn.
    - Screenshot-test key pages after UI changes.
+
+## Performance Notes
+
+Version 0.2.18 keeps the app lightweight while improving perceived speed:
+
+- Dashboard HTML body is cached briefly and invalidated by config/status/history file signatures.
+- `/api/status?realtime=...` returns a compact payload for live traffic refresh instead of the full status file.
+- Favicon responses are cacheable; HTML and sensitive JSON remain `no-store`.
+- Save/delete server actions still return immediately, and background guard spawns are de-duplicated when a guard run is already active.
+
+Avoid adding heavy dependencies, client build steps, databases, or large asset bundles unless there is a clear product reason.
 
 ## Useful Verification
 

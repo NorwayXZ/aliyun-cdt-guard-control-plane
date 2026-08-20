@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import base64
+import fcntl
 import hashlib
 import hmac
 import html
@@ -33,7 +34,9 @@ DOMAIN_PROXY_STATE_FILE = BASE_DIR / "domain_proxy_state.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
-APP_VERSION = "0.2.17"
+GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
+WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
+APP_VERSION = "0.2.18"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -117,6 +120,8 @@ ALIYUN_REGION_OPTIONS = [
     ("cn-chengdu", "西南 1（成都）"),
     ("cn-zhongwei", "西北 2（中卫）"),
 ]
+DASHBOARD_CACHE_SECONDS = 20
+DASHBOARD_BODY_CACHE: dict[str, Any] = {}
 
 
 def load_env(path: Path) -> dict[str, str]:
@@ -148,6 +153,16 @@ def write_json(path: Path, data) -> None:
     )
     os.chmod(tmp_path, 0o600)
     tmp_path.replace(path)
+
+
+def file_signature(path: Path) -> tuple[int, int]:
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return (0, 0)
+    except OSError:
+        return (0, 0)
+    return (stat.st_mtime_ns, stat.st_size)
 
 
 def read_config() -> dict:
@@ -689,6 +704,27 @@ def apply_display_summary(summary: dict, instances: list[dict]) -> dict:
     display_summary["errors"] = sum(1 for item in instances if item.get("last_error"))
     display_summary["stopped"] = sum(1 for item in instances if item.get("instance_status") == "Stopped")
     return display_summary
+
+
+def compact_realtime_status(status: dict) -> dict:
+    instances = []
+    for item in status.get("instances", []) or []:
+        instances.append(
+            {
+                "id": item.get("id"),
+                "instance_id": item.get("instance_id"),
+                "instance_status": item.get("instance_status"),
+                "realtime_last_minute_gb": item.get("realtime_last_minute_gb"),
+                "realtime_out_mbps": item.get("realtime_out_mbps"),
+                "realtime_updated_at": item.get("realtime_updated_at"),
+                "realtime_error": item.get("realtime_error"),
+                "updated_at": item.get("updated_at"),
+            }
+        )
+    return {
+        "generated_at": status.get("generated_at"),
+        "instances": instances,
+    }
 
 
 def selected_instance(config: dict, server_id: str | None) -> dict:
@@ -6671,16 +6707,34 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
 
 def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     query = query or {}
-    status = read_json(STATUS_FILE, {"summary": {}, "instances": [], "generated_at": "暂无"})
-    config = read_config()
-    instances = merge_configured_status_instances(config, status)
-    enrich_display_traffic(instances)
-    summary = apply_display_summary(status.get("summary", {}) or {}, instances)
-    summary["pools"] = display_pool_count(instances) or int(summary.get("pools", 0) or 0)
-    metadata = config_by_id(config)
-    history = read_history(1000)
+    cache_key = (
+        file_signature(CONFIG_FILE),
+        file_signature(STATUS_FILE),
+        file_signature(HISTORY_FILE),
+    )
+    cached = DASHBOARD_BODY_CACHE.get("dashboard")
+    if (
+        cached
+        and cached.get("key") == cache_key
+        and time.time() - float(cached.get("cached_at", 0)) <= DASHBOARD_CACHE_SECONDS
+    ):
+        body = str(cached.get("body", ""))
+    else:
+        status = read_json(STATUS_FILE, {"summary": {}, "instances": [], "generated_at": "暂无"})
+        config = read_config()
+        instances = merge_configured_status_instances(config, status)
+        enrich_display_traffic(instances)
+        summary = apply_display_summary(status.get("summary", {}) or {}, instances)
+        summary["pools"] = display_pool_count(instances) or int(summary.get("pools", 0) or 0)
+        metadata = config_by_id(config)
+        history = read_history(1000)
+        body = render_assets_card(instances, metadata, history, summary, status.get("generated_at"))
+        DASHBOARD_BODY_CACHE["dashboard"] = {
+            "key": cache_key,
+            "cached_at": time.time(),
+            "body": body,
+        }
     flash = query.get("flash", [""])[0]
-    body = render_assets_card(instances, metadata, history, summary, status.get("generated_at"))
     return page_shell(
         "overview",
         "Traffic Protection & Server Assets",
@@ -8411,15 +8465,39 @@ def run_guard_now() -> None:
     )
 
 
+def guard_lock_is_held() -> bool:
+    try:
+        GUARD_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with GUARD_LOCK_FILE.open("a+") as lock:
+            try:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    except Exception:
+        return False
+    return False
+
+
 def start_guard_background() -> None:
     try:
-        subprocess.Popen(
-            [str(BASE_DIR / "venv/bin/python"), str(BASE_DIR / "guard.py"), "run"],
-            cwd=str(BASE_DIR),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        WEB_GUARD_SPAWN_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with WEB_GUARD_SPAWN_LOCK_FILE.open("a+") as spawn_lock:
+            try:
+                fcntl.flock(spawn_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
+            if guard_lock_is_held():
+                return
+            subprocess.Popen(
+                [str(BASE_DIR / "venv/bin/python"), str(BASE_DIR / "guard.py"), "run"],
+                cwd=str(BASE_DIR),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            time.sleep(0.15)
+            fcntl.flock(spawn_lock.fileno(), fcntl.LOCK_UN)
     except Exception:
         pass
 
@@ -8444,7 +8522,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
             return
         if parsed.path in {"/favicon.svg", "/favicon.ico"}:
-            self.send_bytes(FAVICON_SVG, "image/svg+xml")
+            self.send_bytes(FAVICON_SVG, "image/svg+xml", cache_control="public, max-age=86400, immutable")
             return
         if parsed.path == "/logout":
             self.handle_logout()
@@ -8486,7 +8564,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_bytes(render_update_page(query), "text/html; charset=utf-8")
             return
         if parsed.path == "/api/status":
-            self.send_json(read_json(STATUS_FILE, {"error": "status not found"}))
+            status = read_json(STATUS_FILE, {"error": "status not found", "instances": []})
+            if "realtime" in query:
+                self.send_json(compact_realtime_status(status), pretty=False)
+            else:
+                self.send_json(status)
             return
         if parsed.path == "/api/history":
             limit = int(query.get("limit", ["200"])[0])
@@ -8675,14 +8757,18 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Location", location)
         self.end_headers()
 
-    def send_json(self, data):
-        body = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8")
+    def send_json(self, data, pretty: bool = True):
+        if pretty:
+            text = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True)
+        else:
+            text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+        body = text.encode("utf-8")
         self.send_bytes(body, "application/json; charset=utf-8")
 
-    def send_bytes(self, body: bytes, content_type: str):
+    def send_bytes(self, body: bytes, content_type: str, cache_control: str = "no-store"):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache_control)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
