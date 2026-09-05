@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.18
+Current version: 0.2.19
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -94,6 +94,8 @@ Alibaba Cloud permissions used or discussed:
 - ECS read/action permissions for server status, start, stop.
 - CloudMonitor permissions for real-time EIP/ECS metrics if enabled.
 - BSS read-only permissions for bill/account balance/reset information.
+- EIP discovery uses `vpc:DescribeEipAddresses`.
+- EIP automatic bandwidth adjustment uses `vpc:ModifyEipAddressAttribute` and must stay opt-in.
 - CDT/BSS billing data is preferred over guessed reset dates.
 
 Never hard-code user AccessKeys. They must be entered through the panel and stored in runtime config only.
@@ -282,6 +284,19 @@ Version 0.2.18 keeps the app lightweight while improving perceived speed:
 - Save/delete server actions still return immediately, and background guard spawns are de-duplicated when a guard run is already active.
 
 Avoid adding heavy dependencies, client build steps, databases, or large asset bundles unless there is a clear product reason.
+
+## EIP Bandwidth Monitoring
+
+Version 0.2.19 adds EIP inventory and bandwidth monitoring:
+
+- The guard discovers EIPs by Alibaba Cloud account credentials already saved for servers.
+- By default it queries only regions already present in configured servers, plus optional `eip_monitor.regions` or `CDT_GUARD_EIP_REGIONS`.
+- Status is written under `status.json.eip_inventory`.
+- The web panel has an `EIP 带宽` page for current bandwidth, billing mode, region, bound instance/server, target bandwidth, and auto-adjust settings.
+- Telegram notifications are sent only for bandwidth changes after a previous EIP inventory exists, so first discovery does not spam users.
+- Auto-adjust is disabled by default and only attempts `PayByTraffic` EIPs with bandwidth below the target.
+
+Security rule: never enable auto-adjust by default, and do not add EIP release/delete permissions.
 
 ## Useful Verification
 

@@ -36,7 +36,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.18"
+APP_VERSION = "0.2.19"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -753,6 +753,7 @@ def flash_message(code: str) -> str:
         "telegram_chat_invalid": "Chat ID 格式不正确，已拒绝保存。请使用候选 Chat ID，或填写纯数字 Chat ID",
         "telegram_chat_saved": "Telegram Chat ID 已追加到已保存渠道",
         "telegram_chat_removed": "Telegram Chat ID 已移除",
+        "eip_saved": "EIP 带宽监控设置已保存，后台会在下一次巡检时刷新",
         "domain_saved": "域名反代配置已保存，下面的配置片段已按新域名生成",
         "domain_applied": "已应用 Caddy 反代配置，请稍后用 HTTPS 域名访问",
         "domain_apply_domain_invalid": "域名格式不正确，请先填写类似 cdt.example.com 的完整域名",
@@ -1774,6 +1775,7 @@ def page_shell(
     ]
     config_nav = [
         ("/notifications", "notifications", "通知设置", "◉"),
+        ("/eip", "eip", "EIP 带宽", "◎"),
         ("/domain", "domain", "域名反代", "⇄"),
         ("/security", "security", "账号安全", "◇"),
         ("/update", "update", "版本更新", "↥"),
@@ -7197,6 +7199,212 @@ def checked(fields: dict[str, list[str]], name: str) -> bool:
     return form_value(fields, name) == "1"
 
 
+def default_eip_monitor_config() -> dict:
+    return {
+        "enabled": True,
+        "notify_bandwidth_changes": True,
+        "auto_adjust_enabled": False,
+        "target_bandwidth_mbps": 5000,
+        "regions": [],
+    }
+
+
+def eip_monitor_config(config: dict) -> dict:
+    result = default_eip_monitor_config()
+    raw = config.get("eip_monitor") or {}
+    result.update(raw if isinstance(raw, dict) else {})
+    try:
+        result["target_bandwidth_mbps"] = max(1, int(result.get("target_bandwidth_mbps") or 5000))
+    except (TypeError, ValueError):
+        result["target_bandwidth_mbps"] = 5000
+    result["regions"] = [str(region).strip() for region in result.get("regions", []) if str(region).strip()]
+    return result
+
+
+def save_eip_settings(fields: dict[str, list[str]]) -> None:
+    config = read_config()
+    region_text = form_value(fields, "eip_regions")
+    regions = [
+        region.strip()
+        for region in region_text.replace("，", ",").split(",")
+        if region.strip()
+    ]
+    config["eip_monitor"] = {
+        "enabled": checked(fields, "eip_enabled"),
+        "notify_bandwidth_changes": checked(fields, "eip_notify_bandwidth_changes"),
+        "auto_adjust_enabled": checked(fields, "eip_auto_adjust_enabled"),
+        "target_bandwidth_mbps": int(as_float(form_value(fields, "eip_target_bandwidth_mbps", "5000"), 5000)),
+        "regions": regions,
+    }
+    write_json(CONFIG_FILE, config)
+
+
+def eip_charge_text(value) -> str:
+    return {
+        "PayByTraffic": "按流量计费",
+        "PayByBandwidth": "按固定带宽计费",
+    }.get(str(value or ""), str(value or "未知"))
+
+
+def eip_status_badge(item: dict) -> str:
+    status = str(item.get("status") or "未知")
+    target_reached = bool(item.get("target_reached"))
+    if item.get("auto_adjust_error"):
+        return '<span class="badge bg-danger-lt">调整失败</span>'
+    if target_reached:
+        return '<span class="badge bg-success-lt">已达到目标</span>'
+    if status.lower() == "available":
+        return '<span class="badge bg-secondary-lt">未绑定</span>'
+    return f'<span class="badge bg-warning-lt">{esc(status)}</span>'
+
+
+def render_eip_inventory_table(inventory: dict) -> str:
+    eips = inventory.get("eips") or []
+    if not eips:
+        return """
+          <div class="empty">
+            <p class="empty-title">暂无 EIP 数据</p>
+            <p class="empty-subtitle text-secondary">保存设置后等待下一次巡检，或回到主页点击手动检查流量。</p>
+          </div>
+        """
+    rows = []
+    for item in eips:
+        bound = item.get("bound_server_name") or item.get("instance_id") or "未绑定"
+        bandwidth = item.get("bandwidth_mbps")
+        bandwidth_text = f"{bandwidth} Mbps" if bandwidth is not None else "未知"
+        auto_adjust = ""
+        if item.get("auto_adjust_attempted"):
+            auto_adjust = "已提交调整" if item.get("auto_adjust_ok") else f"调整失败：{item.get('auto_adjust_error') or '未知'}"
+        rows.append(
+            f"""
+            <tr>
+              <td>
+                <div class="asset-name">{esc(item.get("name") or item.get("ip_address") or "未命名 EIP")}</div>
+                <div class="asset-sub">{esc(item.get("allocation_id") or "")}</div>
+              </td>
+              <td><span class="font-monospace">{esc(item.get("ip_address") or "未知")}</span></td>
+              <td>{esc(item.get("account_fingerprint") or "未知")}</td>
+              <td>{esc(item.get("region_id") or "未知")}</td>
+              <td>{esc(bound)}</td>
+              <td>
+                <strong>{esc(bandwidth_text)}</strong>
+                <div class="asset-sub">目标 {esc(str(item.get("target_bandwidth_mbps") or 5000))} Mbps</div>
+              </td>
+              <td>{esc(eip_charge_text(item.get("internet_charge_type")))}</td>
+              <td>{eip_status_badge(item)}{f'<div class="asset-sub">{esc(auto_adjust)}</div>' if auto_adjust else ''}</td>
+            </tr>
+            """
+        )
+    return f"""
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>EIP</th>
+              <th>公网 IP</th>
+              <th>账号</th>
+              <th>地域</th>
+              <th>绑定服务器</th>
+              <th>带宽</th>
+              <th>计费</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>{"".join(rows)}</tbody>
+        </table>
+      </div>
+    """
+
+
+def render_eip_page(query: dict[str, list[str]] | None = None) -> bytes:
+    query = query or {}
+    config = read_config()
+    settings = eip_monitor_config(config)
+    status = read_json(STATUS_FILE, {"summary": {}, "eip_inventory": {}})
+    inventory = status.get("eip_inventory") or {}
+    if not inventory:
+        inventory = {"enabled": settings["enabled"], "settings": settings, "eips": [], "errors": [], "regions": settings["regions"]}
+    eips = inventory.get("eips") or []
+    errors = inventory.get("errors") or []
+    target = settings.get("target_bandwidth_mbps", 5000)
+    reached = sum(1 for item in eips if item.get("target_reached"))
+    regions_text = ", ".join(settings.get("regions") or [])
+    error_html = "".join(
+        f'<div class="alert alert-danger">账号 {esc(item.get("account_fingerprint") or "未知")} · {esc(item.get("region_id") or "未知")}：{esc(item.get("error") or "查询失败")}</div>'
+        for item in errors[:5]
+    )
+    body = f"""
+    <div class="form-layout">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">EIP 带宽监控</h3></div>
+        <div class="card-body">
+          <div class="credential-grid">
+            <div class="detail-item">
+              <div class="info-label">发现 EIP</div>
+              <div class="info-value">{len(eips)} 个</div>
+            </div>
+            <div class="detail-item">
+              <div class="info-label">目标带宽</div>
+              <div class="info-value">{esc(str(target))} Mbps</div>
+            </div>
+            <div class="detail-item">
+              <div class="info-label">达到目标</div>
+              <div class="info-value">{reached}/{len(eips)} 个</div>
+            </div>
+          </div>
+          {error_html}
+          {render_eip_inventory_table(inventory)}
+        </div>
+      </div>
+      <aside class="card">
+        <div class="card-header"><h3 class="card-title">监控设置</h3></div>
+        <div class="card-body">
+          <form method="post" action="/eip/save" data-save-form>
+            {checkbox_field("eip_enabled", "启用 EIP 自动发现", bool(settings.get("enabled")), "按已添加服务器的阿里云账号和地域查询 EIP。")}
+            {checkbox_field("eip_notify_bandwidth_changes", "带宽变化时发送 Telegram 通知", bool(settings.get("notify_bandwidth_changes")), "首次发现不会刷屏；后续带宽变化才通知。")}
+            {input_field("eip_target_bandwidth_mbps", "目标带宽 Mbps", settings.get("target_bandwidth_mbps", 5000), "number", hint="例如 5000。这里只是监控目标，自动调整必须单独开启。")}
+            {input_field("eip_regions", "额外扫描地域（可选）", regions_text, placeholder="例如：cn-hongkong, ap-northeast-1", hint="留空时只扫描已添加服务器所在地域；多个地域用英文逗号分隔。")}
+            <div class="setup-box mb-3">
+              自动调整会调用阿里云修改 EIP 带宽接口，可能产生费用。建议先只开启监控，确认账号确实支持目标带宽后再打开。
+            </div>
+            {checkbox_field("eip_auto_adjust_enabled", "允许自动调整到目标带宽", bool(settings.get("auto_adjust_enabled")), "只有按流量计费 EIP 且当前带宽低于目标时才会尝试修改。")}
+            <button class="btn btn-primary" type="submit" data-submit-button data-loading-text="正在保存...">保存设置</button>
+          </form>
+        </div>
+      </aside>
+      <aside class="card">
+        <div class="card-header"><h3 class="card-title">RAM 最小授权</h3></div>
+        <div class="card-body">
+          <div class="setup-box mb-3">只查看 EIP 时需要 VPC 只读；查看近实时流量需要云监控；自动调整带宽才需要修改权限。</div>
+          <pre class="update-log">{esc('''{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "vpc:DescribeEipAddresses",
+        "cms:QueryMetricList"
+      ],
+      "Resource": "*"
+    }
+  ]
+}''')}</pre>
+          <div class="setup-box mt-3">如果开启自动调整，再额外增加 <code>vpc:ModifyEipAddressAttribute</code>。不建议给释放 EIP 的权限。</div>
+        </div>
+      </aside>
+    </div>
+    """
+    return page_shell(
+        "eip",
+        "EIP 带宽",
+        "发现弹性公网 IP、监控带宽变化并按需提醒",
+        body,
+        actions=render_check_action(),
+        flash=query.get("flash", [""])[0],
+        auto_refresh=False,
+    )
+
+
 def default_domain_proxy_config() -> dict:
     env = load_env(WEB_ENV_FILE)
     return {
@@ -8551,6 +8759,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/notifications":
             self.send_bytes(render_notifications_page(query), "text/html; charset=utf-8")
             return
+        if parsed.path == "/eip":
+            self.send_bytes(render_eip_page(query), "text/html; charset=utf-8")
+            return
         if parsed.path == "/domain":
             self.send_bytes(
                 render_domain_page(query, self.headers.get("Host", "")),
@@ -8630,6 +8841,11 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/notifications/save":
             ok, reason = save_notifications(fields)
             self.redirect("/notifications?flash=notify_saved" if ok else f"/notifications?flash={reason}")
+            return
+        if parsed.path == "/eip/save":
+            save_eip_settings(fields)
+            start_guard_background()
+            self.redirect("/eip?flash=eip_saved")
             return
         if parsed.path == "/domain/save":
             save_domain_proxy(fields)

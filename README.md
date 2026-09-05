@@ -142,6 +142,8 @@ systemctl status cdt-guard-control-plane-web.service
 - 支持一个阿里云账号多台服务器共享 CDT 流量池的归组统计。
 - 支持 CDT 流量查询、ECS 状态查询、自动关机、恢复开机。
 - 支持 CloudMonitor 近实时出方向流量展示；可使用 ECS `InternetOut`，或填写 EIP AllocationId 后使用 EIP `net.tx`。
+- 支持发现同一阿里云账号下的弹性公网 IP，展示 EIP 当前带宽、计费方式、绑定服务器，并在带宽变化时通知。
+- 支持可选的 EIP 自动调整带宽开关，默认关闭，避免误产生费用。
 - 新增服务器保存后即使首次巡检失败，也会先在主页显示为“待检查”，方便继续编辑和查看错误。
 - 新增/删除服务器会立即返回主页，巡检在后台刷新状态，避免阿里云 API 响应慢时卡住面板。
 - 主页会短时间缓存重计算结果，实时刷新接口只返回必要字段，避免状态文件和历史曲线反复拖慢页面。
@@ -158,6 +160,7 @@ systemctl status cdt-guard-control-plane-web.service
 - 新增服务器：只展示必须填写项，高级备注信息折叠。
 - 服务器日志：异常、预警、自动开机、自动关机优先展示。
 - 通知设置：已配置渠道放在顶部，支持 Telegram、邮件、Webhook 的设计占位。
+- EIP 带宽：发现 EIP、查看当前带宽和计费方式、配置目标带宽和变化通知。
 - 域名反代：展示 Cloudflare DNS、Caddy、Nginx 的配置思路。
 - 账号安全：面板账号密码修改和会话安全设计。
 - 登录页：正式面板内置登录页，桌面端居中展示账号密码输入区，移动端自动适配。
@@ -173,6 +176,42 @@ systemctl status cdt-guard-control-plane-web.service
 - 需要给保存该服务器凭证的 RAM 用户增加 `AliyunCloudMonitorReadOnlyAccess`。
 - 如果只开通了 ECS/CDT 权限，近实时卡片会显示不可用，但 CDT 查询和自动保护仍可用。
 - 可通过 `CLOUD_MONITOR_ENDPOINT` 环境变量覆盖默认 CloudMonitor API endpoint。
+
+## EIP 带宽监控
+
+面板会按已添加服务器的阿里云账号和地域查询弹性公网 IP。默认只扫描已经添加过服务器的地域，避免每分钟扫全地域导致页面和巡检变慢；如果需要额外地域，可以在“EIP 带宽”页面填写地域 ID。
+
+推荐先添加最小只读权限：
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "vpc:DescribeEipAddresses",
+        "cms:QueryMetricList"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+如果需要面板自动把按流量计费 EIP 调整到目标带宽，再额外增加：
+
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "vpc:ModifyEipAddressAttribute"
+  ],
+  "Resource": "*"
+}
+```
+
+不建议给 `vpc:ReleaseEipAddress` 权限，避免误释放公网 IP。
 
 ## 后续接入计划
 

@@ -44,6 +44,8 @@ BSS_ENDPOINTS = [
     ("cn-hangzhou", "business.aliyuncs.com"),
     ("ap-southeast-1", "business.ap-southeast-1.aliyuncs.com"),
 ]
+VPC_ENDPOINT = os.environ.get("ALIYUN_VPC_ENDPOINT", "vpc.aliyuncs.com")
+DEFAULT_EIP_TARGET_BANDWIDTH_MBPS = 5000
 
 logging.basicConfig(
     level=logging.INFO,
@@ -525,6 +527,199 @@ def get_total_traffic_gb(client: AcsClient, traffic_region_id: str | None = None
     return get_traffic_report(client, traffic_region_id)["traffic_gb"]
 
 
+def eip_settings(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("eip_monitor") or {}
+    target = raw.get("target_bandwidth_mbps", DEFAULT_EIP_TARGET_BANDWIDTH_MBPS)
+    try:
+        target = int(target)
+    except (TypeError, ValueError):
+        target = DEFAULT_EIP_TARGET_BANDWIDTH_MBPS
+    return {
+        "enabled": bool(raw.get("enabled", True)),
+        "notify_bandwidth_changes": bool(raw.get("notify_bandwidth_changes", True)),
+        "auto_adjust_enabled": bool(raw.get("auto_adjust_enabled", False)),
+        "target_bandwidth_mbps": max(1, target),
+        "regions": [str(region).strip() for region in raw.get("regions", []) if str(region).strip()],
+    }
+
+
+def configured_eip_regions(items: list[dict[str, Any]], settings: dict[str, Any]) -> list[str]:
+    regions = set(settings.get("regions") or [])
+    env_regions = [
+        region.strip()
+        for region in os.environ.get("CDT_GUARD_EIP_REGIONS", "").split(",")
+        if region.strip()
+    ]
+    regions.update(env_regions)
+    for item in items:
+        for key in ("region_id", "traffic_region_id"):
+            region = str(item.get(key) or "").strip()
+            if region:
+                regions.add(region)
+    return sorted(regions)
+
+
+def query_eip_addresses(client: AcsClient, region_id: str) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    page_number = 1
+    page_size = 50
+    while True:
+        request = CommonRequest()
+        request.set_domain(VPC_ENDPOINT)
+        request.set_version("2016-04-28")
+        request.set_action_name("DescribeEipAddresses")
+        request.set_method("POST")
+        request.set_accept_format("json")
+        request.add_query_param("RegionId", region_id)
+        request.add_query_param("PageNumber", str(page_number))
+        request.add_query_param("PageSize", str(page_size))
+        response = client.do_action_with_exception(request)
+        payload = json.loads(response.decode("utf-8"))
+        rows = ((payload.get("EipAddresses") or {}).get("EipAddress") or [])
+        results.extend(row for row in rows if isinstance(row, dict))
+        try:
+            total = int(payload.get("TotalCount") or len(results))
+        except (TypeError, ValueError):
+            total = len(results)
+        if page_number * page_size >= total or not rows:
+            break
+        page_number += 1
+    return results
+
+
+def modify_eip_bandwidth(client: AcsClient, region_id: str, allocation_id: str, bandwidth_mbps: int) -> dict[str, Any]:
+    request = CommonRequest()
+    request.set_domain(VPC_ENDPOINT)
+    request.set_version("2016-04-28")
+    request.set_action_name("ModifyEipAddressAttribute")
+    request.set_method("POST")
+    request.set_accept_format("json")
+    request.add_query_param("RegionId", region_id)
+    request.add_query_param("AllocationId", allocation_id)
+    request.add_query_param("Bandwidth", str(bandwidth_mbps))
+    response = client.do_action_with_exception(request)
+    return json.loads(response.decode("utf-8"))
+
+
+def normalize_eip_row(row: dict[str, Any], account_key: str, region_id: str, server_names: dict[str, str], target_bandwidth: int) -> dict[str, Any]:
+    allocation_id = str(row.get("AllocationId") or "")
+    instance_id = str(row.get("InstanceId") or row.get("AssociatedInstanceId") or "")
+    bandwidth_raw = row.get("Bandwidth")
+    try:
+        bandwidth_mbps = int(float(bandwidth_raw))
+    except (TypeError, ValueError):
+        bandwidth_mbps = None
+    charge_type = str(row.get("InternetChargeType") or row.get("ChargeType") or "")
+    return {
+        "account_fingerprint": account_key,
+        "region_id": region_id,
+        "allocation_id": allocation_id,
+        "ip_address": row.get("IpAddress"),
+        "name": row.get("Name") or row.get("DescriptiveName") or "",
+        "status": row.get("Status"),
+        "bandwidth_mbps": bandwidth_mbps,
+        "target_bandwidth_mbps": target_bandwidth,
+        "target_reached": bool(bandwidth_mbps is not None and bandwidth_mbps >= target_bandwidth),
+        "internet_charge_type": charge_type,
+        "instance_id": instance_id,
+        "instance_type": row.get("InstanceType"),
+        "bound_server_name": server_names.get(instance_id, ""),
+        "checked_at": iso_now(),
+        "auto_adjust_attempted": False,
+        "auto_adjust_ok": None,
+        "auto_adjust_error": None,
+        "request_id": row.get("RequestId"),
+    }
+
+
+def discover_eip_inventory(
+    config: dict[str, Any],
+    items: list[dict[str, Any]],
+    client_cache: dict[str, AcsClient] | None = None,
+) -> dict[str, Any]:
+    settings = eip_settings(config)
+    if not settings["enabled"]:
+        return {"enabled": False, "settings": settings, "eips": [], "errors": []}
+
+    client_cache = client_cache if client_cache is not None else {}
+    server_names = {str(item.get("instance_id") or ""): str(item.get("label") or item.get("id") or item.get("instance_id")) for item in items}
+    accounts: dict[str, dict[str, Any]] = {}
+    for item in items:
+        access_key_id = str(item.get("access_key_id") or "").strip()
+        access_key_secret = str(item.get("access_key_secret") or "").strip()
+        if not access_key_id or not access_key_secret:
+            continue
+        account_key = credential_fingerprint(access_key_id)
+        account = accounts.setdefault(
+            account_key,
+            {
+                "account_fingerprint": account_key,
+                "access_key_id": access_key_id,
+                "access_key_secret": access_key_secret,
+                "labels": [],
+            },
+        )
+        label = str(item.get("label") or item.get("id") or "").strip()
+        if label and label not in account["labels"]:
+            account["labels"].append(label)
+
+    regions = configured_eip_regions(items, settings)
+    eips: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    target = int(settings["target_bandwidth_mbps"])
+    auto_adjust = bool(settings.get("auto_adjust_enabled"))
+
+    for account_key, account in accounts.items():
+        for region_id in regions:
+            try:
+                cache_key = f"{region_id}:{account['access_key_id']}"
+                client = client_cache.setdefault(cache_key, get_client(region_id, account["access_key_id"], account["access_key_secret"]))
+                for raw_eip in query_eip_addresses(client, region_id):
+                    item = normalize_eip_row(raw_eip, account_key, region_id, server_names, target)
+                    if (
+                        auto_adjust
+                        and item.get("allocation_id")
+                        and item.get("internet_charge_type") == "PayByTraffic"
+                        and item.get("bandwidth_mbps") is not None
+                        and int(item["bandwidth_mbps"]) < target
+                    ):
+                        item["auto_adjust_attempted"] = True
+                        try:
+                            result = modify_eip_bandwidth(client, region_id, str(item["allocation_id"]), target)
+                            item["auto_adjust_ok"] = True
+                            item["auto_adjust_request_id"] = result.get("RequestId")
+                        except Exception as exc:
+                            item["auto_adjust_ok"] = False
+                            item["auto_adjust_error"] = str(exc)[:500]
+                    eips.append(item)
+            except Exception as exc:
+                errors.append(
+                    {
+                        "account_fingerprint": account_key,
+                        "region_id": region_id,
+                        "error": str(exc)[:500],
+                        "checked_at": iso_now(),
+                    }
+                )
+
+    eips.sort(key=lambda item: (str(item.get("account_fingerprint") or ""), str(item.get("region_id") or ""), str(item.get("ip_address") or "")))
+    return {
+        "enabled": True,
+        "settings": settings,
+        "regions": regions,
+        "accounts": [
+            {
+                "account_fingerprint": key,
+                "labels": account.get("labels", [])[:3],
+            }
+            for key, account in sorted(accounts.items())
+        ],
+        "eips": eips,
+        "errors": errors,
+        "checked_at": iso_now(),
+    }
+
+
 def describe_instance(client: AcsClient, instance_id: str) -> dict[str, Any] | None:
     request = DescribeInstancesRequest.DescribeInstancesRequest()
     request.set_accept_format("json")
@@ -893,11 +1088,19 @@ def run_guard() -> dict[str, Any]:
                 }
             )
 
+    eip_inventory = discover_eip_inventory(config, merged_instances, client_cache)
+    summary = summarize(results)
+    summary["eips"] = len(eip_inventory.get("eips") or [])
+    summary["eip_errors"] = len(eip_inventory.get("errors") or [])
+    summary["eip_target_bandwidth_mbps"] = (eip_inventory.get("settings") or {}).get("target_bandwidth_mbps")
+    summary["eip_target_reached"] = sum(1 for item in eip_inventory.get("eips") or [] if item.get("target_reached"))
+
     status = {
         "generated_at": iso_now(),
         "version": config.get("version", 1),
-        "summary": summarize(results),
+        "summary": summary,
         "instances": results,
+        "eip_inventory": eip_inventory,
     }
     atomic_write_json(STATUS_FILE, status)
     for event in events:

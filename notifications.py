@@ -473,6 +473,56 @@ def pool_brief(item: dict[str, Any]) -> str:
     return "账号池 · 1 台机器"
 
 
+def eip_identity(item: dict[str, Any]) -> str:
+    return "|".join(
+        [
+            str(item.get("account_fingerprint") or ""),
+            str(item.get("region_id") or ""),
+            str(item.get("allocation_id") or item.get("ip_address") or ""),
+        ]
+    )
+
+
+def eip_display_name(item: dict[str, Any]) -> str:
+    ip = str(item.get("ip_address") or "未知 IP")
+    name = str(item.get("name") or "").strip()
+    allocation_id = str(item.get("allocation_id") or "").strip()
+    if name:
+        return f"{name} · {ip}"
+    if allocation_id:
+        return f"{ip} · {allocation_id}"
+    return ip
+
+
+def eip_charge_label(value: Any) -> str:
+    return {
+        "PayByTraffic": "按流量计费",
+        "PayByBandwidth": "按固定带宽计费",
+    }.get(str(value or ""), str(value or "计费方式未知"))
+
+
+def eip_bandwidth_message(item: dict[str, Any], previous: dict[str, Any] | None = None) -> str:
+    previous = previous or {}
+    before = previous.get("bandwidth_mbps")
+    after = item.get("bandwidth_mbps")
+    bound = item.get("bound_server_name") or item.get("instance_id") or "未绑定服务器"
+    lines = [
+        "📡 EIP 带宽变化",
+        f"账号：{item.get('account_fingerprint') or '未知'}",
+        f"EIP：{eip_display_name(item)}",
+        f"地域：{item.get('region_id') or '未知'}",
+        f"绑定：{bound}",
+        f"带宽：{before or '未知'} Mbps → {after or '未知'} Mbps",
+        f"计费：{eip_charge_label(item.get('internet_charge_type'))}",
+    ]
+    if item.get("auto_adjust_attempted"):
+        if item.get("auto_adjust_ok"):
+            lines.append("自动调整：已提交成功")
+        else:
+            lines.append(f"自动调整：失败，{item.get('auto_adjust_error') or '请查看面板'}")
+    return "\n".join(lines)
+
+
 def account_key(item: dict[str, Any]) -> str:
     return str(item.get("account_fingerprint") or item.get("access_key_id") or item.get("traffic_display_pool_key") or "unknown")
 
@@ -890,6 +940,33 @@ def _handle_guard_notifications_locked(
             continue
         result = send_message(title, instance_line(item), {"instance": item, "status": status}, config)
         sent.append({"id": item.get("id"), "title": title, "result": result})
+
+    eip_inventory = status.get("eip_inventory") or {}
+    eip_settings = eip_inventory.get("settings") or {}
+    previous_inventory = (previous_status or {}).get("eip_inventory") or {}
+    if eip_inventory.get("enabled") and eip_settings.get("notify_bandwidth_changes", True) and previous_inventory.get("eips"):
+        previous_eips = {
+            eip_identity(item): item
+            for item in previous_inventory.get("eips", [])
+        }
+        for item in eip_inventory.get("eips", []):
+            previous = previous_eips.get(eip_identity(item))
+            if not previous:
+                continue
+            bandwidth_changed = previous.get("bandwidth_mbps") != item.get("bandwidth_mbps")
+            auto_adjust_changed = (
+                item.get("auto_adjust_attempted")
+                and (
+                    not previous.get("auto_adjust_attempted")
+                    or previous.get("auto_adjust_ok") != item.get("auto_adjust_ok")
+                    or previous.get("auto_adjust_error") != item.get("auto_adjust_error")
+                )
+            )
+            if not bandwidth_changed and not auto_adjust_changed:
+                continue
+            title = "Aliyun CDT Guard EIP 带宽变化"
+            result = send_message(title, eip_bandwidth_message(item, previous), {"eip": item, "previous": previous}, config)
+            sent.append({"id": item.get("allocation_id") or item.get("ip_address"), "title": title, "result": result})
 
     if should_send_daily_report(config, state):
         title, message = build_daily_report(status)
