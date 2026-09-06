@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.22
+Current version: 0.2.23
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -323,6 +323,8 @@ Version 0.2.22 refines the `授权用户` UI for larger server inventories:
 - Registration controls are compact and horizontal on desktop.
 - The user list is a stable left column; editing happens in the main column.
 - Server assignments use a two-column, fixed-height scrollable selector instead of an unbounded vertical list.
+
+Version 0.2.23 aligns the authorization workspace to the full page width so the registration card, user list, and editor share the same left and right edges.
 
 ## Useful Verification
 
