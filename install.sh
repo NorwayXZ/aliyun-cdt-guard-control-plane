@@ -389,7 +389,7 @@ else
 fi
 
 chmod 700 "$INSTALL_DIR"
-chmod 600 "$INSTALL_DIR/guard.env" "$INSTALL_DIR/instances.json" "$INSTALL_DIR/users.json" "$INSTALL_DIR/web.env" 2>/dev/null || true
+chmod 600 "$INSTALL_DIR/guard.env" "$INSTALL_DIR/instances.json" "$INSTALL_DIR/users.json" "$INSTALL_DIR/user_notifications.json" "$INSTALL_DIR/web.env" 2>/dev/null || true
 
 rm -f /usr/local/bin/cdt-guard-control-plane
 cat > /usr/local/bin/cdt-guard-control-plane <<EOF

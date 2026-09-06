@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.23
+Current version: 0.2.24
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -325,6 +325,14 @@ Version 0.2.22 refines the `授权用户` UI for larger server inventories:
 - Server assignments use a two-column, fixed-height scrollable selector instead of an unbounded vertical list.
 
 Version 0.2.23 aligns the authorization workspace to the full page width so the registration card, user list, and editor share the same left and right edges.
+
+Version 0.2.24 gives non-admin users isolated personal settings:
+
+- A non-admin `账号安全` page changes only that user's password and invalidates only that user's session.
+- A non-admin `我的通知` page stores a dedicated Telegram token and Chat ID in `user_notifications.json`.
+- During guard checks, personal notifications are evaluated separately and only for server IDs explicitly assigned to the user or owned by that user.
+- Keep global administrator notifications and Telegram command polling separate from personal user notifications. Personal Bots are send-only and must not poll or reply to administrator commands.
+- `user_notifications.json` contains sensitive Bot Tokens and must remain mode `0600`.
 
 ## Useful Verification
 

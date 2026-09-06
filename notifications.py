@@ -15,6 +15,9 @@ from zoneinfo import ZoneInfo
 
 BASE_DIR = Path(os.environ.get("CDT_GUARD_HOME", "/opt/aliyun-cdt-guard-control-plane"))
 CONFIG_FILE = BASE_DIR / "notifications.json"
+USER_CONFIG_FILE = BASE_DIR / "user_notifications.json"
+USERS_FILE = BASE_DIR / "users.json"
+INSTANCES_FILE = BASE_DIR / "instances.json"
 STATE_FILE = BASE_DIR / "notification_state.json"
 LOCK_FILE = BASE_DIR / "notification_state.lock"
 MAX_PROCESSED_TELEGRAM_UPDATES = 200
@@ -88,6 +91,31 @@ def load_config() -> dict[str, Any]:
 
 def save_config(config: dict[str, Any]) -> None:
     write_json(CONFIG_FILE, merge_dict(default_config(), config))
+
+
+def load_user_notification_configs() -> dict[str, dict[str, Any]]:
+    data = read_json(USER_CONFIG_FILE, {})
+    if not isinstance(data, dict):
+        return {}
+    users = data.get("users") if isinstance(data.get("users"), dict) else data
+    if not isinstance(users, dict):
+        return {}
+    return {
+        str(username): merge_dict(default_config(), config if isinstance(config, dict) else {})
+        for username, config in users.items()
+        if str(username)
+    }
+
+
+def load_user_notification_config(username: str) -> dict[str, Any]:
+    return load_user_notification_configs().get(str(username), default_config())
+
+
+def save_user_notification_config(username: str, config: dict[str, Any]) -> None:
+    username = str(username)
+    all_configs = load_user_notification_configs()
+    all_configs[username] = merge_dict(default_config(), config)
+    write_json(USER_CONFIG_FILE, {"version": 1, "users": all_configs})
 
 
 def load_state() -> dict[str, Any]:
@@ -898,6 +926,54 @@ def handle_guard_notifications(
             fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
+def user_visible_server_ids() -> dict[str, set[str]]:
+    users_data = read_json(USERS_FILE, {})
+    instances_data = read_json(INSTANCES_FILE, {})
+    users = users_data.get("users") if isinstance(users_data, dict) else []
+    instances = instances_data.get("instances") if isinstance(instances_data, dict) else []
+    if not isinstance(users, list) or not isinstance(instances, list):
+        return {}
+    visible: dict[str, set[str]] = {}
+    for user in users:
+        username = str(user.get("username") or "") if isinstance(user, dict) else ""
+        if username:
+            visible[username] = {str(server_id) for server_id in user.get("server_ids", []) if str(server_id)}
+    for instance in instances:
+        if not isinstance(instance, dict):
+            continue
+        owner = str(instance.get("owner_username") or "")
+        server_id = str(instance.get("id") or instance.get("instance_id") or "")
+        if owner and server_id and owner in visible:
+            visible[owner].add(server_id)
+    return visible
+
+
+def handle_user_notifications(status: dict[str, Any], previous_status: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    sent: list[dict[str, Any]] = []
+    previous_by_id = {str(item.get("id")): item for item in (previous_status or {}).get("instances", [])}
+    visibility = user_visible_server_ids()
+    for username, config in load_user_notification_configs().items():
+        if not config.get("enabled") or not visibility.get(username):
+            continue
+        rules = config.get("rules", {})
+        for item in status.get("instances", []):
+            if str(item.get("id") or "") not in visibility[username]:
+                continue
+            previous = previous_by_id.get(str(item.get("id") or ""), {})
+            title = ""
+            if item.get("last_error") and rules.get("notify_errors") and previous.get("last_error") != item.get("last_error"):
+                title = "Aliyun CDT Guard 检查错误"
+            elif item.get("action") in {"stop", "start"} and rules.get("notify_actions"):
+                title = f"Aliyun CDT Guard {action_label(item.get('action'))}"
+            elif item.get("warning") and rules.get("notify_warnings") and not previous.get("warning"):
+                title = "Aliyun CDT Guard 流量预警"
+            if not title:
+                continue
+            result = send_message(title, instance_line(item), {"instance": item, "user": username}, config)
+            sent.append({"id": item.get("id"), "user": username, "title": title, "result": result})
+    return sent
+
+
 def _handle_guard_notifications_locked(
     status: dict[str, Any],
     previous_status: dict[str, Any] | None = None,
@@ -915,6 +991,8 @@ def _handle_guard_notifications_locked(
                 "result": command.get("result") or {"ok": False, "allowed": command.get("allowed")},
             }
         )
+
+    sent.extend(handle_user_notifications(status, previous_status))
 
     if not config.get("enabled"):
         if json.dumps(state, ensure_ascii=False, sort_keys=True) != state_before:

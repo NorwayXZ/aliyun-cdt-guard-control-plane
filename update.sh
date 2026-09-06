@@ -114,7 +114,7 @@ echo "Updating Python dependencies..."
 "$INSTALL_DIR/venv/bin/pip" install --no-cache-dir -r "$INSTALL_DIR/requirements.txt"
 
 chmod 700 "$INSTALL_DIR"
-chmod 600 "$INSTALL_DIR/guard.env" "$INSTALL_DIR/instances.json" "$INSTALL_DIR/users.json" "$INSTALL_DIR/web.env" 2>/dev/null || true
+chmod 600 "$INSTALL_DIR/guard.env" "$INSTALL_DIR/instances.json" "$INSTALL_DIR/users.json" "$INSTALL_DIR/user_notifications.json" "$INSTALL_DIR/web.env" 2>/dev/null || true
 
 cat > /usr/local/bin/cdt-guard-control-plane <<EOF
 #!/bin/sh
