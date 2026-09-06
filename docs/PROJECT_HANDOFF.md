@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.19
+Current version: 0.2.20
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -297,6 +297,18 @@ Version 0.2.19 adds EIP inventory and bandwidth monitoring:
 - Auto-adjust is disabled by default and only attempts `PayByTraffic` EIPs with bandwidth below the target.
 
 Security rule: never enable auto-adjust by default, and do not add EIP release/delete permissions.
+
+## Multi-User Authorization
+
+Version 0.2.20 adds local panel users and server-level authorization without adding a database or a new service:
+
+- The original `WEB_USERNAME` account remains the administrator and can see/manage every server.
+- `viewer` users can only see server IDs selected by the administrator.
+- `operator` users can see selected servers and can add/manage servers they created themselves.
+- Servers created by an operator have `owner_username`; the administrator can always see them.
+- Viewer users must never receive saved AccessKey values, server login/SSH remarks, notification settings, EIP inventory, domain configuration, account security or update access.
+- Both HTML routes and JSON APIs must enforce visibility. Do not rely on hidden navigation alone.
+- Runtime user records live in `/opt/aliyun-cdt-guard-control-plane/users.json`; passwords are PBKDF2 hashes and the file must remain mode `0600`.
 
 ## Useful Verification
 

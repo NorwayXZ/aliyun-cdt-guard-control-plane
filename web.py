@@ -27,6 +27,7 @@ import notifications
 BASE_DIR = Path(os.environ.get("CDT_GUARD_HOME", "/opt/aliyun-cdt-guard-control-plane"))
 WEB_ENV_FILE = BASE_DIR / "web.env"
 CONFIG_FILE = BASE_DIR / "instances.json"
+USERS_FILE = BASE_DIR / "users.json"
 STATUS_FILE = BASE_DIR / "status.json"
 HISTORY_FILE = BASE_DIR / "history.jsonl"
 DOMAIN_PROXY_FILE = BASE_DIR / "domain_proxy.json"
@@ -36,7 +37,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.19"
+APP_VERSION = "0.2.20"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
@@ -181,6 +182,126 @@ def read_config() -> dict:
             "instances": [],
         },
     )
+
+
+def read_users() -> dict:
+    data = read_json(USERS_FILE, {"version": 1, "users": []})
+    if not isinstance(data, dict):
+        return {"version": 1, "users": []}
+    users = data.get("users")
+    if not isinstance(users, list):
+        users = []
+    return {"version": int(data.get("version", 1) or 1), "users": users}
+
+
+def write_users(data: dict) -> None:
+    write_json(USERS_FILE, {"version": 1, "users": list(data.get("users") or [])})
+
+
+def normalize_panel_username(value: str) -> str:
+    value = str(value or "").strip()
+    if not value or len(value) > 48:
+        return ""
+    if not all(char.isalnum() or char in {"-", "_", "."} for char in value):
+        return ""
+    return value
+
+
+def password_hash(password: str, salt: str | None = None) -> str:
+    salt = salt or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("ascii"), 260000)
+    return f"pbkdf2_sha256${salt}${digest.hex()}"
+
+
+def password_hash_matches(password: str, encoded: str) -> bool:
+    try:
+        algorithm, salt, expected = str(encoded or "").split("$", 2)
+    except ValueError:
+        return False
+    if algorithm != "pbkdf2_sha256" or not salt or not expected:
+        return False
+    return hmac.compare_digest(password_hash(password, salt), encoded)
+
+
+def local_user(username: str) -> dict | None:
+    username = str(username or "")
+    for item in read_users().get("users", []):
+        if str(item.get("username") or "") == username:
+            role = str(item.get("role") or "viewer")
+            return {
+                "username": username,
+                "role": "operator" if role == "operator" else "viewer",
+                "server_ids": [str(server_id) for server_id in item.get("server_ids", []) if str(server_id)],
+                "password_hash": str(item.get("password_hash") or ""),
+            }
+    return None
+
+
+def panel_user(username: str) -> dict | None:
+    admin_username, _, _ = web_credentials()
+    if username == admin_username:
+        return {"username": username, "role": "admin", "server_ids": []}
+    return local_user(username)
+
+
+def is_admin(user: dict | None) -> bool:
+    return bool(user and user.get("role") == "admin")
+
+
+def server_id_of(item: dict) -> str:
+    return str(item.get("id") or item.get("instance_id") or "")
+
+
+def can_view_server(user: dict | None, item: dict) -> bool:
+    if is_admin(user):
+        return True
+    if not user:
+        return False
+    server_id = server_id_of(item)
+    return str(item.get("owner_username") or "") == str(user.get("username") or "") or server_id in set(user.get("server_ids") or [])
+
+
+def can_manage_server(user: dict | None, item: dict) -> bool:
+    return bool(
+        is_admin(user)
+        or (
+            user
+            and user.get("role") == "operator"
+            and str(item.get("owner_username") or "") == str(user.get("username") or "")
+        )
+    )
+
+
+def can_create_servers(user: dict | None) -> bool:
+    return bool(is_admin(user) or (user and user.get("role") == "operator"))
+
+
+def visible_instances(config: dict, user: dict | None) -> list[dict]:
+    return [item for item in config.get("instances", []) if can_view_server(user, item)]
+
+
+def config_for_visible_instances(config: dict, user: dict | None) -> dict:
+    visible = visible_instances(config, user)
+    return {**config, "instances": visible}
+
+
+def visible_history(user: dict | None, limit: int = 1000) -> list[dict]:
+    if is_admin(user):
+        return read_history(limit)
+    allowed = {server_id_of(item) for item in visible_instances(read_config(), user)}
+    return [event for event in read_history(limit) if str(event.get("id") or "") in allowed]
+
+
+def status_for_visible_instances(status: dict, config: dict, user: dict | None) -> dict:
+    allowed = {server_id_of(item) for item in visible_instances(config, user)}
+    result = dict(status)
+    result["instances"] = [item for item in status.get("instances", []) if server_id_of(item) in allowed]
+    if not is_admin(user):
+        # EIP inventory and account-wide diagnostics can expose resources the user was not assigned.
+        result.pop("eip_inventory", None)
+        result["summary"] = apply_display_summary({}, result["instances"])
+        result["summary"]["pools"] = display_pool_count(result["instances"])
+    return result
 
 
 def tail_lines(path: Path, limit: int, block_size: int = 8192) -> list[str]:
@@ -769,7 +890,14 @@ def flash_message(code: str) -> str:
         "security_password_mismatch": "两次输入的新密码不一致",
         "security_password_short": "新密码至少需要 8 位",
         "security_username_empty": "用户名不能为空",
+        "security_username_exists": "该用户名已被授权用户占用，请换一个管理员用户名",
         "security_saved": "账号密码已修改，请使用新账号重新登录",
+        "access_saved": "授权用户已保存",
+        "access_deleted": "授权用户已删除，该用户已无法登录",
+        "access_denied": "你没有权限访问或操作这台服务器",
+        "access_username_invalid": "用户名只能使用字母、数字、连字符、下划线或点号",
+        "access_username_exists": "这个用户名已存在，不能重复创建",
+        "access_password_short": "新用户密码至少需要 8 位",
         "login_required": "请先登录",
         "login_failed": "用户名或密码不正确",
         "logged_out": "已退出登录",
@@ -780,7 +908,7 @@ def flash_message(code: str) -> str:
 def flash_class(code: str) -> str:
     if code.startswith("domain_apply_") and code != "domain_applied":
         return "alert-danger"
-    if code.startswith("security_") and code != "security_saved":
+    if (code.startswith("security_") and code != "security_saved") or code.startswith("access_") and code not in {"access_saved", "access_deleted"}:
         return "alert-danger"
     if code.endswith("_failed") or code in {"login_failed", "telegram_discover_failed", "telegram_chat_invalid"}:
         return "alert-danger"
@@ -821,10 +949,16 @@ def should_use_secure_cookie(env: dict[str, str], request_is_https: bool) -> boo
     return False
 
 
-def build_session_cookie(username: str, env: dict[str, str], password: str, secure_cookie: bool = False) -> str:
+def user_session_secret(env: dict[str, str], admin_password: str, user: dict) -> bytes:
+    material = admin_password if user.get("role") == "admin" else str(user.get("password_hash") or "")
+    return hmac.new(session_secret(env, admin_password), material.encode("utf-8"), hashlib.sha256).digest()
+
+
+def build_session_cookie(user: dict, env: dict[str, str], admin_password: str, secure_cookie: bool = False) -> str:
     expires = str(int(time.time()) + int(env.get("WEB_SESSION_TTL", "86400")))
     nonce = secrets.token_hex(12)
-    signature = sign_session(username, expires, nonce, session_secret(env, password))
+    username = str(user.get("username") or "")
+    signature = sign_session(username, expires, nonce, user_session_secret(env, admin_password, user))
     secure = "; Secure" if secure_cookie else ""
     return f"cdt_guard_session={username}|{expires}|{nonce}|{signature}; Path=/; HttpOnly; SameSite=Lax{secure}"
 
@@ -1767,6 +1901,7 @@ def page_shell(
     flash: str = "",
     auto_refresh: bool = False,
     crumb_label: str | None = None,
+    user: dict | None = None,
 ) -> bytes:
     run_nav = [
         ("/", "overview", "主页", "▦"),
@@ -1780,6 +1915,14 @@ def page_shell(
         ("/security", "security", "账号安全", "◇"),
         ("/update", "update", "版本更新", "↥"),
     ]
+    if is_admin(user):
+        config_nav.insert(3, ("/access", "access", "授权用户", "◌"))
+    else:
+        run_nav = [("/", "overview", "主页", "▦")]
+        if can_create_servers(user):
+            run_nav.append(("/servers/new", "servers", "新增服务器", "＋"))
+        run_nav.append(("/logs", "logs", "服务器日志", "≡"))
+        config_nav = []
 
     def render_nav(items: list[tuple[str, str, str, str]]) -> str:
         return "".join(
@@ -5416,12 +5559,10 @@ def page_shell(
         {run_nav_html}
       </nav>
 
-      <nav class="nav-block" aria-label="配置导航">
-        <p>配置</p>
-        {config_nav_html}
-      </nav>
+      {f'<nav class="nav-block" aria-label="配置导航"><p>配置</p>{config_nav_html}</nav>' if config_nav_html else ''}
 
       <div class="sidebar-account">
+        <span class="text-secondary small">{esc((user or {}).get("username") or "")}</span>
         <a class="logout-link sidebar-logout" href="/logout" aria-label="退出登录">退出登录</a>
       </div>
     </aside>
@@ -6027,7 +6168,7 @@ def group_scope_summary(items: list[dict]) -> str:
     return "多个统计池"
 
 
-def render_server_group(group_key: str, items: list[dict], metadata: dict[str, dict], history: list[dict], active_id: str | None) -> str:
+def render_server_group(group_key: str, items: list[dict], metadata: dict[str, dict], history: list[dict], active_id: str | None, user: dict | None = None) -> str:
     priorities = [server_health(item)[2] for item in items]
     group_priority = min(priorities) if priorities else 9
     total_traffic, _ = current_total_traffic(items)
@@ -6040,7 +6181,7 @@ def render_server_group(group_key: str, items: list[dict], metadata: dict[str, d
     group_name = account_group_title(group_key)
     sorted_items = sorted(items, key=server_default_sort_key)
     rows = "".join(
-        render_server_row(item, metadata, history, active=str(item.get("id") or item.get("instance_id")) == active_id)
+        render_server_row(item, metadata, history, active=str(item.get("id") or item.get("instance_id")) == active_id, user=user)
         for item in sorted_items
     )
     return f"""
@@ -6303,7 +6444,7 @@ def render_diagnostics(item: dict, identity: dict[str, Any], manual_note: str) -
     """
 
 
-def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict], active: bool = False) -> str:
+def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict], active: bool = False, user: dict | None = None) -> str:
     identity = server_identity(item, metadata)
     state_class, state_label, _state_sub = status_view(item.get("instance_status"))
     health_class, _filter_label, priority = server_health(item)
@@ -6382,7 +6523,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
         </form>
         <span class="row-power-label">{esc(power_hint)}</span>
       </div>
-    """
+    """ if can_manage_server(user, item) else f'<div class="row-power-actions power-state-{esc(power_state)}" title="{esc(power_hint)}"><span class="row-power-label">{esc(power_hint)}</span></div>'
     return f"""
       <article class="{' '.join(row_classes)}" data-server-row data-server-id="{esc(identity['id'])}" role="button" tabindex="0"
         data-search="{esc(search_text)}" data-filter-state="{esc(health_class)}" data-priority="{priority}"
@@ -6446,7 +6587,7 @@ def render_server_row(item: dict, metadata: dict[str, dict], history: list[dict]
     """
 
 
-def render_server_detail(item: dict, metadata: dict[str, dict], history: list[dict], active: bool = False) -> str:
+def render_server_detail(item: dict, metadata: dict[str, dict], history: list[dict], active: bool = False, user: dict | None = None) -> str:
     identity = server_identity(item, metadata)
     meta = identity["meta"]
     pct = used_percent(item)
@@ -6476,6 +6617,40 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
     realtime_source = item.get("realtime_monitor_source_label") or "CloudMonitor"
     realtime_error = item.get("realtime_error")
     name_color = server_name_color(identity["id"])
+    owner_html = ""
+    if is_admin(user) and item.get("owner_username"):
+        owner_html = f'<span>创建用户 <b>{esc(item.get("owner_username"))}</b></span>'
+    credentials_html = f"""
+        <details class="detail-section detail-disclosure">
+          <summary>登录、账号与备注</summary>
+          <div class="detail-grid mt-3">
+            <div class="detail-item">
+              <div class="info-label">登录网站</div>
+              <div>{link_or_text(meta.get('panel_url') or meta.get('login_url') or meta.get('website'))}</div>
+              {small_line("账号 ", panel_username)}
+              {small_line("密码 ", panel_password)}
+            </div>
+            <div class="detail-item">
+              <div class="info-label">SSH 备注</div>
+              {small_line("SSH ", ssh_text)}
+              {small_line("密码 ", ssh_password) if ssh_password else '<div class="text-secondary small">SSH 密码未填写</div>'}
+            </div>
+            <div class="detail-item">
+              <div class="info-label">备注</div>
+              <div class="note-cell">{esc(note_text) if note_text else '<span class="text-secondary">未填写</span>'}</div>
+            </div>
+          </div>
+        </details>
+    """ if can_manage_server(user, item) else ""
+    manage_actions = f"""
+        <div class="detail-section detail-actions">
+          <a class="btn btn-primary btn-sm" href="/servers/edit?id={esc(identity['id'])}">编辑这台服务器</a>
+          <form class="delete-form" method="post" action="/servers/delete" onsubmit="return confirm('确认删除这台服务器？删除后会立即从面板移除，并执行一次检查。')">
+            <input type="hidden" name="id" value="{esc(identity['id'])}">
+            <button class="btn btn-sm btn-outline-danger" type="submit">删除服务器</button>
+          </form>
+        </div>
+    """ if can_manage_server(user, item) else ""
     return f"""
       <section class="server-detail {'active' if active else ''}" data-server-detail data-server-id="{esc(identity['id'])}" style="--server-name-color: {esc(name_color)};">
         <div class="detail-section">
@@ -6485,6 +6660,7 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
               <div class="detail-meta-pair">
                 <span>实例/节点名 <b>{esc(identity['asset_label'])}</b></span>
                 <span>服务 ID <b>{esc(service_id)}</b></span>
+                {owner_html}
               </div>
             </div>
             {status_record_html(state_class, state_label, "detail-status-pill")}
@@ -6548,38 +6724,13 @@ def render_server_detail(item: dict, metadata: dict[str, dict], history: list[di
           {render_traffic_breakdown(item)}
         </div>
         {render_diagnostics(item, identity, manual_note)}
-        <details class="detail-section detail-disclosure">
-          <summary>登录、账号与备注</summary>
-          <div class="detail-grid mt-3">
-            <div class="detail-item">
-              <div class="info-label">登录网站</div>
-              <div>{link_or_text(meta.get('panel_url') or meta.get('login_url') or meta.get('website'))}</div>
-              {small_line("账号 ", panel_username)}
-              {small_line("密码 ", panel_password)}
-            </div>
-            <div class="detail-item">
-              <div class="info-label">SSH 备注</div>
-              {small_line("SSH ", ssh_text)}
-              {small_line("密码 ", ssh_password) if ssh_password else '<div class="text-secondary small">SSH 密码未填写</div>'}
-            </div>
-            <div class="detail-item">
-              <div class="info-label">备注</div>
-              <div class="note-cell">{esc(note_text) if note_text else '<span class="text-secondary">未填写</span>'}</div>
-            </div>
-          </div>
-        </details>
-        <div class="detail-section detail-actions">
-          <a class="btn btn-primary btn-sm" href="/servers/edit?id={esc(identity['id'])}">编辑这台服务器</a>
-          <form class="delete-form" method="post" action="/servers/delete" onsubmit="return confirm('确认删除这台服务器？删除后会立即从面板移除，并执行一次检查。')">
-            <input type="hidden" name="id" value="{esc(identity['id'])}">
-            <button class="btn btn-sm btn-outline-danger" type="submit">删除服务器</button>
-          </form>
-        </div>
+        {credentials_html}
+        {manage_actions}
       </section>
     """
 
 
-def render_assets_card(instances: list[dict], metadata: dict[str, dict], history: list[dict], summary: dict, generated_at: str) -> str:
+def render_assets_card(instances: list[dict], metadata: dict[str, dict], history: list[dict], summary: dict, generated_at: str, user: dict | None = None) -> str:
     sorted_instances = sorted(instances, key=server_default_sort_key)
     groups: dict[str, list[dict]] = {}
     details = []
@@ -6589,9 +6740,9 @@ def render_assets_card(instances: list[dict], metadata: dict[str, dict], history
         if index == 0:
             active_id = identity["id"]
         groups.setdefault(account_group_key(item), []).append(item)
-        details.append(render_server_detail(item, metadata, history, active=index == 0))
+        details.append(render_server_detail(item, metadata, history, active=index == 0, user=user))
     group_html = "".join(
-        render_server_group(group_key, group_items, metadata, history, active_id)
+        render_server_group(group_key, group_items, metadata, history, active_id, user=user)
         for group_key, group_items in sorted(
             groups.items(),
             key=lambda pair: group_default_sort_key(pair[0], pair[1]),
@@ -6707,14 +6858,16 @@ def render_asset_traffic_overview(summary: dict, instances: list[dict], history:
     """
 
 
-def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
+def render_dashboard(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
     query = query or {}
+    user_key = str((user or {}).get("username") or "")
     cache_key = (
         file_signature(CONFIG_FILE),
+        file_signature(USERS_FILE),
         file_signature(STATUS_FILE),
         file_signature(HISTORY_FILE),
     )
-    cached = DASHBOARD_BODY_CACHE.get("dashboard")
+    cached = DASHBOARD_BODY_CACHE.get(f"dashboard:{user_key}")
     if (
         cached
         and cached.get("key") == cache_key
@@ -6724,14 +6877,16 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
     else:
         status = read_json(STATUS_FILE, {"summary": {}, "instances": [], "generated_at": "暂无"})
         config = read_config()
+        config = config_for_visible_instances(config, user)
+        status = status_for_visible_instances(status, config, user)
         instances = merge_configured_status_instances(config, status)
         enrich_display_traffic(instances)
         summary = apply_display_summary(status.get("summary", {}) or {}, instances)
         summary["pools"] = display_pool_count(instances) or int(summary.get("pools", 0) or 0)
         metadata = config_by_id(config)
-        history = read_history(1000)
-        body = render_assets_card(instances, metadata, history, summary, status.get("generated_at"))
-        DASHBOARD_BODY_CACHE["dashboard"] = {
+        history = visible_history(user, 1000)
+        body = render_assets_card(instances, metadata, history, summary, status.get("generated_at"), user=user)
+        DASHBOARD_BODY_CACHE[f"dashboard:{user_key}"] = {
             "key": cache_key,
             "cached_at": time.time(),
             "body": body,
@@ -6742,18 +6897,24 @@ def render_dashboard(query: dict[str, list[str]] | None = None) -> bytes:
         "Traffic Protection & Server Assets",
         "Monitor account traffic, quota guard status, and server runtime at a glance",
         body,
-        actions=render_check_action(),
+        actions=render_check_action() if is_admin(user) else "",
         flash=flash,
         crumb_label="CDT",
+        user=user,
     )
 
 
-def render_server_form_page(query: dict[str, list[str]] | None = None) -> bytes:
+def render_server_form_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
     query = query or {}
     config = read_config()
     edit_id = query.get("id", [""])[0]
     editing = selected_instance(config, edit_id)
-    access_key_options = collect_access_key_options(config, edit_id)
+    if edit_id and not can_manage_server(user, editing):
+        return render_dashboard({"flash": ["access_denied"]}, user)
+    if not edit_id and not can_create_servers(user):
+        return render_dashboard({"flash": ["access_denied"]}, user)
+    own_config = {**config, "instances": [item for item in config.get("instances", []) if is_admin(user) or str(item.get("owner_username") or "") == str((user or {}).get("username") or "")]}
+    access_key_options = collect_access_key_options(own_config, edit_id)
     body = f"""
     <div class="form-layout">
       <div>{render_form(editing, access_key_options)}</div>
@@ -6767,15 +6928,16 @@ def render_server_form_page(query: dict[str, list[str]] | None = None) -> bytes:
         body,
         actions='<a href="/" class="btn">返回主页</a>',
         auto_refresh=False,
+        user=user,
     )
 
 
-def render_logs_page(query: dict[str, list[str]] | None = None) -> bytes:
+def render_logs_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
     query = query or {}
     config = read_config()
-    status = read_json(STATUS_FILE, {"instances": [], "generated_at": "暂无"})
-    history = read_history(1000)
-    configured = config.get("instances", [])
+    status = status_for_visible_instances(read_json(STATUS_FILE, {"instances": [], "generated_at": "暂无"}), config, user)
+    history = visible_history(user, 1000)
+    configured = visible_instances(config, user)
     status_by_id = {str(item.get("id")): item for item in status.get("instances", [])}
     selected_id = query.get("server", [""])[0]
     if not selected_id and configured:
@@ -6916,7 +7078,8 @@ def render_logs_page(query: dict[str, list[str]] | None = None) -> bytes:
         "服务器日志",
         "默认聚焦异常、启停、预警和需要处理的事件",
         body,
-        actions=render_check_action(),
+        actions=render_check_action() if is_admin(user) else "",
+        user=user,
     )
 
 
@@ -7114,7 +7277,7 @@ def render_chat_candidates(state: dict) -> str:
     return f'<div class="chat-candidates">{"".join(rows)}</div>'
 
 
-def render_notifications_page(query: dict[str, list[str]] | None = None) -> bytes:
+def render_notifications_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
     query = query or {}
     config = notifications.load_config()
     state = notifications.load_state()
@@ -7192,6 +7355,7 @@ def render_notifications_page(query: dict[str, list[str]] | None = None) -> byte
         actions='<a href="/" class="btn">返回主页</a>',
         flash=flash,
         auto_refresh=False,
+        user=user,
     )
 
 
@@ -7316,7 +7480,7 @@ def render_eip_inventory_table(inventory: dict) -> str:
     """
 
 
-def render_eip_page(query: dict[str, list[str]] | None = None) -> bytes:
+def render_eip_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
     query = query or {}
     config = read_config()
     settings = eip_monitor_config(config)
@@ -7402,6 +7566,7 @@ def render_eip_page(query: dict[str, list[str]] | None = None) -> bytes:
         actions=render_check_action(),
         flash=query.get("flash", [""])[0],
         auto_refresh=False,
+        user=user,
     )
 
 
@@ -7723,7 +7888,7 @@ def service_state(service: str) -> str:
         return "unknown"
 
 
-def render_security_page(query: dict[str, list[str]] | None = None) -> bytes:
+def render_security_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
     query = query or {}
     username, _, env = web_credentials()
     cookie_secure_mode = env.get("WEB_COOKIE_SECURE", "").lower()
@@ -7796,6 +7961,7 @@ def render_security_page(query: dict[str, list[str]] | None = None) -> bytes:
         actions='<a href="/" class="btn">返回主页</a>',
         flash=query.get("flash", [""])[0],
         auto_refresh=False,
+        user=user,
     )
 
 
@@ -7806,6 +7972,9 @@ def save_security_settings(fields: dict[str, list[str]]) -> tuple[bool, str]:
 
     if not new_username:
         return False, "username_empty"
+    current_username, _, _ = web_credentials()
+    if new_username != current_username and local_user(new_username):
+        return False, "username_exists"
     if new_password or confirm_password:
         if new_password != confirm_password:
             return False, "password_mismatch"
@@ -7822,7 +7991,143 @@ def save_security_settings(fields: dict[str, list[str]]) -> tuple[bool, str]:
     return True, "saved"
 
 
-def render_domain_page(query: dict[str, list[str]] | None = None, request_host: str = "") -> bytes:
+def render_access_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
+    query = query or {}
+    if not is_admin(user):
+        return render_dashboard({"flash": ["access_denied"]}, user)
+    users_data = read_users()
+    saved_users = sorted(users_data.get("users", []), key=lambda item: str(item.get("username") or "").lower())
+    selected_name = query.get("user", [""])[0]
+    selected = next((item for item in saved_users if str(item.get("username") or "") == selected_name), {})
+    config = read_config()
+    servers = sorted(config.get("instances", []), key=lambda item: str(item.get("product_name") or item.get("label") or item.get("id") or "").lower())
+    selected_server_ids = {str(server_id) for server_id in selected.get("server_ids", [])}
+    assigned_options = "".join(
+        f'''<label class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="server_ids" value="{esc(server_id_of(server))}" {"checked" if server_id_of(server) in selected_server_ids else ""}>
+          <span class="form-check-label">{esc(first_value(server.get("product_name"), server.get("label"), server.get("instance_id"), default="未命名服务器"))}</span>
+          <span class="form-hint d-inline">{esc(server.get("instance_id") or "")}</span>
+        </label>'''
+        for server in servers
+    ) or '<div class="text-secondary">还没有服务器可授权。</div>'
+    user_rows = []
+    for item in saved_users:
+        username = str(item.get("username") or "")
+        role = "可添加自己的服务器" if item.get("role") == "operator" else "仅查看已授权服务器"
+        granted = len([server_id for server_id in item.get("server_ids", []) if server_id])
+        owned = sum(1 for server in servers if str(server.get("owner_username") or "") == username)
+        user_rows.append(
+            f'''<a class="list-group-item list-group-item-action {"active" if username == selected_name else ""}" href="/access?user={esc(username)}">
+              <div class="fw-semibold">{esc(username)}</div>
+              <div class="text-secondary small">{esc(role)} · 已授权 {granted} 台 · 自己添加 {owned} 台</div>
+            </a>'''
+        )
+    editing = bool(selected)
+    saved_username = str(selected.get("username") or "")
+    role = str(selected.get("role") or "viewer")
+    delete_form = ""
+    if editing:
+        delete_form = (
+            '<div class="card-footer"><form method="post" action="/access/delete" '
+            f'onsubmit="return confirm(\'确认删除用户 {esc(saved_username)}？该用户会立即无法登录，但服务器不会删除。\')">'
+            f'<input type="hidden" name="username" value="{esc(saved_username)}">'
+            '<button class="btn btn-outline-danger btn-sm" type="submit">删除此用户</button></form></div>'
+        )
+    body = f'''
+      <div class="form-layout">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">{ "编辑授权用户" if editing else "新建授权用户" }</h3></div>
+          <form method="post" action="/access/save" data-save-form>
+            <div class="card-body">
+              <input type="hidden" name="original_username" value="{esc(saved_username)}">
+              <div class="setup-box mb-3">查看者只能查看管理员授权的机器。操作员除了查看授权机器，还能新增、编辑、启停和删除自己创建的机器；管理员始终可查看全部机器。</div>
+              <div class="credential-grid">
+                {input_field("username", "用户名", saved_username, placeholder="例如：alice", hint="只允许字母、数字、连字符、下划线和点号。", required=True)}
+                {input_field("new_password", "登录密码", "", "password", placeholder="至少 8 位", hint="新建用户必须填写；编辑时留空则保留原密码。", required=not editing)}
+              </div>
+              {select_field("role", "用户权限", role, [("viewer", "查看者：仅查看获授权服务器"), ("operator", "操作员：可新增和管理自己创建的服务器")])}
+              <section class="form-section">
+                <h3 class="form-section-title">授权查看服务器</h3>
+                <div class="setup-box mb-3">勾选后，该用户能在主页、日志和流量曲线中看到这些服务器。用户自己新增的服务器不需要在这里重复勾选。</div>
+                <div class="list-group list-group-flush">{assigned_options}</div>
+              </section>
+            </div>
+            <div class="card-footer d-flex align-items-center gap-2">
+              <a href="/access" class="btn">新建用户</a>
+              <button class="btn btn-primary ms-auto" type="submit" data-submit-button data-loading-text="正在保存...">保存授权</button>
+            </div>
+          </form>
+        </div>
+        <aside class="card guide-panel">
+          <div class="card-header"><h3 class="card-title">已授权用户</h3></div>
+          <div class="list-group list-group-flush">{''.join(user_rows) if user_rows else '<div class="list-group-item text-secondary">还没有授权用户。</div>'}</div>
+          {delete_form}
+        </aside>
+      </div>
+    '''
+    return page_shell(
+        "access", "授权用户", "创建成员账号并按服务器分配查看权限", body,
+        actions='<a href="/" class="btn">返回主页</a>', flash=query.get("flash", [""])[0], auto_refresh=False, user=user,
+    )
+
+
+def save_access_user(fields: dict[str, list[str]]) -> tuple[bool, str]:
+    original_username = str(form_value(fields, "original_username") or "")
+    username = normalize_panel_username(form_value(fields, "username"))
+    password = form_value(fields, "new_password")
+    role = "operator" if form_value(fields, "role") == "operator" else "viewer"
+    admin_username, _, _ = web_credentials()
+    users_data = read_users()
+    users = list(users_data.get("users", []))
+    existing = next((item for item in users if str(item.get("username") or "") == original_username), None)
+    if not username:
+        return False, "username_invalid"
+    if username == admin_username or any(str(item.get("username") or "") == username and item is not existing for item in users):
+        return False, "username_exists"
+    if not existing and len(password) < 8:
+        return False, "password_short"
+    if password and len(password) < 8:
+        return False, "password_short"
+    valid_server_ids = {server_id_of(item) for item in read_config().get("instances", [])}
+    server_ids = sorted({str(value) for value in fields.get("server_ids", []) if str(value) in valid_server_ids})
+    user_item = {
+        "username": username,
+        "role": role,
+        "server_ids": server_ids,
+        "password_hash": password_hash(password) if password else str((existing or {}).get("password_hash") or ""),
+    }
+    users_data["users"] = [item for item in users if str(item.get("username") or "") != original_username and str(item.get("username") or "") != username]
+    users_data["users"].append(user_item)
+    write_users(users_data)
+    if existing and original_username != username:
+        config = read_config()
+        for server in config.get("instances", []):
+            if str(server.get("owner_username") or "") == original_username:
+                server["owner_username"] = username
+        write_json(CONFIG_FILE, config)
+    return True, "saved"
+
+
+def delete_access_user(username: str) -> bool:
+    username = str(username or "")
+    users_data = read_users()
+    before = len(users_data.get("users", []))
+    users_data["users"] = [item for item in users_data.get("users", []) if str(item.get("username") or "") != username]
+    if len(users_data["users"]) == before:
+        return False
+    write_users(users_data)
+    config = read_config()
+    changed = False
+    for server in config.get("instances", []):
+        if str(server.get("owner_username") or "") == username:
+            server.pop("owner_username", None)
+            changed = True
+    if changed:
+        write_json(CONFIG_FILE, config)
+    return True
+
+
+def render_domain_page(query: dict[str, list[str]] | None = None, request_host: str = "", user: dict | None = None) -> bytes:
     query = query or {}
     config = read_domain_proxy_config()
     saved_domain = str(config.get("domain") or "").strip().lower()
@@ -7990,6 +8295,7 @@ def render_domain_page(query: dict[str, list[str]] | None = None, request_host: 
         actions='<a href="/" class="btn">返回主页</a>',
         flash=query.get("flash", [""])[0],
         auto_refresh=False,
+        user=user,
     )
 
 
@@ -8086,7 +8392,7 @@ def remove_telegram_chat(chat_id: str) -> None:
     notifications.save_config(config)
 
 
-def render_update_page(query: dict[str, list[str]] | None = None) -> bytes:
+def render_update_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
     query = query or {}
     current = current_app_version()
     latest, latest_error = fetch_latest_version()
@@ -8147,6 +8453,7 @@ def render_update_page(query: dict[str, list[str]] | None = None) -> bytes:
         actions='<a href="/" class="btn">返回主页</a>',
         flash=query.get("flash", [""])[0],
         auto_refresh=False,
+        user=user,
     )
 
 
@@ -8597,18 +8904,33 @@ def render_form(item: dict, access_key_options: list[dict[str, str]] | None = No
     """
 
 
-def save_server(fields: dict[str, list[str]]) -> str:
+def save_server(fields: dict[str, list[str]], user: dict | None = None) -> str:
     config = read_config()
     original_id = form_value(fields, "original_id")
     product_name = form_value(fields, "product_name")
     instance_id = form_value(fields, "instance_id")
-    server_id = original_id or slug(first_value(product_name, instance_id))
+    base_server_id = slug(first_value(product_name, instance_id))
+    existing_ids = {server_id_of(item) for item in config.get("instances", [])}
+    server_id = original_id or base_server_id
+    if not original_id and server_id in existing_ids:
+        server_id = f"{base_server_id}-{secrets.token_hex(3)}"
     existing = selected_instance(config, original_id) if original_id else {}
+    if original_id and not can_manage_server(user, existing):
+        raise PermissionError("access_denied")
+    if not original_id and not can_create_servers(user):
+        raise PermissionError("access_denied")
 
     saved_key_id = form_value(fields, "saved_access_key_id")
     access_key_id = form_value(fields, "access_key_id") or saved_key_id or existing.get("access_key_id", "")
     access_secret = form_value(fields, "access_key_secret")
-    saved_secret = saved_access_key_secret(config, saved_key_id or access_key_id)
+    reusable_config = {
+        **config,
+        "instances": [
+            item for item in config.get("instances", [])
+            if is_admin(user) or str(item.get("owner_username") or "") == str((user or {}).get("username") or "")
+        ],
+    }
+    saved_secret = saved_access_key_secret(reusable_config, saved_key_id or access_key_id)
     region_id = form_value(fields, "region_id") or existing.get("region_id", "")
     traffic_region_id = form_value(fields, "traffic_region_id") or region_id
     traffic_scope = form_value(fields, "traffic_scope") or default_traffic_scope_for_region(region_id)
@@ -8645,6 +8967,10 @@ def save_server(fields: dict[str, list[str]]) -> str:
         "enabled": form_value(fields, "enabled") == "1",
         "manual_stop": bool(existing.get("manual_stop", False)),
     }
+    if existing.get("owner_username"):
+        item["owner_username"] = str(existing.get("owner_username"))
+    elif not is_admin(user):
+        item["owner_username"] = str((user or {}).get("username") or "")
 
     instances = [server for server in config.get("instances", []) if str(server.get("id")) != server_id]
     instances.append(item)
@@ -8655,13 +8981,17 @@ def save_server(fields: dict[str, list[str]]) -> str:
     return server_id
 
 
-def delete_server(server_id: str) -> None:
+def delete_server(server_id: str, user: dict | None = None) -> bool:
     config = read_config()
+    existing = selected_instance(config, server_id)
+    if not existing or not can_manage_server(user, existing):
+        return False
     config["instances"] = [
         server for server in config.get("instances", [])
         if str(server.get("id")) != server_id
     ]
     write_json(CONFIG_FILE, config)
+    return True
 
 
 def run_guard_now() -> None:
@@ -8736,46 +9066,63 @@ class Handler(BaseHTTPRequestHandler):
             self.handle_logout()
             return
         if parsed.path == "/login":
-            if self.is_authorized():
+            if self.current_user():
                 self.redirect("/")
             else:
                 self.send_bytes(render_login_page(query), "text/html; charset=utf-8")
             return
-        if not self.is_authorized():
+        user = self.current_user()
+        if not user:
             self.send_login_required()
             return
         if parsed.path == "/":
-            self.send_bytes(render_dashboard(query), "text/html; charset=utf-8")
+            self.send_bytes(render_dashboard(query, user), "text/html; charset=utf-8")
             return
         if parsed.path == "/servers/new":
-            self.send_bytes(render_server_form_page(query), "text/html; charset=utf-8")
+            self.send_bytes(render_server_form_page(query, user), "text/html; charset=utf-8")
             return
         if parsed.path == "/servers/edit":
-            self.send_bytes(render_server_form_page(query), "text/html; charset=utf-8")
+            self.send_bytes(render_server_form_page(query, user), "text/html; charset=utf-8")
             return
         if parsed.path == "/logs":
-            self.send_bytes(render_logs_page(query), "text/html; charset=utf-8")
+            self.send_bytes(render_logs_page(query, user), "text/html; charset=utf-8")
             return
         if parsed.path == "/notifications":
-            self.send_bytes(render_notifications_page(query), "text/html; charset=utf-8")
+            if not is_admin(user):
+                self.send_access_denied()
+            else:
+                self.send_bytes(render_notifications_page(query, user=user), "text/html; charset=utf-8")
             return
         if parsed.path == "/eip":
-            self.send_bytes(render_eip_page(query), "text/html; charset=utf-8")
+            if not is_admin(user):
+                self.send_access_denied()
+            else:
+                self.send_bytes(render_eip_page(query, user=user), "text/html; charset=utf-8")
             return
         if parsed.path == "/domain":
-            self.send_bytes(
-                render_domain_page(query, self.headers.get("Host", "")),
-                "text/html; charset=utf-8",
-            )
+            if not is_admin(user):
+                self.send_access_denied()
+            else:
+                self.send_bytes(render_domain_page(query, self.headers.get("Host", ""), user=user), "text/html; charset=utf-8")
             return
         if parsed.path == "/security":
-            self.send_bytes(render_security_page(query), "text/html; charset=utf-8")
+            if not is_admin(user):
+                self.send_access_denied()
+            else:
+                self.send_bytes(render_security_page(query, user=user), "text/html; charset=utf-8")
             return
         if parsed.path == "/update":
-            self.send_bytes(render_update_page(query), "text/html; charset=utf-8")
+            if not is_admin(user):
+                self.send_access_denied()
+            else:
+                self.send_bytes(render_update_page(query, user=user), "text/html; charset=utf-8")
+            return
+        if parsed.path == "/access":
+            self.send_bytes(render_access_page(query, user), "text/html; charset=utf-8")
             return
         if parsed.path == "/api/status":
             status = read_json(STATUS_FILE, {"error": "status not found", "instances": []})
+            status = status_for_visible_instances(status, read_config(), user)
             if "realtime" in query:
                 self.send_json(compact_realtime_status(status), pretty=False)
             else:
@@ -8783,11 +9130,27 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/history":
             limit = int(query.get("limit", ["200"])[0])
-            self.send_json(read_history(max(1, min(limit, 1000))))
+            self.send_json(visible_history(user, max(1, min(limit, 1000))))
             return
         if parsed.path == "/api/traffic":
             server_id = query.get("server", [""])[0]
+            item = selected_instance(read_config(), server_id)
+            if not item or not can_view_server(user, item):
+                self.send_error(HTTPStatus.FORBIDDEN, "Forbidden")
+                return
             pool_key = query.get("pool", [""])[0]
+            if pool_key and not is_admin(user):
+                visible_status = status_for_visible_instances(
+                    read_json(STATUS_FILE, {"instances": []}), read_config(), user,
+                )
+                allowed_pool_keys = {
+                    str(entry.get("traffic_pool_key") or "")
+                    for entry in visible_status.get("instances", [])
+                    if str(entry.get("traffic_pool_key") or "")
+                }
+                if pool_key not in allowed_pool_keys:
+                    self.send_error(HTTPStatus.FORBIDDEN, "Forbidden")
+                    return
             days = int(query.get("days", ["1"])[0])
             self.send_json(read_traffic_series(server_id, days, pool_key))
             return
@@ -8803,21 +9166,32 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/logout":
             self.handle_logout()
             return
-        if not self.is_authorized():
+        user = self.current_user()
+        if not user:
             self.send_login_required()
             return
         if parsed.path == "/servers/save":
-            save_server(fields)
+            try:
+                save_server(fields, user)
+            except PermissionError:
+                self.send_access_denied()
+                return
             start_guard_background()
             self.redirect("/?flash=saved")
             return
         if parsed.path == "/servers/delete":
-            delete_server(form_value(fields, "id"))
+            if not delete_server(form_value(fields, "id"), user):
+                self.send_access_denied()
+                return
             start_guard_background()
             self.redirect("/?flash=deleted")
             return
         if parsed.path == "/servers/power":
             server_id = form_value(fields, "id")
+            item = selected_instance(read_config(), server_id)
+            if not item or not can_manage_server(user, item):
+                self.send_access_denied()
+                return
             power_action = form_value(fields, "action")
             if power_action not in {"start", "stop"}:
                 self.redirect("/?flash=power_failed")
@@ -8831,33 +9205,54 @@ class Handler(BaseHTTPRequestHandler):
                 self.redirect("/?flash=power_failed")
             return
         if parsed.path == "/guard/run":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             run_guard_now()
             self.redirect("/?flash=checked")
             return
         if parsed.path == "/balance/run":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             run_guard_now()
             self.redirect("/?flash=balance_checked")
             return
         if parsed.path == "/notifications/save":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             ok, reason = save_notifications(fields)
             self.redirect("/notifications?flash=notify_saved" if ok else f"/notifications?flash={reason}")
             return
         if parsed.path == "/eip/save":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             save_eip_settings(fields)
             start_guard_background()
             self.redirect("/eip?flash=eip_saved")
             return
         if parsed.path == "/domain/save":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             save_domain_proxy(fields)
             self.redirect("/domain?flash=domain_saved")
             return
         if parsed.path == "/domain/apply":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             save_domain_proxy(fields)
             ok, reason = apply_caddy_proxy()
             flash = "domain_applied" if ok else f"domain_apply_{reason}"
             self.redirect(f"/domain?flash={flash}")
             return
         if parsed.path == "/security/save":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             ok, reason = save_security_settings(fields)
             if ok:
                 self.send_response(HTTPStatus.SEE_OTHER)
@@ -8870,10 +9265,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.redirect(f"/security?flash=security_{reason}")
             return
         if parsed.path == "/update/run":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             ok = start_update_job()
             self.redirect("/update?flash=update_started" if ok else "/update?flash=update_failed")
             return
         if parsed.path == "/notifications/test":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             result = notifications.send_test_message()
             state = notifications.load_state()
             state["last_test_result"] = result
@@ -8885,56 +9286,91 @@ class Handler(BaseHTTPRequestHandler):
             self.redirect("/notifications?flash=notify_test_sent" if result.get("ok") else "/notifications?flash=notify_test_failed")
             return
         if parsed.path == "/notifications/telegram/discover":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             ok = discover_telegram_chats(fields)
             self.redirect("/notifications?flash=telegram_discovered" if ok else "/notifications?flash=telegram_discover_failed")
             return
         if parsed.path == "/notifications/telegram/use-chat":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             use_telegram_chat(form_value(fields, "chat_id"))
             self.redirect("/notifications?flash=telegram_chat_saved")
             return
         if parsed.path == "/notifications/telegram/remove-chat":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
             remove_telegram_chat(form_value(fields, "chat_id"))
             self.redirect("/notifications?flash=telegram_chat_removed")
+            return
+        if parsed.path == "/access/save":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
+            ok, reason = save_access_user(fields)
+            self.redirect("/access?flash=access_saved" if ok else f"/access?flash=access_{reason}")
+            return
+        if parsed.path == "/access/delete":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
+            deleted = delete_access_user(form_value(fields, "username"))
+            self.redirect("/access?flash=access_deleted" if deleted else "/access?flash=access_denied")
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
-    def is_authorized(self) -> bool:
-        username, password, env = web_credentials()
-        if not password:
-            return False
-        if self.is_session_authorized(username, password, env):
-            return True
-        if cookie_parts(self.headers.get("Cookie", "")).get("cdt_guard_logged_out") == "1":
-            return False
-        return self.is_basic_authorized(username, password)
+    def authenticate_credentials(self, username: str, password: str) -> dict | None:
+        admin_username, admin_password, _ = web_credentials()
+        if admin_password and hmac.compare_digest(username, admin_username) and hmac.compare_digest(password, admin_password):
+            return {"username": admin_username, "role": "admin", "server_ids": []}
+        user = local_user(username)
+        if user and password_hash_matches(password, str(user.get("password_hash") or "")):
+            return user
+        return None
 
-    def is_basic_authorized(self, username: str, password: str) -> bool:
+    def basic_user(self) -> dict | None:
         header = self.headers.get("Authorization", "")
         if not header.startswith("Basic "):
-            return False
+            return None
         try:
             decoded = base64.b64decode(header.split(" ", 1)[1]).decode("utf-8")
         except Exception:
-            return False
+            return None
         supplied_user, _, supplied_password = decoded.partition(":")
-        return hmac.compare_digest(supplied_user, username) and hmac.compare_digest(supplied_password, password)
+        return self.authenticate_credentials(supplied_user, supplied_password)
 
-    def is_session_authorized(self, username: str, password: str, env: dict[str, str]) -> bool:
+    def session_user(self) -> dict | None:
+        admin_username, admin_password, env = web_credentials()
         cookie = cookie_parts(self.headers.get("Cookie", "")).get("cdt_guard_session", "")
         parts = cookie.split("|")
         if len(parts) != 4:
-            return False
+            return None
         supplied_user, expires, nonce, signature = parts
-        if supplied_user != username:
-            return False
+        user = panel_user(supplied_user)
+        if not user:
+            return None
         try:
             if int(expires) < int(time.time()):
-                return False
+                return None
         except ValueError:
-            return False
-        expected = sign_session(supplied_user, expires, nonce, session_secret(env, password))
-        return hmac.compare_digest(signature, expected)
+            return None
+        expected = sign_session(supplied_user, expires, nonce, user_session_secret(env, admin_password, user))
+        return user if hmac.compare_digest(signature, expected) else None
+
+    def current_user(self) -> dict | None:
+        session_user = self.session_user()
+        if session_user:
+            return session_user
+        if cookie_parts(self.headers.get("Cookie", "")).get("cdt_guard_logged_out") == "1":
+            return None
+        return self.basic_user()
+
+    def is_authorized(self) -> bool:
+        return self.current_user() is not None
 
     def is_https_request(self) -> bool:
         forwarded_proto = self.headers.get("X-Forwarded-Proto", "")
@@ -8944,14 +9380,15 @@ class Handler(BaseHTTPRequestHandler):
         return "proto=https" in forwarded
 
     def handle_login(self, fields: dict[str, list[str]]) -> None:
-        username, password, env = web_credentials()
+        _username, admin_password, env = web_credentials()
         supplied_user = form_value(fields, "username")
         supplied_password = form_value(fields, "password")
-        if password and hmac.compare_digest(supplied_user, username) and hmac.compare_digest(supplied_password, password):
+        user = self.authenticate_credentials(supplied_user, supplied_password)
+        if user:
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/")
             secure_cookie = should_use_secure_cookie(env, self.is_https_request())
-            self.send_header("Set-Cookie", build_session_cookie(username, env, password, secure_cookie))
+            self.send_header("Set-Cookie", build_session_cookie(user, env, admin_password, secure_cookie))
             self.send_header("Set-Cookie", clear_logout_marker_cookie())
             self.end_headers()
             return
@@ -8967,6 +9404,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def send_login_required(self):
         self.redirect("/login?flash=login_required")
+
+    def send_access_denied(self):
+        self.redirect("/?flash=access_denied")
 
     def redirect(self, location: str):
         self.send_response(HTTPStatus.SEE_OTHER)
