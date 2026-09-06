@@ -37,7 +37,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.21"
+APP_VERSION = "0.2.22"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 REGISTER_ATTEMPTS: dict[str, list[float]] = {}
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -5421,6 +5421,140 @@ def page_shell(
       font-family: var(--font-mono);
       letter-spacing: .04em;
     }}
+    .access-registration-card {{ margin-bottom: 18px; }}
+    .access-registration-body {{
+      align-items: center;
+      display: grid;
+      gap: 22px;
+      grid-template-columns: minmax(240px, .92fr) minmax(360px, 1.2fr) auto;
+      padding: 20px 22px;
+    }}
+    .access-registration-copy {{ display: grid; gap: 8px; min-width: 0; }}
+    .access-eyebrow {{
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .14em;
+    }}
+    .access-registration-copy h3 {{
+      color: var(--ink);
+      font-family: var(--font-serif);
+      font-size: 23px;
+      line-height: 1;
+      margin: 4px 0 0;
+    }}
+    .access-registration-copy p {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+      margin: 0;
+      max-width: 360px;
+    }}
+    .access-registration-controls {{
+      align-items: start;
+      display: grid;
+      gap: 14px;
+      grid-template-columns: minmax(180px, .8fr) minmax(220px, 1.2fr);
+    }}
+    .access-registration-controls .mb-3 {{ margin-bottom: 0 !important; }}
+    .access-registration-controls .form-hint {{ font-size: 11px; line-height: 1.45; }}
+    .access-registration-action {{
+      align-items: stretch;
+      display: grid;
+      gap: 9px;
+      justify-items: end;
+      min-width: 112px;
+    }}
+    .access-status {{
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      padding: 7px 9px;
+      text-align: center;
+      white-space: nowrap;
+    }}
+    .access-status.is-open {{ background: var(--success-soft); border-color: #9fbc9b; color: #285e52; }}
+    .access-workspace {{
+      align-items: start;
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+      margin: 0 auto;
+      max-width: 1180px;
+    }}
+    .access-users-panel {{ position: sticky; top: 82px; }}
+    .access-users-panel .card-header {{ align-items: center; display: flex; justify-content: space-between; }}
+    .access-user-list {{ max-height: min(620px, calc(100vh - 178px)); overflow-y: auto; }}
+    .access-user-item {{
+      align-items: center;
+      display: grid !important;
+      gap: 10px;
+      grid-template-columns: 30px minmax(0, 1fr);
+      min-height: 66px;
+      padding: 12px 14px !important;
+    }}
+    .access-user-item > span:last-child {{ display: grid; gap: 3px; min-width: 0; }}
+    .access-user-item b {{ color: var(--ink); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .access-user-item small {{ color: var(--muted); font-size: 11px; line-height: 1.45; }}
+    .access-user-avatar {{
+      align-items: center;
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      display: inline-flex;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      height: 30px;
+      justify-content: center;
+      width: 30px;
+    }}
+    .access-user-item.active .access-user-avatar {{ background: var(--accent); border-color: var(--accent); color: #fff; }}
+    .access-editor .card-header > div {{ min-width: 0; }}
+    .access-role-note {{
+      background: var(--surface-soft);
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+      margin-bottom: 20px;
+      padding: 10px 12px;
+    }}
+    .access-server-section {{ border-top: 1px solid var(--line); margin-top: 20px; padding-top: 18px; }}
+    .access-server-section-head {{ align-items: end; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 12px; }}
+    .access-server-section-head h3 {{ color: var(--ink); font-family: var(--font-serif); font-size: 16px; margin: 0 0 4px; }}
+    .access-server-section-head p {{ color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; }}
+    .access-server-section-head > span {{ color: var(--muted); font-family: var(--font-mono); font-size: 11px; white-space: nowrap; }}
+    .access-server-grid {{
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-height: 390px;
+      overflow-y: auto;
+      padding: 2px 4px 2px 0;
+    }}
+    .access-server-option {{
+      align-items: center;
+      background: var(--input-bg);
+      border: 1px solid var(--line);
+      cursor: pointer;
+      display: grid;
+      gap: 9px;
+      grid-template-columns: auto minmax(0, 1fr);
+      margin: 0;
+      min-height: 58px;
+      padding: 9px 10px;
+    }}
+    .access-server-option:hover {{ background: var(--surface-soft); border-color: var(--accent); }}
+    .access-server-option > span {{ display: grid; gap: 3px; min-width: 0; }}
+    .access-server-option b {{ color: var(--ink); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .access-server-option small {{ color: var(--muted); font-family: var(--font-mono); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .access-delete-form {{ margin-right: auto; }}
     @media (max-width: 1180px) {{
       .asset-workspace {{
         --asset-panel-height: auto;
@@ -5434,6 +5568,11 @@ def page_shell(
       .guide-panel {{ position: static; }}
       .server-detail-panel {{ position: static; }}
       .server-list {{ max-height: none; }}
+      .access-registration-body {{ grid-template-columns: 1fr; }}
+      .access-registration-action {{ align-items: center; grid-auto-flow: column; justify-content: start; justify-items: start; }}
+      .access-workspace {{ grid-template-columns: 1fr; }}
+      .access-users-panel {{ position: static; }}
+      .access-user-list {{ max-height: 260px; }}
     }}
     @media (max-width: 992px) {{
       html,
@@ -5500,6 +5639,7 @@ def page_shell(
       .navbar-vertical {{ width: 100%; }}
       .container-xl {{ padding-left: 16px; padding-right: 16px; }}
       .credential-grid, .log-layout, .log-meta, .asset-filter-bar, .detail-grid, .traffic-primary-grid, .traffic-secondary-grid {{ grid-template-columns: 1fr; }}
+      .access-registration-controls, .access-server-grid {{ grid-template-columns: 1fr; }}
       .total-chart-facts {{ grid-template-columns: 1fr; }}
       .daily-traffic-card {{ margin-left: 10px; margin-right: 10px; padding: 18px; }}
       .daily-chart-head {{ flex-direction: column; }}
@@ -8073,10 +8213,12 @@ def render_access_page(query: dict[str, list[str]] | None = None, user: dict | N
     servers = sorted(config.get("instances", []), key=lambda item: str(item.get("product_name") or item.get("label") or item.get("id") or "").lower())
     selected_server_ids = {str(server_id) for server_id in selected.get("server_ids", [])}
     assigned_options = "".join(
-        f'''<label class="form-check mb-2">
+        f'''<label class="access-server-option">
           <input class="form-check-input" type="checkbox" name="server_ids" value="{esc(server_id_of(server))}" {"checked" if server_id_of(server) in selected_server_ids else ""}>
-          <span class="form-check-label">{esc(first_value(server.get("product_name"), server.get("label"), server.get("instance_id"), default="未命名服务器"))}</span>
-          <span class="form-hint d-inline">{esc(server.get("instance_id") or "")}</span>
+          <span>
+            <b>{esc(first_value(server.get("product_name"), server.get("label"), server.get("instance_id"), default="未命名服务器"))}</b>
+            <small>{esc(server.get("instance_id") or "")}</small>
+          </span>
         </label>'''
         for server in servers
     ) or '<div class="text-secondary">还没有服务器可授权。</div>'
@@ -8087,9 +8229,12 @@ def render_access_page(query: dict[str, list[str]] | None = None, user: dict | N
         granted = len([server_id for server_id in item.get("server_ids", []) if server_id])
         owned = sum(1 for server in servers if str(server.get("owner_username") or "") == username)
         user_rows.append(
-            f'''<a class="list-group-item list-group-item-action {"active" if username == selected_name else ""}" href="/access?user={esc(username)}">
-              <div class="fw-semibold">{esc(username)}</div>
-              <div class="text-secondary small">{esc(role)} · 已授权 {granted} 台 · 自己添加 {owned} 台</div>
+            f'''<a class="list-group-item list-group-item-action access-user-item {"active" if username == selected_name else ""}" href="/access?user={esc(username)}">
+              <span class="access-user-avatar">{esc(username[:1].upper() or "U")}</span>
+              <span>
+                <b>{esc(username)}</b>
+                <small>{esc(role)} · 已授权 {granted} 台 · 自己添加 {owned} 台</small>
+              </span>
             </a>'''
         )
     editing = bool(selected)
@@ -8098,59 +8243,59 @@ def render_access_page(query: dict[str, list[str]] | None = None, user: dict | N
     delete_form = ""
     if editing:
         delete_form = (
-            '<div class="card-footer"><form method="post" action="/access/delete" '
+            '<form class="access-delete-form" method="post" action="/access/delete" '
             f'onsubmit="return confirm(\'确认删除用户 {esc(saved_username)}？该用户会立即无法登录，但服务器不会删除。\')">'
             f'<input type="hidden" name="username" value="{esc(saved_username)}">'
-            '<button class="btn btn-outline-danger btn-sm" type="submit">删除此用户</button></form></div>'
+            '<button class="btn btn-outline-danger btn-sm" type="submit">删除用户</button></form>'
         )
     registration_card = f'''
-      <section class="card mb-3">
+      <section class="card access-registration-card">
         <form method="post" action="/access/registration" data-save-form>
-          <div class="card-header"><h3 class="card-title">邀请制注册</h3></div>
-          <div class="card-body">
-            <div class="setup-box mb-3">开启后，访问 <code>/register</code> 的用户可凭邀请码自行创建账户。新账户默认是操作员，只能管理自己添加的服务器。关闭后注册入口立即失效，已有用户不受影响。</div>
-            <div class="credential-grid">
+          <div class="access-registration-body">
+            <div class="access-registration-copy">
+              <div><span class="access-eyebrow">PUBLIC ACCESS</span><h3>邀请制注册</h3></div>
+              <p>用户通过邀请码创建操作员账号，只能管理自己添加的服务器。</p>
+            </div>
+            <div class="access-registration-controls">
               {checkbox_field("registration_enabled", "允许用户主动注册", bool(registration.get("enabled")), "建议只在邀请码已发给可信用户时开启。")}
               {input_field("invite_code", "新邀请码", "", "password", placeholder="至少 8 位", hint="留空会保留当前邀请码；页面不会显示旧邀请码。")}
             </div>
-          </div>
-          <div class="card-footer d-flex align-items-center gap-2">
-            <span class="text-secondary small">当前状态：{esc("已开放邀请码注册" if registration_is_enabled() else "注册已关闭")}</span>
-            <button class="btn btn-primary ms-auto" type="submit" data-submit-button data-loading-text="正在保存...">保存注册设置</button>
+            <div class="access-registration-action">
+              <span class="access-status {"is-open" if registration_is_enabled() else ""}">{esc("注册已开放" if registration_is_enabled() else "注册已关闭")}</span>
+              <button class="btn btn-primary" type="submit" data-submit-button data-loading-text="正在保存...">保存</button>
+            </div>
           </div>
         </form>
       </section>
     '''
     body = registration_card + f'''
-      <div class="form-layout">
-        <div class="card">
-          <div class="card-header"><h3 class="card-title">{ "编辑授权用户" if editing else "新建授权用户" }</h3></div>
+      <div class="access-workspace">
+        <aside class="card access-users-panel">
+          <div class="card-header"><div><h3 class="card-title">已授权用户</h3><div class="text-secondary small">{len(saved_users)} 个成员账号</div></div><a class="btn btn-sm" href="/access">新建</a></div>
+          <div class="list-group list-group-flush access-user-list">{''.join(user_rows) if user_rows else '<div class="list-group-item text-secondary">还没有授权用户。</div>'}</div>
+        </aside>
+        <div class="card access-editor">
+          <div class="card-header"><div><h3 class="card-title">{ "编辑授权用户" if editing else "新建授权用户" }</h3><div class="text-secondary small">{esc(saved_username) if editing else "创建后可随时调整服务器权限"}</div></div></div>
           <form method="post" action="/access/save" data-save-form>
             <div class="card-body">
               <input type="hidden" name="original_username" value="{esc(saved_username)}">
-              <div class="setup-box mb-3">查看者只能查看管理员授权的机器。操作员除了查看授权机器，还能新增、编辑、启停和删除自己创建的机器；管理员始终可查看全部机器。</div>
+              <div class="access-role-note">查看者仅查看被授权机器；操作员还能新增和管理自己创建的机器。管理员始终可查看全部机器。</div>
               <div class="credential-grid">
                 {input_field("username", "用户名", saved_username, placeholder="例如：alice", hint="只允许字母、数字、连字符、下划线和点号。", required=True)}
                 {input_field("new_password", "登录密码", "", "password", placeholder="至少 8 位", hint="新建用户必须填写；编辑时留空则保留原密码。", required=not editing)}
               </div>
               {select_field("role", "用户权限", role, [("viewer", "查看者：仅查看获授权服务器"), ("operator", "操作员：可新增和管理自己创建的服务器")])}
-              <section class="form-section">
-                <h3 class="form-section-title">授权查看服务器</h3>
-                <div class="setup-box mb-3">勾选后，该用户能在主页、日志和流量曲线中看到这些服务器。用户自己新增的服务器不需要在这里重复勾选。</div>
-                <div class="list-group list-group-flush">{assigned_options}</div>
+              <section class="access-server-section">
+                <div class="access-server-section-head"><div><h3>授权查看服务器</h3><p>勾选后，该用户可在主页、日志和流量曲线中查看这些服务器。</p></div><span>{len(selected_server_ids)} / {len(servers)} 已选择</span></div>
+                <div class="access-server-grid">{assigned_options}</div>
               </section>
             </div>
             <div class="card-footer d-flex align-items-center gap-2">
-              <a href="/access" class="btn">新建用户</a>
+              {delete_form}
               <button class="btn btn-primary ms-auto" type="submit" data-submit-button data-loading-text="正在保存...">保存授权</button>
             </div>
           </form>
         </div>
-        <aside class="card guide-panel">
-          <div class="card-header"><h3 class="card-title">已授权用户</h3></div>
-          <div class="list-group list-group-flush">{''.join(user_rows) if user_rows else '<div class="list-group-item text-secondary">还没有授权用户。</div>'}</div>
-          {delete_form}
-        </aside>
       </div>
     '''
     return page_shell(

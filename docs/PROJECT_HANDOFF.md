@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.21
+Current version: 0.2.22
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -317,6 +317,12 @@ Version 0.2.21 adds opt-in invite registration:
 - A valid invite creates an `operator` account, which can only manage machines it subsequently creates.
 - Invite codes are never stored in clear text; only a PBKDF2 hash lives in `users.json`.
 - Keep the small in-memory registration attempt limiter. It limits each IP to 10 attempts per 15 minutes and is deliberately not a replacement for HTTPS, a private panel URL, or Cloudflare/WAF protection.
+
+Version 0.2.22 refines the `授权用户` UI for larger server inventories:
+
+- Registration controls are compact and horizontal on desktop.
+- The user list is a stable left column; editing happens in the main column.
+- Server assignments use a two-column, fixed-height scrollable selector instead of an unbounded vertical list.
 
 ## Useful Verification
 
