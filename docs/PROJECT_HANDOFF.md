@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.20
+Current version: 0.2.21
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -309,6 +309,14 @@ Version 0.2.20 adds local panel users and server-level authorization without add
 - Viewer users must never receive saved AccessKey values, server login/SSH remarks, notification settings, EIP inventory, domain configuration, account security or update access.
 - Both HTML routes and JSON APIs must enforce visibility. Do not rely on hidden navigation alone.
 - Runtime user records live in `/opt/aliyun-cdt-guard-control-plane/users.json`; passwords are PBKDF2 hashes and the file must remain mode `0600`.
+
+Version 0.2.21 adds opt-in invite registration:
+
+- The administrator can enable or disable registration and rotate the invite code on the `授权用户` page.
+- `/register` is unavailable while registration is disabled.
+- A valid invite creates an `operator` account, which can only manage machines it subsequently creates.
+- Invite codes are never stored in clear text; only a PBKDF2 hash lives in `users.json`.
+- Keep the small in-memory registration attempt limiter. It limits each IP to 10 attempts per 15 minutes and is deliberately not a replacement for HTTPS, a private panel URL, or Cloudflare/WAF protection.
 
 ## Useful Verification
 

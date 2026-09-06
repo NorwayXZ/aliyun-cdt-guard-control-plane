@@ -37,8 +37,9 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.20"
+APP_VERSION = "0.2.21"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
+REGISTER_ATTEMPTS: dict[str, list[float]] = {}
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#171511"/>
   <path d="M14 45V27h7v18h-7Zm12 0V18h7v27h-7Zm12 0V31h7v14h-7Zm12 0V23h7v22h-7Z" fill="#f7bf2f"/>
@@ -185,17 +186,37 @@ def read_config() -> dict:
 
 
 def read_users() -> dict:
-    data = read_json(USERS_FILE, {"version": 1, "users": []})
+    data = read_json(USERS_FILE, {"version": 1, "settings": {}, "users": []})
     if not isinstance(data, dict):
-        return {"version": 1, "users": []}
+        return {"version": 1, "settings": {}, "users": []}
     users = data.get("users")
     if not isinstance(users, list):
         users = []
-    return {"version": int(data.get("version", 1) or 1), "users": users}
+    settings = data.get("settings")
+    if not isinstance(settings, dict):
+        settings = {}
+    return {"version": 1, "settings": settings, "users": users}
 
 
 def write_users(data: dict) -> None:
-    write_json(USERS_FILE, {"version": 1, "users": list(data.get("users") or [])})
+    write_json(
+        USERS_FILE,
+        {"version": 1, "settings": dict(data.get("settings") or {}), "users": list(data.get("users") or [])},
+    )
+
+
+def registration_settings(data: dict | None = None) -> dict:
+    data = data or read_users()
+    settings = data.get("settings") or {}
+    return {
+        "enabled": bool(settings.get("registration_enabled", False)),
+        "invite_code_hash": str(settings.get("invite_code_hash") or ""),
+    }
+
+
+def registration_is_enabled() -> bool:
+    settings = registration_settings()
+    return bool(settings["enabled"] and settings["invite_code_hash"])
 
 
 def normalize_panel_username(value: str) -> str:
@@ -621,7 +642,10 @@ def render_recovery_plan(item: dict) -> str:
 
 
 def form_value(fields: dict[str, list[str]], name: str, default: str = "") -> str:
-    value = fields.get(name, [default])[0]
+    values = fields.get(name)
+    if not values:
+        return default
+    value = values[0]
     return value.strip()
 
 
@@ -898,6 +922,16 @@ def flash_message(code: str) -> str:
         "access_username_invalid": "用户名只能使用字母、数字、连字符、下划线或点号",
         "access_username_exists": "这个用户名已存在，不能重复创建",
         "access_password_short": "新用户密码至少需要 8 位",
+        "registration_saved": "注册设置已保存",
+        "registration_disabled": "当前未开放用户注册，请联系管理员获取邀请或等待开放注册",
+        "registration_invite_invalid": "邀请码不正确",
+        "registration_invite_required": "开启注册前必须设置至少 8 位的邀请码",
+        "registration_password_mismatch": "两次输入的密码不一致",
+        "registration_password_short": "注册密码至少需要 8 位",
+        "registration_username_invalid": "用户名只能使用字母、数字、连字符、下划线或点号",
+        "registration_username_exists": "这个用户名已被使用",
+        "registration_rate_limited": "注册尝试过于频繁，请 15 分钟后再试",
+        "registered": "注册成功，欢迎使用 CDT 面板",
         "login_required": "请先登录",
         "login_failed": "用户名或密码不正确",
         "logged_out": "已退出登录",
@@ -909,6 +943,8 @@ def flash_class(code: str) -> str:
     if code.startswith("domain_apply_") and code != "domain_applied":
         return "alert-danger"
     if (code.startswith("security_") and code != "security_saved") or code.startswith("access_") and code not in {"access_saved", "access_deleted"}:
+        return "alert-danger"
+    if code.startswith("registration_") and code != "registration_saved":
         return "alert-danger"
     if code.endswith("_failed") or code in {"login_failed", "telegram_discover_failed", "telegram_chat_invalid"}:
         return "alert-danger"
@@ -975,16 +1011,56 @@ def clear_logout_marker_cookie() -> str:
     return "cdt_guard_logged_out=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
 
 
-def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
+def render_login_page(query: dict[str, list[str]] | None = None, registration: bool = False) -> bytes:
     query = query or {}
     flash = query.get("flash", [""])[0]
     flash_html = f'<div class="login-alert">{esc(flash_message(flash))}</div>' if flash else ""
+    if registration:
+        page_title = "注册账户"
+        page_copy = "请输入邀请码并创建你的 CDT 面板账户"
+        form_action = "/register"
+        form_fields = """
+        <div class="mb-3">
+          <label class="form-label">用户名</label>
+          <input class="form-control" name="username" autocomplete="username" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">邀请码</label>
+          <input class="form-control" type="password" name="invite_code" autocomplete="off" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">登录密码</label>
+          <input class="form-control" type="password" name="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">确认密码</label>
+          <input class="form-control" type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+        </div>
+        """
+        button_label = "注册并进入面板"
+        foot = '已有账号？<a href="/login">返回登录</a>'
+    else:
+        page_title = "登录面板"
+        page_copy = "请输入后台账号密码"
+        form_action = "/login"
+        form_fields = """
+        <div class="mb-3">
+          <label class="form-label">用户名</label>
+          <input class="form-control" name="username" autocomplete="username" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">密码</label>
+          <input class="form-control" type="password" name="password" autocomplete="current-password" required>
+        </div>
+        """
+        button_label = "登录"
+        foot = '还没有账户？<a href="/register">使用邀请码注册</a>' if registration_is_enabled() else "请联系管理员获取面板账号。"
     html_doc = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>登录 - Aliyun CDT Guard</title>
+  <title>{esc(page_title)} - Aliyun CDT Guard</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="shortcut icon" href="/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1172,21 +1248,14 @@ def render_login_page(query: dict[str, list[str]] | None = None) -> bytes:
 <body>
   <main class="login-shell">
     <section class="login-panel">
-      <form class="login-card" method="post" action="/login">
+      <form class="login-card" method="post" action="{form_action}">
         <div class="login-logo">{render_brand_logo()}</div>
-        <h1>登录面板</h1>
-        <div class="sub">请输入安装时生成的后台账号密码</div>
+        <h1>{esc(page_title)}</h1>
+        <div class="sub">{esc(page_copy)}</div>
         {flash_html}
-        <div class="mb-3">
-          <label class="form-label">用户名</label>
-          <input class="form-control" name="username" autocomplete="username" required autofocus>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">密码</label>
-          <input class="form-control" type="password" name="password" autocomplete="current-password" required>
-        </div>
-        <button class="btn btn-primary" type="submit">登录</button>
-        <div class="login-foot">建议通过 HTTPS 反向代理访问，并限制面板源站端口只允许本机或可信 IP 访问。</div>
+        {form_fields}
+        <button class="btn btn-primary" type="submit">{esc(button_label)}</button>
+        <div class="login-foot">{foot}<br>建议通过 HTTPS 反向代理访问，并限制面板源站端口只允许本机或可信 IP 访问。</div>
       </form>
     </section>
   </main>
@@ -7996,6 +8065,7 @@ def render_access_page(query: dict[str, list[str]] | None = None, user: dict | N
     if not is_admin(user):
         return render_dashboard({"flash": ["access_denied"]}, user)
     users_data = read_users()
+    registration = registration_settings(users_data)
     saved_users = sorted(users_data.get("users", []), key=lambda item: str(item.get("username") or "").lower())
     selected_name = query.get("user", [""])[0]
     selected = next((item for item in saved_users if str(item.get("username") or "") == selected_name), {})
@@ -8033,7 +8103,25 @@ def render_access_page(query: dict[str, list[str]] | None = None, user: dict | N
             f'<input type="hidden" name="username" value="{esc(saved_username)}">'
             '<button class="btn btn-outline-danger btn-sm" type="submit">删除此用户</button></form></div>'
         )
-    body = f'''
+    registration_card = f'''
+      <section class="card mb-3">
+        <form method="post" action="/access/registration" data-save-form>
+          <div class="card-header"><h3 class="card-title">邀请制注册</h3></div>
+          <div class="card-body">
+            <div class="setup-box mb-3">开启后，访问 <code>/register</code> 的用户可凭邀请码自行创建账户。新账户默认是操作员，只能管理自己添加的服务器。关闭后注册入口立即失效，已有用户不受影响。</div>
+            <div class="credential-grid">
+              {checkbox_field("registration_enabled", "允许用户主动注册", bool(registration.get("enabled")), "建议只在邀请码已发给可信用户时开启。")}
+              {input_field("invite_code", "新邀请码", "", "password", placeholder="至少 8 位", hint="留空会保留当前邀请码；页面不会显示旧邀请码。")}
+            </div>
+          </div>
+          <div class="card-footer d-flex align-items-center gap-2">
+            <span class="text-secondary small">当前状态：{esc("已开放邀请码注册" if registration_is_enabled() else "注册已关闭")}</span>
+            <button class="btn btn-primary ms-auto" type="submit" data-submit-button data-loading-text="正在保存...">保存注册设置</button>
+          </div>
+        </form>
+      </section>
+    '''
+    body = registration_card + f'''
       <div class="form-layout">
         <div class="card">
           <div class="card-header"><h3 class="card-title">{ "编辑授权用户" if editing else "新建授权用户" }</h3></div>
@@ -8106,6 +8194,62 @@ def save_access_user(fields: dict[str, list[str]]) -> tuple[bool, str]:
                 server["owner_username"] = username
         write_json(CONFIG_FILE, config)
     return True, "saved"
+
+
+def save_registration_settings(fields: dict[str, list[str]]) -> tuple[bool, str]:
+    users_data = read_users()
+    settings = dict(users_data.get("settings") or {})
+    invite_code = form_value(fields, "invite_code")
+    enabled = form_value(fields, "registration_enabled") == "1"
+    current_hash = str(settings.get("invite_code_hash") or "")
+    if invite_code and len(invite_code) < 8:
+        return False, "invite_required"
+    if enabled and not invite_code and not current_hash:
+        return False, "invite_required"
+    settings["registration_enabled"] = enabled
+    if invite_code:
+        settings["invite_code_hash"] = password_hash(invite_code)
+    users_data["settings"] = settings
+    write_users(users_data)
+    return True, "saved"
+
+
+def register_invited_user(fields: dict[str, list[str]]) -> tuple[dict | None, str]:
+    users_data = read_users()
+    settings = registration_settings(users_data)
+    if not settings["enabled"] or not settings["invite_code_hash"]:
+        return None, "disabled"
+    invite_code = form_value(fields, "invite_code")
+    if not password_hash_matches(invite_code, settings["invite_code_hash"]):
+        return None, "invite_invalid"
+    username = normalize_panel_username(form_value(fields, "username"))
+    password = form_value(fields, "password")
+    confirm_password = form_value(fields, "confirm_password")
+    admin_username, _, _ = web_credentials()
+    if not username:
+        return None, "username_invalid"
+    if username == admin_username or local_user(username):
+        return None, "username_exists"
+    if password != confirm_password:
+        return None, "password_mismatch"
+    if len(password) < 8:
+        return None, "password_short"
+    user = {"username": username, "role": "operator", "server_ids": [], "password_hash": password_hash(password)}
+    users_data["users"] = list(users_data.get("users") or []) + [user]
+    write_users(users_data)
+    return local_user(username), "registered"
+
+
+def registration_attempt_allowed(address: str) -> bool:
+    now = time.time()
+    window_start = now - 15 * 60
+    attempts = [value for value in REGISTER_ATTEMPTS.get(address, []) if value >= window_start]
+    if len(attempts) >= 10:
+        REGISTER_ATTEMPTS[address] = attempts
+        return False
+    attempts.append(now)
+    REGISTER_ATTEMPTS[address] = attempts
+    return True
 
 
 def delete_access_user(username: str) -> bool:
@@ -9071,6 +9215,14 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_bytes(render_login_page(query), "text/html; charset=utf-8")
             return
+        if parsed.path == "/register":
+            if self.current_user():
+                self.redirect("/")
+            elif registration_is_enabled():
+                self.send_bytes(render_login_page(query, registration=True), "text/html; charset=utf-8")
+            else:
+                self.redirect("/login?flash=registration_disabled")
+            return
         user = self.current_user()
         if not user:
             self.send_login_required()
@@ -9162,6 +9314,9 @@ class Handler(BaseHTTPRequestHandler):
         fields = parse_qs(self.rfile.read(length).decode("utf-8"), keep_blank_values=True)
         if parsed.path == "/login":
             self.handle_login(fields)
+            return
+        if parsed.path == "/register":
+            self.handle_register(fields)
             return
         if parsed.path == "/logout":
             self.handle_logout()
@@ -9313,6 +9468,13 @@ class Handler(BaseHTTPRequestHandler):
             ok, reason = save_access_user(fields)
             self.redirect("/access?flash=access_saved" if ok else f"/access?flash=access_{reason}")
             return
+        if parsed.path == "/access/registration":
+            if not is_admin(user):
+                self.send_access_denied()
+                return
+            ok, reason = save_registration_settings(fields)
+            self.redirect("/access?flash=registration_saved" if ok else f"/access?flash=registration_{reason}")
+            return
         if parsed.path == "/access/delete":
             if not is_admin(user):
                 self.send_access_denied()
@@ -9393,6 +9555,22 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         self.redirect("/login?flash=login_failed")
+
+    def handle_register(self, fields: dict[str, list[str]]) -> None:
+        if not registration_attempt_allowed(self.client_address[0]):
+            self.redirect("/register?flash=registration_rate_limited")
+            return
+        user, reason = register_invited_user(fields)
+        if not user:
+            self.redirect(f"/register?flash=registration_{reason}")
+            return
+        _username, admin_password, env = web_credentials()
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", "/?flash=registered")
+        secure_cookie = should_use_secure_cookie(env, self.is_https_request())
+        self.send_header("Set-Cookie", build_session_cookie(user, env, admin_password, secure_cookie))
+        self.send_header("Set-Cookie", clear_logout_marker_cookie())
+        self.end_headers()
 
     def handle_logout(self) -> None:
         self.send_response(HTTPStatus.SEE_OTHER)
