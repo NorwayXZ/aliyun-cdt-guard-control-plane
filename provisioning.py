@@ -101,7 +101,7 @@ def select_instance_type(api, region_id: str, cpu: int, memory_gb: float) -> str
 def create_security_group(api, account: dict) -> str:
     region = account["region_id"]
     group_name = f"cdt-deploy-{secrets.token_hex(4)}"
-    response = request(api, VPC_DOMAIN, VPC_VERSION, "CreateSecurityGroup", {
+    response = request(api, ECS_DOMAIN, ECS_VERSION, "CreateSecurityGroup", {
         "RegionId": region,
         "VpcId": account["vpc_id"],
         "SecurityGroupName": group_name,
@@ -111,7 +111,7 @@ def create_security_group(api, account: dict) -> str:
     if not group_id:
         raise RuntimeError("创建安全组未返回 SecurityGroupId")
     for protocol, ports in (("tcp", "1/65535"), ("udp", "1/65535")):
-        request(api, VPC_DOMAIN, VPC_VERSION, "AuthorizeSecurityGroup", {
+        request(api, ECS_DOMAIN, ECS_VERSION, "AuthorizeSecurityGroup", {
             "RegionId": region,
             "SecurityGroupId": group_id,
             "IpProtocol": protocol,
