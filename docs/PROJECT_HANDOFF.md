@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.30
+Current version: 0.2.31
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -339,6 +339,8 @@ Version 0.2.25 makes the personal notification page a full-width, single-card wo
 Version 0.2.29 removes the retired automated deployment queue and cleans its saved deployment templates, state files, module file and test-created security group.
 
 Version 0.2.30 distinguishes independent EIP bandwidth (`EipBandwidth`) from the associated common bandwidth package total (`BandwidthPackageBandwidth`). Shared-package EIPs must not be auto-adjusted as independent EIPs.
+
+Version 0.2.31 adds a 24-hour cooldown for independent EIP target-bandwidth applications. When Alibaba Cloud accepts a `5000M` request, the same check cycle records the new target bandwidth so the existing Telegram EIP-change notification is sent immediately.
 
 ## Useful Verification
 

@@ -37,7 +37,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.30"
+APP_VERSION = "0.2.31"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 REGISTER_ATTEMPTS: dict[str, list[float]] = {}
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -7884,7 +7884,7 @@ def render_eip_page(query: dict[str, list[str]] | None = None, user: dict | None
             <div class="setup-box mb-3">
               自动调整会调用阿里云修改 EIP 带宽接口，可能产生费用。建议先只开启监控，确认账号确实支持目标带宽后再打开。
             </div>
-            {checkbox_field("eip_auto_adjust_enabled", "允许自动调整到目标带宽", bool(settings.get("auto_adjust_enabled")), "只有按流量计费 EIP 且当前带宽低于目标时才会尝试修改。")}
+            {checkbox_field("eip_auto_adjust_enabled", "自动申请目标带宽", bool(settings.get("auto_adjust_enabled")), "仅独立、按流量计费 EIP 会每 24 小时尝试一次；阿里云一旦允许会立即调整并发送 Telegram 通知。共享带宽包 EIP 不会尝试。")}
             <button class="btn btn-primary" type="submit" data-submit-button data-loading-text="正在保存...">保存设置</button>
           </form>
         </div>

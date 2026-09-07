@@ -26,6 +26,7 @@ BASE_DIR = Path(os.environ.get("CDT_GUARD_HOME", "/opt/aliyun-cdt-guard-control-
 ENV_FILE = BASE_DIR / "guard.env"
 CONFIG_FILE = BASE_DIR / "instances.json"
 STATUS_FILE = BASE_DIR / "status.json"
+EIP_AUTO_ADJUST_STATE_FILE = BASE_DIR / "eip_auto_adjust_state.json"
 HISTORY_FILE = BASE_DIR / "history.jsonl"
 LOCK_FILE = BASE_DIR / "guard.lock"
 MAX_HISTORY_DAYS = int(os.environ.get("CDT_GUARD_HISTORY_DAYS", "31"))
@@ -46,6 +47,7 @@ BSS_ENDPOINTS = [
 ]
 VPC_ENDPOINT = os.environ.get("ALIYUN_VPC_ENDPOINT", "vpc.aliyuncs.com")
 DEFAULT_EIP_TARGET_BANDWIDTH_MBPS = 5000
+EIP_AUTO_ADJUST_COOLDOWN_SECONDS = int(os.environ.get("CDT_GUARD_EIP_AUTO_ADJUST_COOLDOWN_SECONDS", "86400"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -601,6 +603,23 @@ def modify_eip_bandwidth(client: AcsClient, region_id: str, allocation_id: str, 
     return json.loads(response.decode("utf-8"))
 
 
+def load_eip_auto_adjust_state() -> dict[str, Any]:
+    try:
+        value = json.loads(EIP_AUTO_ADJUST_STATE_FILE.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+
+def should_attempt_eip_auto_adjust(state: dict[str, Any], key: str, now_timestamp: float) -> bool:
+    previous = state.get(key) or {}
+    try:
+        previous_at = float(previous.get("attempted_at") or 0)
+    except (TypeError, ValueError):
+        previous_at = 0
+    return now_timestamp - previous_at >= max(EIP_AUTO_ADJUST_COOLDOWN_SECONDS, 60)
+
+
 def normalize_eip_row(row: dict[str, Any], account_key: str, region_id: str, server_names: dict[str, str], target_bandwidth: int) -> dict[str, Any]:
     allocation_id = str(row.get("AllocationId") or "")
     instance_id = str(row.get("InstanceId") or row.get("AssociatedInstanceId") or "")
@@ -673,6 +692,9 @@ def discover_eip_inventory(
     errors: list[dict[str, Any]] = []
     target = int(settings["target_bandwidth_mbps"])
     auto_adjust = bool(settings.get("auto_adjust_enabled"))
+    adjust_state = load_eip_auto_adjust_state()
+    adjust_state_changed = False
+    adjust_now = utc_now().timestamp()
 
     for account_key, account in accounts.items():
         for region_id in regions:
@@ -689,14 +711,21 @@ def discover_eip_inventory(
                         and item.get("bandwidth_mbps") is not None
                         and int(item["bandwidth_mbps"]) < target
                     ):
-                        item["auto_adjust_attempted"] = True
-                        try:
-                            result = modify_eip_bandwidth(client, region_id, str(item["allocation_id"]), target)
-                            item["auto_adjust_ok"] = True
-                            item["auto_adjust_request_id"] = result.get("RequestId")
-                        except Exception as exc:
-                            item["auto_adjust_ok"] = False
-                            item["auto_adjust_error"] = str(exc)[:500]
+                        adjust_key = f"{account_key}:{region_id}:{item['allocation_id']}"
+                        if should_attempt_eip_auto_adjust(adjust_state, adjust_key, adjust_now):
+                            item["auto_adjust_attempted"] = True
+                            try:
+                                result = modify_eip_bandwidth(client, region_id, str(item["allocation_id"]), target)
+                                item["auto_adjust_ok"] = True
+                                item["auto_adjust_request_id"] = result.get("RequestId")
+                                item["bandwidth_mbps"] = target
+                                item["target_reached"] = True
+                                adjust_state[adjust_key] = {"attempted_at": adjust_now, "ok": True, "target_mbps": target}
+                            except Exception as exc:
+                                item["auto_adjust_ok"] = False
+                                item["auto_adjust_error"] = str(exc)[:500]
+                                adjust_state[adjust_key] = {"attempted_at": adjust_now, "ok": False, "error": item["auto_adjust_error"], "target_mbps": target}
+                            adjust_state_changed = True
                     eips.append(item)
             except Exception as exc:
                 errors.append(
@@ -708,6 +737,8 @@ def discover_eip_inventory(
                     }
                 )
 
+    if adjust_state_changed:
+        atomic_write_json(EIP_AUTO_ADJUST_STATE_FILE, adjust_state)
     eips.sort(key=lambda item: (str(item.get("account_fingerprint") or ""), str(item.get("region_id") or ""), str(item.get("ip_address") or "")))
     return {
         "enabled": True,
