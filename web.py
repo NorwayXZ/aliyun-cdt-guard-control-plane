@@ -23,7 +23,10 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
 import notifications
-import provisioning
+try:
+    import provisioning
+except ImportError:
+    provisioning = None
 
 BASE_DIR = Path(os.environ.get("CDT_GUARD_HOME", "/opt/aliyun-cdt-guard-control-plane"))
 WEB_ENV_FILE = BASE_DIR / "web.env"
@@ -7927,6 +7930,9 @@ def render_eip_page(query: dict[str, list[str]] | None = None, user: dict | None
 
 def render_deployment_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
     query = query or {}
+    if provisioning is None:
+        body = '<div class="card"><div class="card-body">自动部署模块文件尚未安装。请在服务器终端执行一键更新后刷新本页。</div></div>'
+        return page_shell("deploy", "自动部署", "部署模块尚未就绪", body, actions='<a href="/" class="btn">返回主页</a>', user=user)
     config = read_config()
     deployment = provisioning.settings(config)
     selected_id = query.get("account", [""])[0]
@@ -9832,6 +9838,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/deploy/run":
             if not is_admin(user):
                 self.send_access_denied()
+                return
+            if provisioning is None:
+                self.redirect("/deploy?flash=deploy_failed")
                 return
             result = provisioning.deploy_next()
             self.redirect("/deploy?flash=deploy_started" if result.get("ok") else "/deploy?flash=deploy_failed")

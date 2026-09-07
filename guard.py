@@ -20,7 +20,10 @@ from aliyunsdkecs.request.v20140526 import (
 )
 
 import notifications
-import provisioning
+try:
+    import provisioning
+except ImportError:
+    provisioning = None
 from cloudmonitor import query_realtime_traffic
 
 BASE_DIR = Path(os.environ.get("CDT_GUARD_HOME", "/opt/aliyun-cdt-guard-control-plane"))
@@ -1105,7 +1108,7 @@ def run_guard() -> dict[str, Any]:
     }
     atomic_write_json(STATUS_FILE, status)
     try:
-        deployment_result = provisioning.handle_failover(status, previous_status)
+        deployment_result = provisioning.handle_failover(status, previous_status) if provisioning else None
         if deployment_result:
             status["deployment"] = deployment_result
             atomic_write_json(STATUS_FILE, status)
