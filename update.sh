@@ -89,6 +89,7 @@ systemctl stop cdt-guard-control-plane-web.service >/dev/null 2>&1 || true
 echo "Updating program files..."
 install -d -m 700 "$INSTALL_DIR"
 install -m 755 "$TMP_DIR/source/guard.py" "$INSTALL_DIR/guard.py"
+install -m 644 "$TMP_DIR/source/provisioning.py" "$INSTALL_DIR/provisioning.py"
 install -m 644 "$TMP_DIR/source/cloudmonitor.py" "$INSTALL_DIR/cloudmonitor.py"
 install -m 755 "$TMP_DIR/source/web.py" "$INSTALL_DIR/web.py"
 install -m 644 "$TMP_DIR/source/notifications.py" "$INSTALL_DIR/notifications.py"

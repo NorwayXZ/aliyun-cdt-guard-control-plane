@@ -153,6 +153,7 @@ systemctl status cdt-guard-control-plane-web.service
 - 支持面板账号密码修改。
 - 支持管理员创建授权用户：可按机器授予查看权限；操作员可添加和管理自己创建的服务器，管理员始终可查看全部资产。
 - 支持 Caddy 域名反代配置。
+- 支持管理员配置自动部署账号队列：严格 2C/0.5G、2GB 系统盘、共享镜像、精品 BGP EIP、自动绑定和全 TCP/UDP 端口安全组。
 
 ## 页面范围
 
@@ -162,6 +163,7 @@ systemctl status cdt-guard-control-plane-web.service
 - 服务器日志：异常、预警、自动开机、自动关机优先展示。
 - 通知设置：已配置渠道放在顶部，支持 Telegram、邮件、Webhook 的设计占位。
 - EIP 带宽：发现 EIP、查看当前带宽和计费方式、配置目标带宽和变化通知。
+- 自动部署：按账号优先级在实例非预期停止后创建下一账号的共享镜像 ECS、精品 BGP EIP 和专用全端口安全组。
 - 域名反代：展示 Cloudflare DNS、Caddy、Nginx 的配置思路。
 - 账号安全：面板账号密码修改和会话安全设计。
 - 授权用户：管理员创建查看者/操作员账号，并按服务器分配可见范围。

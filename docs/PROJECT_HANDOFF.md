@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.25
+Current version: 0.2.26
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -335,6 +335,17 @@ Version 0.2.24 gives non-admin users isolated personal settings:
 - `user_notifications.json` contains sensitive Bot Tokens and must remain mode `0600`.
 
 Version 0.2.25 makes the personal notification page a full-width, single-card workspace and removes administrator-facing language from the registered-user experience.
+
+## Automated Deployment Queue
+
+Version 0.2.26 adds an administrator-only `自动部署` module:
+
+- Each queue account stores its own AccessKey, priority, Hong Kong/Tokyo/Singapore region, shared image ID, VPC, vSwitch and BGP EIP bandwidth.
+- The fixed deployment target is 2 vCPU / 0.5 GB, 2 GB system disk, monthly ECS billing, shared image, BGP EIP and a dedicated security group opening TCP/UDP ports 1-65535 to IPv4.
+- The implementation never upgrades instance resources or disk size when a strict template attempt fails; it records the error and tries the next account.
+- Automatic failover only runs when explicitly enabled and when the active instance changes from `Running` to an unexpected stopped/missing state. It must not run after a manual stop or a panel-initiated stop.
+- RAM permissions: `ecs:RunInstances`, `ecs:DescribeInstanceTypes`, `vpc:CreateSecurityGroup`, `vpc:AuthorizeSecurityGroup`, `vpc:AllocateEipAddress`, `vpc:AssociateEipAddress`, plus the existing ECS/VPC read permissions.
+- Do not enable deployment by default. It creates billable resources. Keep the one-deployment lock and ordered fallback behavior intact.
 
 ## Useful Verification
 
