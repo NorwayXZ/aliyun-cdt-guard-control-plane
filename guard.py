@@ -707,7 +707,6 @@ def discover_eip_inventory(
                         auto_adjust
                         and item.get("allocation_id")
                         and item.get("internet_charge_type") == "PayByTraffic"
-                        and not item.get("bandwidth_package_id")
                         and item.get("bandwidth_mbps") is not None
                         and int(item["bandwidth_mbps"]) < target
                     ):
