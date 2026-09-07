@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.29
+Current version: 0.2.30
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -337,6 +337,8 @@ Version 0.2.24 gives non-admin users isolated personal settings:
 Version 0.2.25 makes the personal notification page a full-width, single-card workspace and removes administrator-facing language from the registered-user experience.
 
 Version 0.2.29 removes the retired automated deployment queue and cleans its saved deployment templates, state files, module file and test-created security group.
+
+Version 0.2.30 distinguishes independent EIP bandwidth (`EipBandwidth`) from the associated common bandwidth package total (`BandwidthPackageBandwidth`). Shared-package EIPs must not be auto-adjusted as independent EIPs.
 
 ## Useful Verification
 

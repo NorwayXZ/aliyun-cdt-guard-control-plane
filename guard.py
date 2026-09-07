@@ -604,7 +604,9 @@ def modify_eip_bandwidth(client: AcsClient, region_id: str, allocation_id: str, 
 def normalize_eip_row(row: dict[str, Any], account_key: str, region_id: str, server_names: dict[str, str], target_bandwidth: int) -> dict[str, Any]:
     allocation_id = str(row.get("AllocationId") or "")
     instance_id = str(row.get("InstanceId") or row.get("AssociatedInstanceId") or "")
-    bandwidth_raw = row.get("Bandwidth")
+    # Bandwidth is the shared package total when an EIP belongs to a package.
+    # EipBandwidth is the independent EIP bandwidth configured for this address.
+    bandwidth_raw = row.get("EipBandwidth") or row.get("Bandwidth")
     try:
         bandwidth_mbps = int(float(bandwidth_raw))
     except (TypeError, ValueError):
@@ -618,6 +620,9 @@ def normalize_eip_row(row: dict[str, Any], account_key: str, region_id: str, ser
         "name": row.get("Name") or row.get("DescriptiveName") or "",
         "status": row.get("Status"),
         "bandwidth_mbps": bandwidth_mbps,
+        "bandwidth_package_id": row.get("BandwidthPackageId") or "",
+        "bandwidth_package_type": row.get("BandwidthPackageType") or "",
+        "bandwidth_package_mbps": row.get("BandwidthPackageBandwidth"),
         "target_bandwidth_mbps": target_bandwidth,
         "target_reached": bool(bandwidth_mbps is not None and bandwidth_mbps >= target_bandwidth),
         "internet_charge_type": charge_type,
@@ -680,6 +685,7 @@ def discover_eip_inventory(
                         auto_adjust
                         and item.get("allocation_id")
                         and item.get("internet_charge_type") == "PayByTraffic"
+                        and not item.get("bandwidth_package_id")
                         and item.get("bandwidth_mbps") is not None
                         and int(item["bandwidth_mbps"]) < target
                     ):

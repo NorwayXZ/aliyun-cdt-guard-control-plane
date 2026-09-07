@@ -37,7 +37,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.29"
+APP_VERSION = "0.2.30"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 REGISTER_ATTEMPTS: dict[str, list[float]] = {}
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -7786,6 +7786,9 @@ def render_eip_inventory_table(inventory: dict) -> str:
         bound = item.get("bound_server_name") or item.get("instance_id") or "未绑定"
         bandwidth = item.get("bandwidth_mbps")
         bandwidth_text = f"{bandwidth} Mbps" if bandwidth is not None else "未知"
+        package_text = ""
+        if item.get("bandwidth_package_id"):
+            package_text = f"共享带宽包 {item.get('bandwidth_package_mbps') or '未知'} Mbps"
         auto_adjust = ""
         if item.get("auto_adjust_attempted"):
             auto_adjust = "已提交调整" if item.get("auto_adjust_ok") else f"调整失败：{item.get('auto_adjust_error') or '未知'}"
@@ -7802,7 +7805,7 @@ def render_eip_inventory_table(inventory: dict) -> str:
               <td>{esc(bound)}</td>
               <td>
                 <strong>{esc(bandwidth_text)}</strong>
-                <div class="asset-sub">目标 {esc(str(item.get("target_bandwidth_mbps") or 5000))} Mbps</div>
+                <div class="asset-sub">{esc(package_text) if package_text else '独立 EIP'}</div>
               </td>
               <td>{esc(eip_charge_text(item.get("internet_charge_type")))}</td>
               <td>{eip_status_badge(item)}{f'<div class="asset-sub">{esc(auto_adjust)}</div>' if auto_adjust else ''}</td>
@@ -7819,7 +7822,7 @@ def render_eip_inventory_table(inventory: dict) -> str:
               <th>账号</th>
               <th>地域</th>
               <th>绑定服务器</th>
-              <th>带宽</th>
+              <th>EIP 带宽</th>
               <th>计费</th>
               <th>状态</th>
             </tr>
