@@ -37,7 +37,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.24"
+APP_VERSION = "0.2.25"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 REGISTER_ATTEMPTS: dict[str, list[float]] = {}
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -5560,6 +5560,42 @@ def page_shell(
     .access-server-option b {{ color: var(--ink); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .access-server-option small {{ color: var(--muted); font-family: var(--font-mono); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .access-delete-form {{ margin-right: auto; }}
+    .member-notification-shell {{ margin: 0; width: 100%; }}
+    .member-notification-card {{ margin: 0; width: 100%; }}
+    .member-notification-card .card-body {{ padding: 24px; }}
+    .member-notification-intro {{
+      background: var(--surface-soft);
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 20px;
+      padding: 11px 13px;
+    }}
+    .member-notification-enable {{ margin-bottom: 14px; }}
+    .member-notification-enable .mb-3 {{ margin-bottom: 0 !important; }}
+    .member-notification-rule-grid {{
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }}
+    .member-notification-rule-grid .mb-3 {{ margin-bottom: 0 !important; }}
+    .member-notification-rule-grid .form-check {{ min-height: 26px; }}
+    .member-notification-credentials {{
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .member-notification-footer {{
+      align-items: center;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 16px 24px;
+    }}
+    .member-notification-footer > div {{ display: grid; gap: 2px; margin-right: auto; }}
+    .member-notification-footer strong {{ color: var(--ink); font-size: 13px; }}
+    .member-notification-footer span {{ color: var(--muted); font-size: 12px; }}
     @media (max-width: 1180px) {{
       .asset-workspace {{
         --asset-panel-height: auto;
@@ -5578,6 +5614,7 @@ def page_shell(
       .access-workspace {{ grid-template-columns: 1fr; }}
       .access-users-panel {{ position: static; }}
       .access-user-list {{ max-height: 260px; }}
+      .member-notification-rule-grid {{ grid-template-columns: 1fr; }}
     }}
     @media (max-width: 992px) {{
       html,
@@ -5645,6 +5682,7 @@ def page_shell(
       .container-xl {{ padding-left: 16px; padding-right: 16px; }}
       .credential-grid, .log-layout, .log-meta, .asset-filter-bar, .detail-grid, .traffic-primary-grid, .traffic-secondary-grid {{ grid-template-columns: 1fr; }}
       .access-registration-controls, .access-server-grid {{ grid-template-columns: 1fr; }}
+      .member-notification-credentials {{ grid-template-columns: 1fr; }}
       .total-chart-facts {{ grid-template-columns: 1fr; }}
       .daily-traffic-card {{ margin-left: 10px; margin-right: 10px; padding: 18px; }}
       .daily-chart-head {{ flex-direction: column; }}
@@ -7580,46 +7618,35 @@ def render_user_notifications_page(query: dict[str, list[str]] | None = None, us
     rules = config.get("rules", {})
     telegram = config.get("telegram", {})
     body = f"""
-      <div class="form-layout">
-        <form class="card save-form" method="post" action="/notifications/user/save" data-save-form>
+      <div class="member-notification-shell">
+        <form class="card save-form member-notification-card" method="post" action="/notifications/user/save" data-save-form>
           <div class="card-header"><h3 class="card-title">我的 Telegram 通知</h3></div>
           <div class="card-body">
-            <div class="setup-box">这套通知只会发送你被授权或自己创建的服务器事件，不会读取、修改或影响管理员的通知渠道。</div>
+            <div class="member-notification-intro">为当前账号范围内的服务器事件设置 Telegram 提醒。这里的设置仅作用于你的账号。</div>
             <section class="form-section">
               <h3 class="form-section-title">通知规则</h3>
-              {checkbox_field("enabled", "启用我的通知", bool(config.get("enabled")), "关闭后不会向你的 Telegram 发送提醒。")}
-              <div class="credential-grid">
+              <div class="member-notification-enable">{checkbox_field("enabled", "启用我的通知", bool(config.get("enabled")), "关闭后不会向你的 Telegram 发送提醒。")}</div>
+              <div class="member-notification-rule-grid">
                 {checkbox_field("notify_actions", "启停动作通知", bool(rules.get("notify_actions", True)), "自动启动、自动停机时发送。")}
                 {checkbox_field("notify_warnings", "流量预警通知", bool(rules.get("notify_warnings", True)), "服务器进入预警状态时发送一次。")}
+                {checkbox_field("notify_errors", "检查错误通知", bool(rules.get("notify_errors", True)), "接口或巡检错误变化时发送。")}
               </div>
-              {checkbox_field("notify_errors", "检查错误通知", bool(rules.get("notify_errors", True)), "接口或巡检错误变化时发送。")}
             </section>
             <section class="form-section">
               <h3 class="form-section-title">Telegram 接收端</h3>
-              {checkbox_field("telegram_enabled", "启用 Telegram Bot", bool(telegram.get("enabled")), "填写 Bot Token 和 Chat ID 后才会实际发送。")}
-              <div class="credential-grid">
+              <div class="member-notification-enable">{checkbox_field("telegram_enabled", "启用 Telegram Bot", bool(telegram.get("enabled")), "填写 Bot Token 和 Chat ID 后才会实际发送。")}</div>
+              <div class="member-notification-credentials">
                 {telegram_secret_field("telegram_bot_token", "Bot Token", "", placeholder="123456:ABC-DEF...", hint="留空会保留已保存的 Token；建议使用你自己的 Bot。")}
                 {telegram_chat_id_field("telegram_chat_id", "Chat ID", str(telegram.get("chat_id") or ""), placeholder="例如：123456789", hint="给机器人发送 /start 后，在 Telegram 工具或 Bot API 获取数字 Chat ID。")}
               </div>
             </section>
           </div>
-          <div class="card-footer d-flex align-items-center gap-2">
-            <button class="btn btn-primary ms-auto" type="submit" data-submit-button data-loading-text="正在保存...">保存我的通知</button>
+          <div class="card-footer member-notification-footer">
+            <div><strong>测试通知</strong><span>保存后发送一条消息，确认 Telegram 可以正常接收。</span></div>
+            <button class="btn" type="submit" formaction="/notifications/user/test" formmethod="post" data-submit-button data-loading-text="正在发送...">发送测试通知</button>
+            <button class="btn btn-primary" type="submit" data-submit-button data-loading-text="正在保存...">保存我的通知</button>
           </div>
         </form>
-        <aside class="card guide-panel">
-          <div class="card-header"><h3 class="card-title">通知范围</h3></div>
-          <div class="card-body">
-            <div class="guide-step"><strong>独立渠道</strong><span>你的 Bot Token 与 Chat ID 单独保存，管理员和其他用户不可见。</span></div>
-            <div class="guide-step"><strong>服务器隔离</strong><span>只会收到被授权服务器和自己创建服务器的告警。</span></div>
-            <div class="guide-step"><strong>不含远程命令</strong><span>个人 Bot 仅用于接收提醒；管理员的 Telegram 查询命令保持独立。</span></div>
-          </div>
-        </aside>
-      </div>
-      <div class="card mt-3">
-        <div class="card-header"><h3 class="card-title">测试通知</h3></div>
-        <div class="card-body"><p class="text-secondary mb-0">保存后可发送一条只属于你的测试消息。</p></div>
-        <div class="card-footer"><form method="post" action="/notifications/user/test"><button class="btn" type="submit">发送测试通知</button></form></div>
       </div>
     """
     return page_shell(
@@ -7662,7 +7689,7 @@ def send_user_notification_test(user: dict) -> dict:
     config = notifications.load_user_notification_config(username)
     return notifications.send_message(
         "Aliyun CDT Guard 个人测试通知",
-        f"你好，{username}。这条消息来自你的个人通知渠道；你只会收到被授权或自己创建服务器的告警。",
+        f"你好，{username}。这条消息来自你的个人通知渠道；你会收到当前账号范围内的服务器提醒。",
         {"type": "user_notification_test", "username": username},
         config,
     )
@@ -8322,10 +8349,10 @@ def render_user_security_page(query: dict[str, list[str]] | None = None, user: d
         <form class="card save-form" method="post" action="/security/user/save" data-save-form>
           <div class="card-header"><h3 class="card-title">修改我的密码</h3></div>
           <div class="card-body">
-            <div class="setup-box">这是你的个人面板密码，不会影响管理员账号、其他用户账号、阿里云 AccessKey 或服务器备注。保存后需要使用新密码重新登录。</div>
+            <div class="setup-box">这是你的个人面板密码。保存后需要使用新密码重新登录。</div>
             <section class="form-section">
               <div class="credential-grid">
-                {input_field("username", "当前用户名", username, hint="用户名由管理员创建；需要更名请联系管理员。", required=True)}
+                {input_field("username", "当前用户名", username, hint="当前版本暂不支持自助更名。", required=True)}
                 {readonly_password_field("当前密码（已保存）", "无需再次输入旧密码。")}
               </div>
             </section>

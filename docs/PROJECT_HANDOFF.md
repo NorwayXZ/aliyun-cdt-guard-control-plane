@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.24
+Current version: 0.2.25
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -333,6 +333,8 @@ Version 0.2.24 gives non-admin users isolated personal settings:
 - During guard checks, personal notifications are evaluated separately and only for server IDs explicitly assigned to the user or owned by that user.
 - Keep global administrator notifications and Telegram command polling separate from personal user notifications. Personal Bots are send-only and must not poll or reply to administrator commands.
 - `user_notifications.json` contains sensitive Bot Tokens and must remain mode `0600`.
+
+Version 0.2.25 makes the personal notification page a full-width, single-card workspace and removes administrator-facing language from the registered-user experience.
 
 ## Useful Verification
 
