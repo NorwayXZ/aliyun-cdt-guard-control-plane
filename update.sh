@@ -89,7 +89,6 @@ systemctl stop cdt-guard-control-plane-web.service >/dev/null 2>&1 || true
 echo "Updating program files..."
 install -d -m 700 "$INSTALL_DIR"
 install -m 755 "$TMP_DIR/source/guard.py" "$INSTALL_DIR/guard.py"
-install -m 644 "$TMP_DIR/source/provisioning.py" "$INSTALL_DIR/provisioning.py"
 install -m 644 "$TMP_DIR/source/cloudmonitor.py" "$INSTALL_DIR/cloudmonitor.py"
 install -m 755 "$TMP_DIR/source/web.py" "$INSTALL_DIR/web.py"
 install -m 644 "$TMP_DIR/source/notifications.py" "$INSTALL_DIR/notifications.py"
@@ -98,6 +97,28 @@ install -m 644 "$TMP_DIR/source/VERSION" "$INSTALL_DIR/VERSION"
 install -m 755 "$TMP_DIR/source/update.sh" "$INSTALL_DIR/update.sh"
 
 rm -rf "$INSTALL_DIR/ui-prototype"
+rm -f "$INSTALL_DIR/provisioning.py" "$INSTALL_DIR/deployment_state.json" "$INSTALL_DIR/deployment.lock"
+
+# Remove retired deployment templates and their saved AccessKeys.
+python3 - "$INSTALL_DIR/instances.json" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+if not isinstance(data, dict) or "deployment" not in data:
+    raise SystemExit(0)
+data.pop("deployment", None)
+temporary = path.with_suffix(path.suffix + ".tmp")
+temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+os.chmod(temporary, 0o600)
+temporary.replace(path)
+PY
 
 install -m 644 "$TMP_DIR/source/cdt-guard-control-plane.service" /etc/systemd/system/cdt-guard-control-plane.service
 install -m 644 "$TMP_DIR/source/cdt-guard-control-plane.timer" /etc/systemd/system/cdt-guard-control-plane.timer

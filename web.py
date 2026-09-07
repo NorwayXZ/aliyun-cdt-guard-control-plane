@@ -23,10 +23,6 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
 import notifications
-try:
-    import provisioning
-except ImportError:
-    provisioning = None
 
 BASE_DIR = Path(os.environ.get("CDT_GUARD_HOME", "/opt/aliyun-cdt-guard-control-plane"))
 WEB_ENV_FILE = BASE_DIR / "web.env"
@@ -41,7 +37,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.28"
+APP_VERSION = "0.2.29"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 REGISTER_ATTEMPTS: dict[str, list[float]] = {}
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -906,9 +902,6 @@ def flash_message(code: str) -> str:
         "telegram_chat_saved": "Telegram Chat ID 已追加到已保存渠道",
         "telegram_chat_removed": "Telegram Chat ID 已移除",
         "eip_saved": "EIP 带宽监控设置已保存，后台会在下一次巡检时刷新",
-        "deploy_saved": "自动部署配置已保存",
-        "deploy_started": "部署已成功创建实例并绑定 EIP",
-        "deploy_failed": "部署队列未能创建实例，请查看自动部署页面的失败记录",
         "domain_saved": "域名反代配置已保存，下面的配置片段已按新域名生成",
         "domain_applied": "已应用 Caddy 反代配置，请稍后用 HTTPS 域名访问",
         "domain_apply_domain_invalid": "域名格式不正确，请先填写类似 cdt.example.com 的完整域名",
@@ -1990,7 +1983,6 @@ def page_shell(
     config_nav = [
         ("/notifications", "notifications", "通知设置", "◉"),
         ("/eip", "eip", "EIP 带宽", "◎"),
-        ("/deploy", "deploy", "自动部署", "↯"),
         ("/domain", "domain", "域名反代", "⇄"),
         ("/security", "security", "账号安全", "◇"),
         ("/update", "update", "版本更新", "↥"),
@@ -7927,68 +7919,6 @@ def render_eip_page(query: dict[str, list[str]] | None = None, user: dict | None
         user=user,
     )
 
-
-def render_deployment_page(query: dict[str, list[str]] | None = None, user: dict | None = None) -> bytes:
-    query = query or {}
-    if provisioning is None:
-        body = '<div class="card"><div class="card-body">自动部署模块文件尚未安装。请在服务器终端执行一键更新后刷新本页。</div></div>'
-        return page_shell("deploy", "自动部署", "部署模块尚未就绪", body, actions='<a href="/" class="btn">返回主页</a>', user=user)
-    config = read_config()
-    deployment = provisioning.settings(config)
-    selected_id = query.get("account", [""])[0]
-    selected = next((item for item in deployment.get("accounts", []) if str(item.get("id") or "") == selected_id), {})
-    state = provisioning.read_json(provisioning.STATE_FILE, {})
-    rows = []
-    for account in sorted(deployment.get("accounts", []), key=lambda item: (int(item.get("priority") or 9999), str(item.get("label") or ""))):
-        account_id = str(account.get("id") or "")
-        rows.append(f'''<tr><td>{esc(account.get("priority") or "")}</td><td><strong>{esc(account.get("label") or account_id)}</strong><div class="asset-sub">{esc(mask_middle(account.get("access_key_id") or ""))}</div></td><td>{esc(region_display_text(account.get("region_id")))}</td><td>{esc(account.get("image_id") or "未填写")}</td><td>{esc(account.get("instance_type") or "自动严格匹配 2C/0.5G")}</td><td><a class="btn btn-sm" href="/deploy?account={esc(account_id)}">编辑</a></td></tr>''')
-    attempts = (state.get("last_failure") or {}).get("attempts") or []
-    attempt_html = "".join(f'<div class="asset-sub">{esc(item.get("account_id"))}：{esc(item.get("error") or "成功")}</div>' for item in attempts[-6:]) or '<div class="text-secondary small">暂无失败记录</div>'
-    account_id = str(selected.get("id") or "")
-    body = f'''
-      <div class="form-layout">
-        <div>
-          <form class="card save-form" method="post" action="/deploy/settings" data-save-form>
-            <div class="card-header"><h3 class="card-title">自动故障切换</h3></div>
-            <div class="card-body"><div class="setup-box">当前实例从运行中变为非预期停止时，系统从活动账号之后按优先级尝试下一账号。手动关机和面板主动停止不会触发。</div><div class="credential-grid">{checkbox_field("deploy_enabled", "启用自动部署模块", bool(deployment.get("enabled")), "默认关闭；开启后才允许执行部署。")}{checkbox_field("deploy_auto_failover", "启用自动故障切换", bool(deployment.get("auto_failover")), "触发后只创建一台成功实例，随后停止队列。")}</div></div>
-            <div class="card-footer"><button class="btn btn-primary ms-auto" type="submit">保存切换设置</button></div>
-          </form>
-          <div class="card mt-3"><div class="card-header"><h3 class="card-title">账号部署队列</h3><a class="btn btn-sm" href="/deploy">新增账号模板</a></div><div class="table-responsive"><table class="table"><thead><tr><th>优先级</th><th>账号</th><th>地域</th><th>共享镜像</th><th>实例规格</th><th></th></tr></thead><tbody>{''.join(rows) or '<tr><td colspan="6" class="text-secondary">还没有部署账号。</td></tr>'}</tbody></table></div></div>
-        </div>
-        <aside class="card guide-panel"><div class="card-header"><h3 class="card-title">最近部署状态</h3></div><div class="card-body"><div class="guide-step"><strong>当前活动实例</strong><span>{esc(state.get("active_instance_id") or "暂无")}</span></div><div class="guide-step"><strong>最近成功 EIP</strong><span>{esc((state.get("last_success") or {}).get("eip_address") or "暂无")}</span></div><div class="guide-step"><strong>最近失败</strong><span>{attempt_html}</span></div></div></aside>
-      </div>
-      <form class="card save-form mt-3" method="post" action="/deploy/account/save" data-save-form>
-        <div class="card-header"><h3 class="card-title">{ "编辑部署账号" if selected else "新增部署账号" }</h3></div>
-        <div class="card-body"><input type="hidden" name="original_id" value="{esc(account_id)}"><div class="setup-box">固定模板：2 vCPU / 0.5 GB、2 GB 系统盘、按月付费、共享镜像、精品 BGP EIP、EIP 自动绑定、全 TCP/UDP 端口。</div><div class="credential-grid">{input_field("label", "账号名称", selected.get("label", ""), required=True)}{input_field("priority", "尝试优先级", selected.get("priority", len(deployment.get("accounts", [])) + 1), "number", required=True)}</div><div class="credential-grid">{region_field("region_id", "部署地域", selected.get("region_id", ""), placeholder="选择香港、日本或新加坡", required=True)}{input_field("image_id", "共享镜像 ID", selected.get("image_id", ""), placeholder="m-xxxxxxxx", required=True)}</div><div class="credential-grid">{access_key_field("access_key_id", "阿里云 AccessKey ID", selected.get("access_key_id", ""), required=not bool(selected))}{access_key_field("access_key_secret", "阿里云 AccessKey Secret", "", "password", required=not bool(selected), hint="编辑时留空保留已保存 Secret。")}</div><div class="credential-grid">{input_field("vpc_id", "VPC ID", selected.get("vpc_id", ""), placeholder="vpc-xxxxxxxx", required=True)}{input_field("vswitch_id", "交换机 ID", selected.get("vswitch_id", ""), placeholder="vsw-xxxxxxxx", required=True)}</div><div class="credential-grid">{input_field("instance_type", "实例规格（可选）", selected.get("instance_type", ""), placeholder="留空：严格匹配 2C/0.5G")}{input_field("eip_bandwidth_mbps", "精品 BGP EIP 带宽 Mbps", selected.get("eip_bandwidth_mbps", deployment.get("eip_bandwidth_mbps", 200)), "number", required=True)}</div>{checkbox_field("enabled", "加入自动部署队列", bool(selected.get("enabled", True)), "关闭后该账号不会参与自动尝试。")}</div>
-        <div class="card-footer"><button class="btn btn-primary ms-auto" type="submit">保存账号模板</button></div>
-      </form>
-      <form class="mt-3" method="post" action="/deploy/run" onsubmit="return confirm('确认现在开始部署？系统会按账号队列创建 ECS、精品 BGP EIP 并开放全端口。')"><button class="btn btn-outline-primary" type="submit">立即按队列部署一台</button></form>
-    '''
-    return page_shell("deploy", "自动部署", "按账号优先级创建共享镜像实例与精品 BGP EIP", body, actions='<a href="/" class="btn">返回主页</a>', flash=query.get("flash", [""])[0], auto_refresh=False, user=user)
-
-
-def save_deployment_settings(fields: dict[str, list[str]]) -> None:
-    config = read_config()
-    deployment = provisioning.settings(config)
-    deployment["enabled"] = checked(fields, "deploy_enabled")
-    deployment["auto_failover"] = checked(fields, "deploy_auto_failover")
-    config["deployment"] = deployment
-    write_json(CONFIG_FILE, config)
-
-
-def save_deployment_account(fields: dict[str, list[str]]) -> None:
-    config = read_config()
-    deployment = provisioning.settings(config)
-    original_id = form_value(fields, "original_id")
-    existing = next((item for item in deployment["accounts"] if str(item.get("id") or "") == original_id), {})
-    account_id = original_id or f"deploy-{slug(form_value(fields, 'label'))}-{secrets.token_hex(3)}"
-    secret = form_value(fields, "access_key_secret") or existing.get("access_key_secret", "")
-    account = {"id": account_id, "label": form_value(fields, "label"), "priority": int(as_float(form_value(fields, "priority"), 9999)), "region_id": form_value(fields, "region_id"), "image_id": form_value(fields, "image_id"), "access_key_id": form_value(fields, "access_key_id") or existing.get("access_key_id", ""), "access_key_secret": secret, "vpc_id": form_value(fields, "vpc_id"), "vswitch_id": form_value(fields, "vswitch_id"), "instance_type": form_value(fields, "instance_type"), "eip_bandwidth_mbps": int(as_float(form_value(fields, "eip_bandwidth_mbps"), 200)), "enabled": checked(fields, "enabled")}
-    deployment["accounts"] = [item for item in deployment["accounts"] if str(item.get("id") or "") != account_id] + [account]
-    config["deployment"] = deployment
-    write_json(CONFIG_FILE, config)
-
-
 def default_domain_proxy_config() -> dict:
     env = load_env(WEB_ENV_FILE)
     return {
@@ -9659,12 +9589,6 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_bytes(render_eip_page(query, user=user), "text/html; charset=utf-8")
             return
-        if parsed.path == "/deploy":
-            if not is_admin(user):
-                self.send_access_denied()
-            else:
-                self.send_bytes(render_deployment_page(query, user=user), "text/html; charset=utf-8")
-            return
         if parsed.path == "/domain":
             if not is_admin(user):
                 self.send_access_denied()
@@ -9820,30 +9744,6 @@ class Handler(BaseHTTPRequestHandler):
             save_eip_settings(fields)
             start_guard_background()
             self.redirect("/eip?flash=eip_saved")
-            return
-        if parsed.path == "/deploy/settings":
-            if not is_admin(user):
-                self.send_access_denied()
-                return
-            save_deployment_settings(fields)
-            self.redirect("/deploy?flash=deploy_saved")
-            return
-        if parsed.path == "/deploy/account/save":
-            if not is_admin(user):
-                self.send_access_denied()
-                return
-            save_deployment_account(fields)
-            self.redirect("/deploy?flash=deploy_saved")
-            return
-        if parsed.path == "/deploy/run":
-            if not is_admin(user):
-                self.send_access_denied()
-                return
-            if provisioning is None:
-                self.redirect("/deploy?flash=deploy_failed")
-                return
-            result = provisioning.deploy_next()
-            self.redirect("/deploy?flash=deploy_started" if result.get("ok") else "/deploy?flash=deploy_failed")
             return
         if parsed.path == "/domain/save":
             if not is_admin(user):
