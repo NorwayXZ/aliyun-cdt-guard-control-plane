@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.26
+Current version: 0.2.27
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -346,6 +346,8 @@ Version 0.2.26 adds an administrator-only `自动部署` module:
 - Automatic failover only runs when explicitly enabled and when the active instance changes from `Running` to an unexpected stopped/missing state. It must not run after a manual stop or a panel-initiated stop.
 - RAM permissions: `ecs:RunInstances`, `ecs:DescribeInstanceTypes`, `vpc:CreateSecurityGroup`, `vpc:AuthorizeSecurityGroup`, `vpc:AllocateEipAddress`, `vpc:AssociateEipAddress`, plus the existing ECS/VPC read permissions.
 - Do not enable deployment by default. It creates billable resources. Keep the one-deployment lock and ordered fallback behavior intact.
+
+Version 0.2.27 runs the web service with the panel virtual environment, not system Python. Deployment API calls require the Alibaba Cloud SDK installed in that environment.
 
 ## Useful Verification
 
