@@ -37,7 +37,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.32"
+APP_VERSION = "0.2.33"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 REGISTER_ATTEMPTS: dict[str, list[float]] = {}
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -283,14 +283,7 @@ def can_view_server(user: dict | None, item: dict) -> bool:
 
 
 def can_manage_server(user: dict | None, item: dict) -> bool:
-    return bool(
-        is_admin(user)
-        or (
-            user
-            and user.get("role") == "operator"
-            and str(item.get("owner_username") or "") == str(user.get("username") or "")
-        )
-    )
+    return can_view_server(user, item)
 
 
 def can_create_servers(user: dict | None) -> bool:
@@ -7165,8 +7158,7 @@ def render_server_form_page(query: dict[str, list[str]] | None = None, user: dic
         return render_dashboard({"flash": ["access_denied"]}, user)
     if not edit_id and not can_create_servers(user):
         return render_dashboard({"flash": ["access_denied"]}, user)
-    own_config = {**config, "instances": [item for item in config.get("instances", []) if is_admin(user) or str(item.get("owner_username") or "") == str((user or {}).get("username") or "")]}
-    access_key_options = collect_access_key_options(own_config, edit_id)
+    access_key_options = collect_access_key_options(config_for_visible_instances(config, user), edit_id)
     body = f"""
     <div class="form-layout">
       <div>{render_form(editing, access_key_options)}</div>
