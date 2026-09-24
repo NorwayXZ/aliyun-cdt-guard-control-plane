@@ -1,7 +1,7 @@
 # Aliyun CDT Guard Control Plane - Project Handoff
 
 Last updated: 2026-08-20
-Current version: 0.2.33
+Current version: 0.2.34
 Repository: https://github.com/NorwayXZ/aliyun-cdt-guard-control-plane
 
 ## Project Goal
@@ -345,6 +345,8 @@ Version 0.2.31 adds a 24-hour cooldown for independent EIP target-bandwidth appl
 Version 0.2.32 allows shared-bandwidth-package EIPs to request their own target `EipBandwidth`. The panel never automatically unbinds the EIP from its shared bandwidth package.
 
 Version 0.2.33 gives every user full management rights for every server explicitly assigned to that user. The operator role only controls the ability to add new servers.
+
+Version 0.2.34 preserves server ownership when merging live status into the dashboard, so registered users receive edit/delete controls for their own servers. Deleting a server also removes its ID from every user's authorization list.
 
 ## Useful Verification
 

@@ -37,7 +37,7 @@ UPDATE_LOG_FILE = BASE_DIR / "last_update.log"
 UPDATE_SCRIPT_FILE = BASE_DIR / "update.sh"
 GUARD_LOCK_FILE = BASE_DIR / "guard.lock"
 WEB_GUARD_SPAWN_LOCK_FILE = BASE_DIR / "web_guard_spawn.lock"
-APP_VERSION = "0.2.33"
+APP_VERSION = "0.2.34"
 REPO_RAW_BASE_URL = "https://raw.githubusercontent.com/NorwayXZ/aliyun-cdt-guard-control-plane/main"
 REGISTER_ATTEMPTS: dict[str, list[float]] = {}
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -820,6 +820,16 @@ def merge_configured_status_instances(config: dict, status: dict) -> list[dict]:
         ]
     else:
         status_items = raw_status_items
+    configured_by_key = {
+        str(value): raw
+        for raw in config.get("instances", []) or []
+        for value in (raw.get("id"), raw.get("instance_id"))
+        if value
+    }
+    for item in status_items:
+        raw = configured_by_key.get(str(item.get("id") or item.get("instance_id") or ""))
+        if raw and raw.get("owner_username"):
+            item["owner_username"] = raw.get("owner_username")
     seen = {
         str(item.get("id") or item.get("instance_id"))
         for item in status_items
@@ -9400,13 +9410,7 @@ def save_server(fields: dict[str, list[str]], user: dict | None = None) -> str:
     saved_key_id = form_value(fields, "saved_access_key_id")
     access_key_id = form_value(fields, "access_key_id") or saved_key_id or existing.get("access_key_id", "")
     access_secret = form_value(fields, "access_key_secret")
-    reusable_config = {
-        **config,
-        "instances": [
-            item for item in config.get("instances", [])
-            if is_admin(user) or str(item.get("owner_username") or "") == str((user or {}).get("username") or "")
-        ],
-    }
+    reusable_config = config_for_visible_instances(config, user)
     saved_secret = saved_access_key_secret(reusable_config, saved_key_id or access_key_id)
     region_id = form_value(fields, "region_id") or existing.get("region_id", "")
     traffic_region_id = form_value(fields, "traffic_region_id") or region_id
@@ -9468,6 +9472,16 @@ def delete_server(server_id: str, user: dict | None = None) -> bool:
         if str(server.get("id")) != server_id
     ]
     write_json(CONFIG_FILE, config)
+    users_data = read_users()
+    users_changed = False
+    for member in users_data.get("users", []):
+        server_ids = [str(value) for value in member.get("server_ids", []) if str(value)]
+        filtered = [value for value in server_ids if value != server_id]
+        if filtered != server_ids:
+            member["server_ids"] = filtered
+            users_changed = True
+    if users_changed:
+        write_users(users_data)
     return True
 
 
